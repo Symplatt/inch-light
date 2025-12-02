@@ -1,6 +1,11 @@
+// 任务类型枚举
 enum TaskType { timer, daily, normal }
 
+// 计时模式枚举
 enum TimerMode { stopwatch, countdown }
+
+// 周期频率枚举
+enum CycleFrequency { daily, weekly, monthly, yearly }
 
 class TaskItem {
   String id;
@@ -64,6 +69,45 @@ class TaskItem {
       finishedAt: json['finishedAt'] != null
           ? DateTime.parse(json['finishedAt'])
           : null,
+    );
+  }
+}
+
+// 周期任务模型
+class CycleTask {
+  String id;
+  String title;
+  CycleFrequency frequency;
+  DateTime time; // 设定的具体时间（只取时分，或日期）
+  int? specificValue; // 周几(1-7) 或 月几(1-31)
+  DateTime nextRunTime; // 下一次提醒时间（用于排序）
+
+  CycleTask({
+    required this.id,
+    required this.title,
+    required this.frequency,
+    required this.time,
+    this.specificValue,
+    required this.nextRunTime,
+  });
+
+  Map<String, dynamic> toJson() => {
+    'id': id,
+    'title': title,
+    'frequency': frequency.index,
+    'time': time.toIso8601String(),
+    'specificValue': specificValue,
+    'nextRunTime': nextRunTime.toIso8601String(),
+  };
+
+  factory CycleTask.fromJson(Map<String, dynamic> json) {
+    return CycleTask(
+      id: json['id'],
+      title: json['title'],
+      frequency: CycleFrequency.values[json['frequency']],
+      time: DateTime.parse(json['time']),
+      specificValue: json['specificValue'],
+      nextRunTime: DateTime.parse(json['nextRunTime']),
     );
   }
 }

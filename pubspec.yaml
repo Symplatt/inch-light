@@ -16,7 +16,7 @@ publish_to: 'none' # Remove this line if you wish to publish to pub.dev
 # https://developer.apple.com/library/archive/documentation/General/Reference/InfoPlistKeyReference/Articles/CoreFoundationKeys.html
 # In Windows, build-name is used as the major, minor, and patch parts
 # of the product and file versions while build-number is used as the build suffix.
-version: 1.0.2+1
+version: 1.1.0+1
 
 environment:
   sdk: ^3.10.1
@@ -42,6 +42,9 @@ dependencies:
   fl_chart: ^1.1.1
   flutter_ringtone_player: ^4.0.0+4
   wakelock_plus: ^1.4.0
+  flutter_background_service: ^5.0.0 # 后台服务
+  flutter_local_notifications: ^17.0.0 # 本地通知
+  permission_handler: ^11.0.0 # 权限管理
 
 dev_dependencies:
   flutter_test:
@@ -64,6 +67,11 @@ flutter:
   # included with your application, so that you can use the icons in
   # the material Icons class.
   uses-material-design: true
+
+  fonts:
+    - family: ArtFont  # 这个名字必须和你代码里的 fontFamily 一致
+      fonts:
+        - asset: assets/fonts/MaShanZheng-Regular.ttf # 确保路径和文件名一个字都不差
 
   # To add assets to your application, add an assets section, like this:
   # assets:

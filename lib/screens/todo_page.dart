@@ -46,7 +46,6 @@ class _TodoPageState extends State<TodoPage> {
                     selected: showCompleted,
                     onTap: () => setState(() => showCompleted = true),
                   ),
-
                   const Spacer(),
                   InkWell(
                     onTap: () => _confirmClear(context, () {
@@ -94,7 +93,6 @@ class _TodoPageState extends State<TodoPage> {
             ),
           ],
         ),
-
         Positioned(
           right: 20,
           bottom: 20,
@@ -137,6 +135,12 @@ class _TodoPageState extends State<TodoPage> {
   }
 
   Widget _buildTodoCard(TaskItem task, AppProvider provider) {
+    // 判断是否超时
+    bool isOverdue = false;
+    if (task.deadline != null) {
+      isOverdue = task.deadline!.isBefore(DateTime.now());
+    }
+
     return Dismissible(
       key: Key(task.id),
       background: Container(
@@ -223,11 +227,12 @@ class _TodoPageState extends State<TodoPage> {
                               children: [
                                 if (task.deadline != null) ...[
                                   Icon(
-                                    Icons.calendar_today_outlined,
+                                    Icons.access_time_rounded, // 换个图标
                                     size: 12,
-                                    color: task.isCompleted
-                                        ? Colors.grey[300]
-                                        : Colors.red[300],
+                                    // 【修改点】超时变红，未超时变绿
+                                    color: isOverdue
+                                        ? Colors.red
+                                        : Colors.green[600],
                                   ),
                                   const SizedBox(width: 4),
                                   Text(
@@ -236,9 +241,11 @@ class _TodoPageState extends State<TodoPage> {
                                     ).format(task.deadline!),
                                     style: TextStyle(
                                       fontSize: 12,
-                                      color: task.isCompleted
-                                          ? Colors.grey[300]
-                                          : Colors.red[400],
+                                      fontWeight: FontWeight.bold,
+                                      // 【修改点】超时变红，未超时变绿
+                                      color: isOverdue
+                                          ? Colors.red
+                                          : Colors.green[600],
                                     ),
                                   ),
                                   const SizedBox(width: 10),
@@ -270,6 +277,7 @@ class _TodoPageState extends State<TodoPage> {
     );
   }
 
+  // 提取出来的通用日期选择器方法
   Future<DateTime?> _showCustomDatePicker(
     BuildContext context, {
     DateTime? initialTime,

@@ -360,7 +360,15 @@ class TimerPage extends StatelessWidget {
                     ),
                   ),
                   onPressed: () {
-                    if (tc.text.isEmpty) return;
+                    if (tc.text.trim().isEmpty) {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(
+                          content: Text("请确定名称"),
+                          duration: Duration(milliseconds: 1500),
+                        ),
+                      );
+                      return;
+                    }
                     int? target = (mode == TimerMode.countdown)
                         ? (h * 3600 + m * 60 + s)
                         : null;
