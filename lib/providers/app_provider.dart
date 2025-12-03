@@ -360,7 +360,7 @@ class AppProvider with ChangeNotifier {
       await _audioPlayer.setPlayerMode(PlayerMode.mediaPlayer);
 
       // 3. 播放
-      await _audioPlayer.play(AssetSource('audio/alarm0.mp3'));
+      await _audioPlayer.play(AssetSource('audio/alarm0.wav'));
 
       HapticFeedback.heavyImpact();
     } catch (e) {
