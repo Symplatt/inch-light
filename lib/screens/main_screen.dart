@@ -1,8 +1,9 @@
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart'; // 剪贴板
+import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 
 import '../constants/app_colors.dart';
+import '../models/task_model.dart'; // 引入 TaskItem
 import '../providers/app_provider.dart';
 import 'timer_page.dart';
 import 'todo_page.dart';
@@ -20,12 +21,22 @@ class _MainScreenState extends State<MainScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final provider = Provider.of<AppProvider>(context, listen: false);
+    final provider = Provider.of<AppProvider>(context);
 
+    // [新增] 聚焦模式拦截：如果处于聚焦模式，直接显示全黑界面
+    if (provider.isFocusMode && provider.activeTimerId != null) {
+      // 找到当前正在计时的任务
+      final activeTask = provider.timerTasks.firstWhere(
+        (t) => t.id == provider.activeTimerId,
+        orElse: () => TaskItem(id: '', title: '未知任务', type: TaskType.timer),
+      );
+      return _buildFocusModeView(context, provider, activeTask);
+    }
+
+    // 正常界面
     return Scaffold(
       body: Column(
         children: [
-          // 顶部导航栏
           Container(
             padding: EdgeInsets.fromLTRB(
               24,
@@ -48,7 +59,7 @@ class _MainScreenState extends State<MainScreen> {
                 const Text(
                   "寸光",
                   style: TextStyle(
-                    fontFamily: 'ArtFont', // 确保本地字体已配置
+                    fontFamily: 'ArtFont',
                     fontSize: 36,
                     fontWeight: FontWeight.w400,
                     color: Colors.white,
@@ -56,8 +67,6 @@ class _MainScreenState extends State<MainScreen> {
                   ),
                 ),
                 const Spacer(),
-
-                // 【新增】数据备份/恢复按钮
                 PopupMenuButton<String>(
                   onSelected: (value) {
                     if (value == 'export') _handleExport(context, provider);
@@ -118,9 +127,7 @@ class _MainScreenState extends State<MainScreen> {
               ],
             ),
           ),
-
           Expanded(child: _pages[_currentIndex]),
-
           Container(
             width: double.infinity,
             color: AppColors.bg,
@@ -137,7 +144,6 @@ class _MainScreenState extends State<MainScreen> {
           ),
         ],
       ),
-
       bottomNavigationBar: Container(
         decoration: BoxDecoration(
           color: Colors.white,
@@ -180,7 +186,88 @@ class _MainScreenState extends State<MainScreen> {
     );
   }
 
-  // 导出逻辑
+  // [新增] 构建聚焦模式全黑界面
+  Widget _buildFocusModeView(
+    BuildContext context,
+    AppProvider provider,
+    TaskItem task,
+  ) {
+    String timeStr = _formatDuration(task.durationSeconds);
+    if (task.timerMode == TimerMode.countdown) {
+      int remain = (task.targetSeconds ?? 0) - task.durationSeconds;
+      if (remain < 0) remain = 0;
+      timeStr = _formatDuration(remain);
+    }
+
+    return Scaffold(
+      backgroundColor: Colors.black, // 全黑背景
+      body: Stack(
+        children: [
+          Center(
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Text(
+                  task.title,
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontSize: 24,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+                const SizedBox(height: 20),
+                Text(
+                  timeStr,
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontSize: 60,
+                    fontFamily: 'Monospace',
+                    fontWeight: FontWeight.w300,
+                  ),
+                ),
+                const SizedBox(height: 10),
+                Text(
+                  "专注中...",
+                  style: TextStyle(color: Colors.grey[600], fontSize: 14),
+                ),
+              ],
+            ),
+          ),
+          // 右下角退出按钮
+          Positioned(
+            right: 30,
+            bottom: 50,
+            child: GestureDetector(
+              onTap: () => provider.exitFocusMode(),
+              child: Container(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 20,
+                  vertical: 10,
+                ),
+                decoration: BoxDecoration(
+                  border: Border.all(color: Colors.grey[800]!),
+                  borderRadius: BorderRadius.circular(30),
+                ),
+                child: const Row(
+                  children: [
+                    Icon(Icons.fullscreen_exit, color: Colors.white, size: 20),
+                    SizedBox(width: 8),
+                    Text("退出聚焦", style: TextStyle(color: Colors.white)),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  String _formatDuration(int sec) {
+    Duration d = Duration(seconds: sec);
+    return "${d.inHours}:${(d.inMinutes % 60).toString().padLeft(2, '0')}:${(d.inSeconds % 60).toString().padLeft(2, '0')}";
+  }
+
   void _handleExport(BuildContext context, AppProvider provider) {
     final jsonStr = provider.exportDataToJson();
     Clipboard.setData(ClipboardData(text: jsonStr));
@@ -189,7 +276,6 @@ class _MainScreenState extends State<MainScreen> {
     ).showSnackBar(const SnackBar(content: Text("数据已复制到剪贴板，请粘贴到备忘录保存")));
   }
 
-  // 导入逻辑
   void _handleImport(BuildContext context, AppProvider provider) async {
     final data = await Clipboard.getData(Clipboard.kTextPlain);
     if (data?.text == null || data!.text!.isEmpty) {
@@ -198,7 +284,6 @@ class _MainScreenState extends State<MainScreen> {
       ).showSnackBar(const SnackBar(content: Text("剪贴板为空")));
       return;
     }
-
     showDialog(
       context: context,
       builder: (ctx) => AlertDialog(

@@ -5,7 +5,7 @@ import 'package:flutter/services.dart';
 import 'package:intl/intl.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:uuid/uuid.dart';
-import 'package:flutter_ringtone_player/flutter_ringtone_player.dart';
+import 'package:audioplayers/audioplayers.dart'; // [新增] 音频插件
 import 'package:wakelock_plus/wakelock_plus.dart';
 import 'package:flutter_background_service/flutter_background_service.dart';
 
@@ -18,34 +18,39 @@ class AppProvider with ChangeNotifier {
   final List<TaskItem> _normalTasks = [];
   final List<CycleTask> _cycleTasks = [];
 
-  Timer? _timer;
+  Timer? _timer; // 主计时器
+  Timer? _focusModeTrigger; // [新增] 聚焦模式触发器
   String? _activeTimerId;
 
-  // 【关键修复】数据加载完成标志位
   bool _hasLoaded = false;
+  bool _isFocusMode = false; // [新增] 是否处于聚焦模式
+
+  // [新增] 音频播放器
+  final AudioPlayer _audioPlayer = AudioPlayer();
 
   List<TaskItem> get timerTasks => _timerTasks;
   List<TaskItem> get dailyTasks => _dailyTasks;
   List<TaskItem> get normalTasks => _normalTasks;
   List<CycleTask> get cycleTasks => _cycleTasks;
   String? get activeTimerId => _activeTimerId;
+  bool get isFocusMode => _isFocusMode; // Getter
 
   AppProvider() {
     _initData();
   }
 
-  // ==================== 数据持久化 (重写版) ====================
+  // ==================== 数据持久化 ====================
 
   Future<void> _initData() async {
     await _loadData();
-    _hasLoaded = true; // 只有加载完了，才允许保存
+    _hasLoaded = true;
     notifyListeners();
   }
 
   Future<void> _loadData() async {
     final prefs = await SharedPreferences.getInstance();
 
-    // 辅助加载函数：带异常捕获，防止一条坏数据炸掉整个列表
+    // 辅助加载函数
     void safeLoad(
       String key,
       List<dynamic> list,
@@ -69,31 +74,55 @@ class AppProvider with ChangeNotifier {
       }
     }
 
+    // 1. 加载数据
     safeLoad('timerTasks', _timerTasks, (e) => TaskItem.fromJson(e));
     safeLoad('dailyTasks', _dailyTasks, (e) => TaskItem.fromJson(e));
     safeLoad('normalTasks', _normalTasks, (e) => TaskItem.fromJson(e));
     safeLoad('cycleTasks', _cycleTasks, (e) => CycleTask.fromJson(e));
 
-    // 每日重置逻辑
+    // 2. 每日重置逻辑 (正常版)
+    String? lastOpenDate = prefs.getString('lastOpenDate');
+    String todayStr = DateFormat('yyyy-MM-dd').format(DateTime.now());
+
+    // 只有当“上次打开日期”不等于“今天”时，才重置
+    if (lastOpenDate != todayStr) {
+      for (var t in _dailyTasks) {
+        t.isCompleted = false;
+      }
+      for (var t in _timerTasks) {
+        t.durationSeconds = 0; // 专注时长归零
+      }
+
+      // 更新本地存储的日期为今天
+      prefs.setString('lastOpenDate', todayStr);
+    }
+
+    // 3. 重新计算周期
+    _recalcAllCycles();
+
+    // 4. 标记加载完成
+    _hasLoaded = true;
+    notifyListeners();
+  }
+
+  // 每日重置逻辑抽离
+  void _checkDailyReset(SharedPreferences prefs) {
     String? lastOpenDate = prefs.getString('lastOpenDate');
     String todayStr = DateFormat('yyyy-MM-dd').format(DateTime.now());
 
     if (lastOpenDate != todayStr) {
       for (var t in _dailyTasks) t.isCompleted = false;
+      // [需求] 每日0点自动重置专注模块
       for (var t in _timerTasks) t.durationSeconds = 0;
-      prefs.setString('lastOpenDate', todayStr);
-      // 这里不调用 _saveData，因为 _hasLoaded 还没变 true，我们只更新内存状态
-    }
 
-    _recalcAllCycles();
+      prefs.setString('lastOpenDate', todayStr);
+      // 注意：此处不直接 save，依赖后续操作或 _hasLoaded 后的保存
+    }
   }
 
   Future<void> _saveData() async {
-    // 【严重BUG修复】如果数据还没加载完，绝对禁止写入，否则会把空列表覆盖到硬盘
     if (!_hasLoaded) return;
-
     final prefs = await SharedPreferences.getInstance();
-    // 使用 await 确保写入完成
     await prefs.setString(
       'timerTasks',
       jsonEncode(_timerTasks.map((e) => e.toJson()).toList()),
@@ -116,15 +145,14 @@ class AppProvider with ChangeNotifier {
     );
   }
 
-  // ==================== 导入导出功能 ====================
-
+  // ==================== 导入导出 (保持原样) ====================
   String exportDataToJson() {
     final Map<String, dynamic> data = {
       'timerTasks': _timerTasks.map((e) => e.toJson()).toList(),
       'dailyTasks': _dailyTasks.map((e) => e.toJson()).toList(),
       'normalTasks': _normalTasks.map((e) => e.toJson()).toList(),
       'cycleTasks': _cycleTasks.map((e) => e.toJson()).toList(),
-      'version': '1.0.3',
+      'version': '1.0.4',
       'exportTime': DateTime.now().toIso8601String(),
     };
     return jsonEncode(data);
@@ -133,35 +161,28 @@ class AppProvider with ChangeNotifier {
   Future<bool> importDataFromJson(String jsonStr) async {
     try {
       final Map<String, dynamic> data = jsonDecode(jsonStr);
-
-      // 临时列表，防止解析一半失败导致数据丢失
       List<TaskItem> tempTimer = [];
       List<TaskItem> tempDaily = [];
       List<TaskItem> tempNormal = [];
       List<CycleTask> tempCycle = [];
 
-      if (data['timerTasks'] != null) {
+      if (data['timerTasks'] != null)
         tempTimer = (data['timerTasks'] as List)
             .map((e) => TaskItem.fromJson(e))
             .toList();
-      }
-      if (data['dailyTasks'] != null) {
+      if (data['dailyTasks'] != null)
         tempDaily = (data['dailyTasks'] as List)
             .map((e) => TaskItem.fromJson(e))
             .toList();
-      }
-      if (data['normalTasks'] != null) {
+      if (data['normalTasks'] != null)
         tempNormal = (data['normalTasks'] as List)
             .map((e) => TaskItem.fromJson(e))
             .toList();
-      }
-      if (data['cycleTasks'] != null) {
+      if (data['cycleTasks'] != null)
         tempCycle = (data['cycleTasks'] as List)
             .map((e) => CycleTask.fromJson(e))
             .toList();
-      }
 
-      // 解析成功，应用数据
       _timerTasks.clear();
       _timerTasks.addAll(tempTimer);
       _dailyTasks.clear();
@@ -171,17 +192,16 @@ class AppProvider with ChangeNotifier {
       _cycleTasks.clear();
       _cycleTasks.addAll(tempCycle);
 
-      _hasLoaded = true; // 强制标记为已加载
-      await _saveData(); // 立即保存
+      _hasLoaded = true;
+      await _saveData();
       notifyListeners();
       return true;
     } catch (e) {
-      debugPrint("导入失败: $e");
       return false;
     }
   }
 
-  // ==================== 业务逻辑 (保持不变，但每次操作都 await _saveData) ====================
+  // ==================== 专注计时逻辑 (核心修改) ====================
 
   void addTimerTask(String title, TimerMode mode, int? target) {
     _timerTasks.add(
@@ -224,6 +244,13 @@ class AppProvider with ChangeNotifier {
     notifyListeners();
   }
 
+  void clearAllTimerTasks() {
+    stopTimer();
+    _timerTasks.clear();
+    _saveData();
+    notifyListeners();
+  }
+
   void toggleTimer(String id) {
     if (_activeTimerId == id) {
       stopTimer();
@@ -233,22 +260,33 @@ class AppProvider with ChangeNotifier {
     }
   }
 
+  // [新增] 手动退出聚焦模式
+  void exitFocusMode() {
+    _isFocusMode = false;
+    notifyListeners();
+  }
+
   void _startTimer(String id) async {
     _activeTimerId = id;
     WakelockPlus.enable();
 
-    // 尝试启动服务，如果失败不影响主逻辑
     try {
       final service = FlutterBackgroundService();
-      if (!await service.isRunning()) {
-        service.startService();
-      }
-    } catch (e) {
-      debugPrint("服务启动失败: $e");
-    }
+      if (!await service.isRunning()) service.startService();
+    } catch (e) {}
+
+    DateTime lastTick = DateTime.now();
+
+    // [新增] 启动3分钟倒计时，触发聚焦模式
+    _focusModeTrigger?.cancel();
+    _focusModeTrigger = Timer(const Duration(seconds: 40), () {
+      _isFocusMode = true;
+      notifyListeners();
+    });
 
     notifyListeners();
-    _timer = Timer.periodic(const Duration(seconds: 1), (timer) {
+
+    _timer = Timer.periodic(const Duration(seconds: 1), (timer) async {
       int index = _timerTasks.indexWhere((t) => t.id == id);
       if (index == -1) {
         stopTimer();
@@ -256,17 +294,32 @@ class AppProvider with ChangeNotifier {
       }
       var task = _timerTasks[index];
 
+      // [需求] 实时检测跨天重置
+      final prefs = await SharedPreferences.getInstance();
+      String todayStr = DateFormat('yyyy-MM-dd').format(DateTime.now());
+      if (prefs.getString('lastOpenDate') != todayStr) {
+        _checkDailyReset(prefs);
+        notifyListeners();
+      }
+
+      DateTime now = DateTime.now();
+      int passed = now.difference(lastTick).inSeconds;
+      if (passed < 1) return;
+      lastTick = now;
+
       if (task.timerMode == TimerMode.stopwatch) {
-        task.durationSeconds++;
+        task.durationSeconds += passed;
       } else {
         if (task.durationSeconds < (task.targetSeconds ?? 0)) {
-          task.durationSeconds++;
+          task.durationSeconds += passed;
           if (task.durationSeconds >= (task.targetSeconds ?? 0)) {
-            stopTimer();
+            task.durationSeconds = task.targetSeconds ?? 0;
+            stopTimer(); // 倒计时结束，自动停止（也会退出聚焦模式）
             _playAlarm();
           }
         }
       }
+
       if (task.durationSeconds % 5 == 0) _saveData();
       notifyListeners();
     });
@@ -276,28 +329,46 @@ class AppProvider with ChangeNotifier {
     _timer?.cancel();
     _timer = null;
     _activeTimerId = null;
-    WakelockPlus.disable();
 
+    // [新增] 停止计时时，取消聚焦模式和触发器
+    _focusModeTrigger?.cancel();
+    _isFocusMode = false;
+
+    // [新增] 停止播放音乐
+    _audioPlayer.stop();
+
+    WakelockPlus.disable();
     try {
       final service = FlutterBackgroundService();
       service.invoke("stopService");
-    } catch (e) {
-      // 忽略服务停止错误
-    }
+    } catch (e) {}
 
     _saveData();
     notifyListeners();
   }
 
-  void _playAlarm() {
-    FlutterRingtonePlayer().playNotification(
-      looping: false,
-      volume: 1.0,
-      asAlarm: true,
-    );
-    HapticFeedback.heavyImpact();
+  void _playAlarm() async {
+    try {
+      // 1. 先停止之前可能正在播放的声音，防止重叠
+      await _audioPlayer.stop();
+
+      // 2. 设置为“停止模式”（播完一次就停）
+      await _audioPlayer.setReleaseMode(ReleaseMode.stop);
+
+      // 设置为“媒体播放模式”
+      // 默认的 lowLatency 模式容易切掉结尾，mediaPlayer 模式会完整缓冲
+      await _audioPlayer.setPlayerMode(PlayerMode.mediaPlayer);
+
+      // 3. 播放
+      await _audioPlayer.play(AssetSource('audio/alarm0.mp3'));
+
+      HapticFeedback.heavyImpact();
+    } catch (e) {
+      debugPrint("播放音效失败: $e");
+    }
   }
 
+  // ==================== 待办 & 周期 (保持不变) ====================
   void addTodoTask(
     String title,
     TaskType type, {
@@ -351,7 +422,6 @@ class AppProvider with ChangeNotifier {
     notifyListeners();
   }
 
-  // 周期任务逻辑
   void addCycleTask(
     String title,
     CycleFrequency freq,
@@ -406,7 +476,6 @@ class AppProvider with ChangeNotifier {
       time.hour,
       time.minute,
     );
-
     switch (freq) {
       case CycleFrequency.daily:
         if (target.isBefore(now)) target = target.add(const Duration(days: 1));
