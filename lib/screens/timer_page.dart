@@ -5,6 +5,7 @@ import '../constants/app_colors.dart';
 import '../models/task_model.dart';
 import '../providers/app_provider.dart';
 import '../widgets/common_widgets.dart';
+import 'main_screen.dart'; // 引入以使用 _showGlobalSettingsDialog
 
 class TimerPage extends StatelessWidget {
   const TimerPage({super.key});
@@ -13,55 +14,125 @@ class TimerPage extends StatelessWidget {
   Widget build(BuildContext context) {
     final provider = Provider.of<AppProvider>(context);
 
-    return Stack(
-      children: [
-        Column(
-          children: [
-            Expanded(
-              child: provider.timerTasks.isEmpty
-                  ? Center(
-                      child: Column(
-                        mainAxisAlignment: MainAxisAlignment.center,
+    // 获取当前正在计时的任务（用于黑屏显示）
+    TaskItem? activeTask;
+    if (provider.activeTimerId != null) {
+      try {
+        activeTask = provider.timerTasks.firstWhere(
+          (t) => t.id == provider.activeTimerId,
+        );
+      } catch (_) {}
+    }
+
+    return Scaffold(
+      backgroundColor: AppColors.bg,
+      appBar: AppBar(
+        backgroundColor: AppColors.bg,
+        elevation: 0,
+        centerTitle: false,
+        title: const Text(
+          '专注任务',
+          style: TextStyle(
+            color: AppColors.textDark,
+            fontWeight: FontWeight.bold,
+            fontSize: 24,
+          ),
+        ),
+        actions: [
+          // 需求2：Settings 按钮
+          IconButton(
+            icon: const Icon(
+              Icons.settings_outlined,
+              color: AppColors.textDark,
+            ),
+            onPressed: () => showGlobalSettingsDialog(context, provider),
+          ),
+        ],
+      ),
+      body: Stack(
+        children: [
+          // 正常列表层
+          Column(
+            children: [
+              Expanded(
+                child: provider.timerTasks.isEmpty
+                    ? Center(
+                        child: Column(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            Icon(
+                              Icons.timer_off_outlined,
+                              size: 60,
+                              color: Colors.grey[300],
+                            ),
+                            const SizedBox(height: 12),
+                            Text(
+                              "点击右下角添加专注任务",
+                              style: TextStyle(color: Colors.grey[400]),
+                            ),
+                          ],
+                        ),
+                      )
+                    : ListView(
+                        padding: const EdgeInsets.fromLTRB(16, 10, 16, 100),
                         children: [
-                          Icon(
-                            Icons.timer_off_outlined,
-                            size: 48,
-                            color: Colors.grey[300],
-                          ),
-                          const SizedBox(height: 12),
-                          Text(
-                            "点击右下角添加专注任务",
-                            style: TextStyle(color: Colors.grey[400]),
+                          ...provider.timerTasks.map(
+                            (task) => _buildTimerCard(context, task, provider),
                           ),
                         ],
                       ),
-                    )
-                  : ListView(
-                      padding: const EdgeInsets.fromLTRB(20, 10, 20, 100),
-                      children: [
-                        ...provider.timerTasks.map(
-                          (task) => _buildTimerCard(context, task, provider),
-                        ),
-                      ],
-                    ),
-            ),
-          ],
-        ),
-
-        Positioned(
-          right: 20,
-          bottom: 20,
-          child: FloatingActionButton(
-            heroTag: "timer_add",
-            backgroundColor: AppColors.textDark,
-            foregroundColor: Colors.white,
-            elevation: 4,
-            shape: const CircleBorder(),
-            child: const Icon(Icons.add),
-            onPressed: () => _showAddDialog(context),
+              ),
+            ],
           ),
-        ),
-      ],
+
+          // 需求5：专注增强模式（黑屏遮罩）
+          if (provider.isFocusMode && activeTask != null)
+            Positioned.fill(
+              child: GestureDetector(
+                onTap: () => provider.exitFocusMode(), // 点击退出黑屏
+                child: Container(
+                  color: Colors.black,
+                  alignment: Alignment.center,
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Text(
+                        activeTask.title,
+                        style: const TextStyle(
+                          color: Colors.white54,
+                          fontSize: 20,
+                        ),
+                      ),
+                      const SizedBox(height: 20),
+                      Text(
+                        _formatDuration(activeTask.durationSeconds),
+                        style: TextStyle(
+                          color:
+                              taskColors[activeTask.colorIndex %
+                                  taskColors.length],
+                          fontSize: 80,
+                          fontFamily: 'Monospace',
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                      const SizedBox(height: 40),
+                      const Text(
+                        "点击屏幕唤醒",
+                        style: TextStyle(color: Colors.white24, fontSize: 14),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+        ],
+      ),
+      floatingActionButton: FloatingActionButton(
+        heroTag: "timer_add",
+        backgroundColor: AppColors.primary,
+        onPressed: () => _showAddDialog(context),
+        child: const Icon(Icons.add, color: Colors.white),
+      ),
     );
   }
 
@@ -71,45 +142,32 @@ class TimerPage extends StatelessWidget {
     AppProvider provider,
   ) {
     bool isRunning = provider.activeTimerId == task.id;
-    // 如果 colorIndex 超出范围，给一个默认颜色
     Color themeColor =
         (task.colorIndex >= 0 && task.colorIndex < taskColors.length)
         ? taskColors[task.colorIndex]
         : taskColors[0];
     String timeStr = _formatDuration(task.durationSeconds);
 
-    if (task.timerMode == TimerMode.countdown) {
-      int remain = (task.targetSeconds ?? 0) - task.durationSeconds;
-      if (remain < 0) remain = 0;
-      timeStr = _formatDuration(remain);
-    }
-
     return Dismissible(
       key: Key(task.id),
+      direction: DismissDirection.endToStart,
+      onDismissed: (_) => provider.deleteTimerTask(task),
       background: Container(
         margin: const EdgeInsets.only(bottom: 16),
         decoration: BoxDecoration(
-          color: Colors.red[100],
+          color: AppColors.danger,
           borderRadius: BorderRadius.circular(20),
         ),
         alignment: Alignment.centerRight,
         padding: const EdgeInsets.only(right: 20),
-        child: const Icon(Icons.delete, color: Colors.red),
+        child: const Icon(Icons.delete, color: Colors.white),
       ),
-      direction: DismissDirection.endToStart,
-      onDismissed: (_) => provider.deleteTimerTask(task), // 修复：传入 task 对象
       child: Container(
         margin: const EdgeInsets.only(bottom: 16),
         decoration: BoxDecoration(
           color: Colors.white,
           borderRadius: BorderRadius.circular(20),
-          boxShadow: [
-            BoxShadow(
-              color: Colors.black.withValues(alpha: 0.03),
-              blurRadius: 12,
-              offset: const Offset(0, 4),
-            ),
-          ],
+          boxShadow: AppColors.shadow,
         ),
         child: ClipRRect(
           borderRadius: BorderRadius.circular(20),
@@ -133,7 +191,7 @@ class TimerPage extends StatelessWidget {
                 child: Row(
                   children: [
                     GestureDetector(
-                      onTap: () => provider.toggleTimer(task), // 修复：传入 task 对象
+                      onTap: () => provider.toggleTimer(task),
                       child: AnimatedContainer(
                         duration: const Duration(milliseconds: 200),
                         width: 56,
@@ -223,8 +281,6 @@ class TimerPage extends StatelessWidget {
       context: context,
       builder: (ctx) => AlertDialog(
         backgroundColor: Colors.white,
-        surfaceTintColor: Colors.transparent,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
         title: Center(
           child: Text(
             task.title,
@@ -241,21 +297,21 @@ class TimerPage extends StatelessWidget {
                 _showRenameDialog(context, provider, task);
               },
             ),
-            const Divider(height: 1, indent: 20, endIndent: 20),
+            const Divider(height: 1),
             ListTile(
               title: const Center(child: Text("重置时间")),
               onTap: () {
-                provider.resetTimerTask(task); // 修复：传入 task 对象
+                provider.resetTimerTask(task);
                 Navigator.pop(ctx);
               },
             ),
-            const Divider(height: 1, indent: 20, endIndent: 20),
+            const Divider(height: 1),
             ListTile(
               title: const Center(
                 child: Text("删除任务", style: TextStyle(color: Colors.red)),
               ),
               onTap: () {
-                provider.deleteTimerTask(task); // 修复：传入 task 对象
+                provider.deleteTimerTask(task);
                 Navigator.pop(ctx);
               },
             ),
@@ -357,30 +413,20 @@ class TimerPage extends StatelessWidget {
                 child: ElevatedButton(
                   style: ElevatedButton.styleFrom(
                     backgroundColor: AppColors.textDark,
+                    // 需求1：按钮文字高亮
                     foregroundColor: Colors.white,
-                    elevation: 0,
                     shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(16),
                     ),
                   ),
                   onPressed: () {
-                    if (tc.text.trim().isEmpty) {
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(
-                          content: Text("请确定名称"),
-                          duration: Duration(milliseconds: 1500),
-                        ),
-                      );
-                      return;
-                    }
+                    if (tc.text.trim().isEmpty) return;
                     int? target = (mode == TimerMode.countdown)
                         ? (h * 3600 + m * 60 + s)
                         : null;
                     if (mode == TimerMode.countdown &&
-                        (target == null || target == 0)) {
+                        (target == null || target == 0))
                       return;
-                    }
-                    // 修复：正确调用 Provider 的 addTimerTask
                     Provider.of<AppProvider>(
                       context,
                       listen: false,
@@ -423,7 +469,7 @@ class TimerPage extends StatelessWidget {
           TextButton(
             onPressed: () {
               if (tc.text.isNotEmpty) {
-                provider.renameTimerTask(task, tc.text); // 修复：传入 task
+                provider.renameTimerTask(task, tc.text);
                 Navigator.pop(ctx);
               }
             },

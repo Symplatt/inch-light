@@ -1,26 +1,41 @@
 import 'package:flutter/material.dart';
 
 class AppColors {
-  static const Color primary = Color(0xFF4F46E5); // Indigo 600
-  static const Color primaryLight = Color(0xFF818CF8); // Indigo 400
-  static const Color bg = Color(0xFFF9FAFB);
-  static const Color cardBg = Colors.white;
-  static const Color textDark = Color(0xFF1F2937); // Gray 800
-  static const Color textGray = Color(0xFF6B7280); // Gray 500
+  // 主色调：深海蓝与活力橙
+  static const Color primary = Color(0xFF2B2E4A);
+  static const Color accent = Color(0xFFE84545);
+
+  // 背景色
+  static const Color bg = Color(0xFFF5F7FA);
+  static const Color surface = Colors.white;
+
+  // 文本颜色
+  static const Color textDark = Color(0xFF1A1A1A);
+  static const Color textGrey = Color(0xFF909399);
+
+  // 功能色
+  static const Color success = Color(0xFF67C23A);
+  static const Color warning = Color(0xFFE6A23C);
+  static const Color danger = Color(0xFFF56C6C);
+
+  // 阴影样式
+  static List<BoxShadow> get shadow => [
+    BoxShadow(
+      color: const Color(0xFF000000).withValues(alpha: 0.05),
+      offset: const Offset(0, 4),
+      blurRadius: 16,
+      spreadRadius: 0,
+    ),
+  ];
 }
 
-final List<Color> taskColors = [
-  const Color(0xFFF87171), // Red
-  const Color(0xFFFBBF24), // Amber
-  const Color(0xFF34D399), // Emerald
-  const Color(0xFF60A5FA), // Blue
-  const Color(0xFF818CF8), // Indigo
-  const Color(0xFFA78BFA), // Violet
-  const Color(0xFFF472B6), // Pink
-  const Color(0xFFFB923C), // Orange
-  const Color(0xFFA3E635), // Lime
-  const Color(0xFF2DD4BF), // Teal
-  const Color(0xFF22D3EE), // Cyan
-  const Color(0xFFE879F9), // Fuchsia
-  const Color(0xFF94A3B8), // Slate
+// 【关键修复】定义在类外面的顶层变量，这样 TimerPage 就能直接用 taskColors[...] 了
+const List<Color> taskColors = [
+  Color(0xFFFF5252), // 热情红
+  Color(0xFFFFB74D), // 活力橙
+  Color(0xFFFFD740), // 柠檬黄
+  Color(0xFF69F0AE), // 清新绿
+  Color(0xFF40C4FF), // 天空蓝
+  Color(0xFF536DFE), // 深邃蓝
+  Color(0xFFE040FB), // 神秘紫
 ];

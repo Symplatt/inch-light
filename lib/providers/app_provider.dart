@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:convert';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:uuid/uuid.dart';
 import 'package:audioplayers/audioplayers.dart';
@@ -8,6 +9,7 @@ import 'package:wakelock_plus/wakelock_plus.dart';
 import 'package:flutter_background_service/flutter_background_service.dart';
 
 import '../models/task_model.dart';
+import '../constants/app_colors.dart'; // 需要读取 taskColors 长度
 
 class AppProvider with ChangeNotifier, WidgetsBindingObserver {
   final List<TaskItem> _timerTasks = [];
@@ -17,10 +19,9 @@ class AppProvider with ChangeNotifier, WidgetsBindingObserver {
   List<TaskCollection> _collections = [];
 
   Timer? _timer;
-  Timer? _focusModeTrigger; // 如果后续做专注模式触发器会用到，暂保留
+  Timer? _focusModeTrigger; // 20秒自动进入沉浸模式的触发器
   String? _activeTimerId;
-
-  bool _isFocusMode = false;
+  bool _isFocusMode = false; // 是否处于沉浸黑屏模式
   int _lastPageIndex = 0;
 
   final AudioPlayer _audioPlayer = AudioPlayer();
@@ -35,7 +36,7 @@ class AppProvider with ChangeNotifier, WidgetsBindingObserver {
   bool get isFocusMode => _isFocusMode;
   int get lastPageIndex => _lastPageIndex;
 
-  // 排序后的普通任务
+  // 排序保持不变
   List<TaskItem> get sortedNormalTasks {
     List<TaskItem> tasks = List.from(_normalTasks);
     tasks.sort((a, b) {
@@ -85,8 +86,7 @@ class AppProvider with ChangeNotifier, WidgetsBindingObserver {
     }
   }
 
-  // ================= 数据初始化 =================
-
+  // ... (InitData, LoadData, SaveData, CheckReset, SetLastPage, Export/Import 逻辑保持不变)
   Future<void> _initData() async {
     await _loadData();
     notifyListeners();
@@ -94,7 +94,6 @@ class AppProvider with ChangeNotifier, WidgetsBindingObserver {
 
   Future<void> _loadData() async {
     final prefs = await SharedPreferences.getInstance();
-
     void safeLoad(
       String key,
       List<dynamic> list,
@@ -105,9 +104,7 @@ class AppProvider with ChangeNotifier, WidgetsBindingObserver {
         try {
           final List<dynamic> decoded = json.decode(jsonString);
           list.clear();
-          for (var item in decoded) {
-            list.add(parser(item));
-          }
+          for (var item in decoded) list.add(parser(item));
         } catch (e) {
           debugPrint("Error parsing $key: $e");
         }
@@ -118,7 +115,6 @@ class AppProvider with ChangeNotifier, WidgetsBindingObserver {
     safeLoad('daily_tasks', _dailyTasks, (json) => TaskItem.fromJson(json));
     safeLoad('normal_tasks', _normalTasks, (json) => TaskItem.fromJson(json));
     safeLoad('cycle_tasks', _cycleTasks, (json) => CycleTask.fromJson(json));
-
     final collectionsJson = prefs.getString('collections_data');
     if (collectionsJson != null) {
       try {
@@ -128,7 +124,6 @@ class AppProvider with ChangeNotifier, WidgetsBindingObserver {
         debugPrint("Error parsing collections: $e");
       }
     }
-
     _lastPageIndex = prefs.getInt('last_page_index') ?? 0;
     await _checkAndResetDailyTasks();
   }
@@ -137,7 +132,6 @@ class AppProvider with ChangeNotifier, WidgetsBindingObserver {
     final prefs = await SharedPreferences.getInstance();
     String encode(List<dynamic> list) =>
         json.encode(list.map((e) => e.toJson()).toList());
-
     await prefs.setString('timer_tasks', encode(_timerTasks));
     await prefs.setString('daily_tasks', encode(_dailyTasks));
     await prefs.setString('normal_tasks', encode(_normalTasks));
@@ -150,7 +144,6 @@ class AppProvider with ChangeNotifier, WidgetsBindingObserver {
     final String lastResetDateStr =
         prefs.getString('last_daily_reset_date') ?? '';
     final String todayStr = DateTime.now().toIso8601String().split('T')[0];
-
     if (lastResetDateStr != todayStr) {
       bool hasChanges = false;
       for (var task in _dailyTasks) {
@@ -168,8 +161,6 @@ class AppProvider with ChangeNotifier, WidgetsBindingObserver {
     }
   }
 
-  // ================= 页面记忆 =================
-
   void setLastPageIndex(int index) {
     _lastPageIndex = index;
     SharedPreferences.getInstance().then((prefs) {
@@ -177,9 +168,45 @@ class AppProvider with ChangeNotifier, WidgetsBindingObserver {
     });
   }
 
-  // ================= 任务操作方法 =================
+  String exportData() {
+    final data = {
+      'timer_tasks': _timerTasks.map((e) => e.toJson()).toList(),
+      'daily_tasks': _dailyTasks.map((e) => e.toJson()).toList(),
+      'normal_tasks': _normalTasks.map((e) => e.toJson()).toList(),
+      'cycle_tasks': _cycleTasks.map((e) => e.toJson()).toList(),
+      'collections': _collections.map((e) => e.toJson()).toList(),
+    };
+    return jsonEncode(data);
+  }
 
-  // --- 合集 ---
+  Future<bool> importData(String jsonString) async {
+    try {
+      final Map<String, dynamic> data = jsonDecode(jsonString);
+      void loadList(String key, List list, Function parser) {
+        if (data[key] != null) {
+          list.clear();
+          for (var item in data[key]) list.add(parser(item));
+        }
+      }
+
+      loadList('timer_tasks', _timerTasks, (e) => TaskItem.fromJson(e));
+      loadList('daily_tasks', _dailyTasks, (e) => TaskItem.fromJson(e));
+      loadList('normal_tasks', _normalTasks, (e) => TaskItem.fromJson(e));
+      loadList('cycle_tasks', _cycleTasks, (e) => CycleTask.fromJson(e));
+      if (data['collections'] != null) {
+        _collections = (data['collections'] as List)
+            .map((e) => TaskCollection.fromJson(e))
+            .toList();
+      }
+      await _saveData();
+      notifyListeners();
+      return true;
+    } catch (e) {
+      debugPrint("Import failed: $e");
+      return false;
+    }
+  }
+
   void addCollection(String title) {
     _collections.add(TaskCollection(id: const Uuid().v4(), title: title));
     _saveData();
@@ -195,10 +222,30 @@ class AppProvider with ChangeNotifier, WidgetsBindingObserver {
     }
   }
 
-  // --- 通用任务操作 ---
-  void addTaskToCollection(TaskItem task, String? collectionId) {
-    task.collectionId = collectionId;
-    _normalTasks.add(task);
+  void addNormalTask(
+    String title, {
+    DateTime? deadline,
+    String? collectionId,
+    List<String> tags = const [],
+  }) {
+    _normalTasks.add(
+      TaskItem(
+        id: const Uuid().v4(),
+        title: title,
+        type: TaskType.normal,
+        deadline: deadline,
+        collectionId: collectionId,
+        tags: tags,
+      ),
+    );
+    _saveData();
+    notifyListeners();
+  }
+
+  void addDailyTask(String title) {
+    _dailyTasks.add(
+      TaskItem(id: const Uuid().v4(), title: title, type: TaskType.daily),
+    );
     _saveData();
     notifyListeners();
   }
@@ -207,35 +254,44 @@ class AppProvider with ChangeNotifier, WidgetsBindingObserver {
     if (task.type == TaskType.timer) _timerTasks.remove(task);
     if (task.type == TaskType.daily) _dailyTasks.remove(task);
     if (task.type == TaskType.normal) _normalTasks.remove(task);
-
-    if (task.type == TaskType.timer && _activeTimerId == task.id) {
-      stopTimer();
-    }
-
+    if (task.type == TaskType.timer && _activeTimerId == task.id) stopTimer();
     _saveData();
     notifyListeners();
   }
 
-  // 包装方法：接收 TaskItem 以匹配 TimerPage 逻辑
-  void deleteTimerTask(TaskItem task) {
-    removeTask(task);
-  }
+  // --- 专注逻辑升级 ---
 
-  void removeCycleTask(CycleTask task) {
-    _cycleTasks.remove(task);
+  // 需求4：每个新建任务颜色轮流 (index % 7)
+  void addTimerTask(
+    String title, {
+    TimerMode mode = TimerMode.stopwatch,
+    int? targetSeconds,
+  }) {
+    int nextColorIndex = _timerTasks.length % taskColors.length; // 自动分配颜色
+    _timerTasks.add(
+      TaskItem(
+        id: const Uuid().v4(),
+        title: title,
+        type: TaskType.timer,
+        timerMode: mode,
+        targetSeconds: targetSeconds,
+        durationSeconds: mode == TimerMode.countdown ? (targetSeconds ?? 0) : 0,
+        colorIndex: nextColorIndex,
+      ),
+    );
     _saveData();
     notifyListeners();
   }
 
-  void toggleTaskCompletion(TaskItem task) {
-    task.isCompleted = !task.isCompleted;
-    task.finishedAt = task.isCompleted ? DateTime.now() : null;
-    _saveData();
-    notifyListeners();
-  }
+  void deleteTimerTask(TaskItem task) => removeTask(task);
+  void toggleTimer(TaskItem task) =>
+      _activeTimerId == task.id ? stopTimer() : startTimer(task.id);
 
-  void toggleTaskPin(TaskItem task) {
-    task.isPinned = !task.isPinned;
+  void resetTimerTask(TaskItem task) {
+    if (_activeTimerId == task.id) stopTimer();
+    task.durationSeconds = task.timerMode == TimerMode.countdown
+        ? (task.targetSeconds ?? 0)
+        : 0;
     _saveData();
     notifyListeners();
   }
@@ -246,42 +302,16 @@ class AppProvider with ChangeNotifier, WidgetsBindingObserver {
     notifyListeners();
   }
 
-  void updateTaskColor(TaskItem task, int colorIndex) {
-    task.colorIndex = colorIndex;
-    _saveData();
-    notifyListeners();
-  }
-
-  // --- 计时器逻辑 ---
-
-  // 修复：支持传入模式和目标时间
-  void addTimerTask(
-    String title, {
-    TimerMode mode = TimerMode.stopwatch,
-    int? targetSeconds,
-  }) {
-    _timerTasks.add(
-      TaskItem(
-        id: const Uuid().v4(),
-        title: title,
-        type: TaskType.timer,
-        timerMode: mode,
-        targetSeconds: targetSeconds,
-        durationSeconds: mode == TimerMode.countdown ? (targetSeconds ?? 0) : 0,
-      ),
-    );
-    _saveData();
-    notifyListeners();
-  }
-
   void startTimer(String taskId) {
     if (_activeTimerId != null && _activeTimerId != taskId) return;
-
     final task = _timerTasks.firstWhere((e) => e.id == taskId);
     _activeTimerId = taskId;
 
     WakelockPlus.enable();
     FlutterBackgroundService().invoke("setAsForeground");
+
+    // 需求5：开启20秒自动进入专注增强模式
+    _resetFocusTrigger();
 
     _timer = Timer.periodic(const Duration(seconds: 1), (timer) {
       if (task.timerMode == TimerMode.stopwatch) {
@@ -304,59 +334,43 @@ class AppProvider with ChangeNotifier, WidgetsBindingObserver {
     _timer?.cancel();
     _timer = null;
     _activeTimerId = null;
+    _focusModeTrigger?.cancel(); // 停止计时则取消黑屏触发
+    _isFocusMode = false; // 退出黑屏
     WakelockPlus.disable();
     FlutterBackgroundService().invoke("setAsBackground");
     _saveData();
     notifyListeners();
   }
 
-  void toggleTimer(TaskItem task) {
-    if (_activeTimerId == task.id) {
-      stopTimer();
-    } else {
-      startTimer(task.id);
+  // 触发 20秒 倒计时
+  void _resetFocusTrigger() {
+    _focusModeTrigger?.cancel();
+    if (_activeTimerId != null) {
+      _focusModeTrigger = Timer(const Duration(seconds: 20), () {
+        _isFocusMode = true;
+        notifyListeners();
+      });
     }
   }
 
-  void resetTimerTask(TaskItem task) {
-    if (_activeTimerId == task.id) {
-      stopTimer();
+  // 用户点击屏幕唤醒时调用
+  void exitFocusMode() {
+    if (_activeTimerId != null) {
+      _isFocusMode = false;
+      _resetFocusTrigger(); // 重置20秒
+      notifyListeners();
     }
-    if (task.timerMode == TimerMode.countdown) {
-      task.durationSeconds = task.targetSeconds ?? 0;
-    } else {
-      task.durationSeconds = 0;
-    }
-    _saveData();
-    notifyListeners();
-  }
-
-  void toggleTimerMode(TaskItem task) {
-    if (_activeTimerId == task.id) return;
-    task.timerMode = task.timerMode == TimerMode.stopwatch
-        ? TimerMode.countdown
-        : TimerMode.stopwatch;
-    _saveData();
-    notifyListeners();
   }
 
   Future<void> _playAlarm() async {
     try {
       await _audioPlayer.play(AssetSource('audio/alarm0.wav'));
     } catch (e) {
-      debugPrint("Play alarm failed: $e");
+      debugPrint("$e");
     }
   }
 
-  void toggleFocusMode() {
-    _isFocusMode = !_isFocusMode;
-    if (!_isFocusMode) {
-      _focusModeTrigger?.cancel();
-    }
-    notifyListeners();
-  }
-
-  // --- 周期任务 ---
+  // 周期逻辑
   void addCycleTask(String title, CycleFrequency frequency, DateTime time) {
     _cycleTasks.add(
       CycleTask(
@@ -371,9 +385,16 @@ class AppProvider with ChangeNotifier, WidgetsBindingObserver {
     notifyListeners();
   }
 
+  void removeCycleTask(CycleTask task) {
+    _cycleTasks.remove(task);
+    _saveData();
+    notifyListeners();
+  }
+
   DateTime _calculateNextRunTime(DateTime startTime, CycleFrequency frequency) {
     DateTime now = DateTime.now();
     DateTime next = startTime;
+    if (next.isAfter(now)) return next;
     while (next.isBefore(now)) {
       switch (frequency) {
         case CycleFrequency.daily:
@@ -383,25 +404,60 @@ class AppProvider with ChangeNotifier, WidgetsBindingObserver {
           next = next.add(const Duration(days: 7));
           break;
         case CycleFrequency.monthly:
+          int nextMonth = next.month + 1;
+          int nextYear = next.year;
+          if (nextMonth > 12) {
+            nextMonth = 1;
+            nextYear++;
+          }
+          int maxDays = DateTime(nextYear, nextMonth + 1, 0).day;
+          int nextDay = startTime.day > maxDays ? maxDays : startTime.day;
           next = DateTime(
-            next.year,
-            next.month + 1,
-            next.day,
-            next.hour,
-            next.minute,
+            nextYear,
+            nextMonth,
+            nextDay,
+            startTime.hour,
+            startTime.minute,
           );
           break;
         case CycleFrequency.yearly:
+          int nextYearly = next.year + 1;
+          int nextDayYearly = startTime.day;
+          if (startTime.month == 2 && startTime.day == 29) {
+            bool isLeap =
+                (nextYearly % 4 == 0 && nextYearly % 100 != 0) ||
+                (nextYearly % 400 == 0);
+            if (!isLeap) nextDayYearly = 28;
+          }
           next = DateTime(
-            next.year + 1,
-            next.month,
-            next.day,
-            next.hour,
-            next.minute,
+            nextYearly,
+            startTime.month,
+            nextDayYearly,
+            startTime.hour,
+            startTime.minute,
           );
           break;
       }
     }
     return next;
+  }
+
+  void toggleTaskCompletion(TaskItem task) {
+    task.isCompleted = !task.isCompleted;
+    task.finishedAt = task.isCompleted ? DateTime.now() : null;
+    _saveData();
+    notifyListeners();
+  }
+
+  void toggleTaskPin(TaskItem task) {
+    task.isPinned = !task.isPinned;
+    _saveData();
+    notifyListeners();
+  }
+
+  void toggleFocusMode() {
+    _isFocusMode = !_isFocusMode;
+    if (!_isFocusMode) _focusModeTrigger?.cancel();
+    notifyListeners();
   }
 }

@@ -3,6 +3,7 @@ allprojects {
         // 阿里云镜像
         maven { url = uri("https://maven.aliyun.com/repository/google") }
         maven { url = uri("https://maven.aliyun.com/repository/public") }
+        maven { url = uri("https://maven.aliyun.com/repository/gradle-plugin") }
         
         // 原有源作为备用
         google()
