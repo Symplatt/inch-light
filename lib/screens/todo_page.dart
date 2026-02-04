@@ -6,7 +6,7 @@ import 'package:intl/intl.dart';
 import '../providers/app_provider.dart';
 import '../models/task_model.dart';
 import '../constants/app_colors.dart';
-import 'main_screen.dart'; // 引入通用设置弹窗
+import 'main_screen.dart';
 
 class TodoPage extends StatelessWidget {
   const TodoPage({super.key});
@@ -34,21 +34,20 @@ class TodoPage extends StatelessWidget {
               ),
             ),
             actions: [
-              // 需求2：齿轮按钮
-              IconButton(
-                icon: const Icon(
-                  Icons.settings_outlined,
-                  color: AppColors.textDark,
-                ),
-                onPressed: () => showGlobalSettingsDialog(context, provider),
-              ),
-              // 需求2：合集按钮在齿轮右边
+              // 【修改点】按钮顺序交换：合集在左，设置在右
               IconButton(
                 icon: const Icon(
                   Icons.create_new_folder_outlined,
                   color: AppColors.textDark,
                 ),
                 onPressed: () => _showAddCollectionDialog(context),
+              ),
+              IconButton(
+                icon: const Icon(
+                  Icons.settings_outlined,
+                  color: AppColors.textDark,
+                ),
+                onPressed: () => showGlobalSettingsDialog(context, provider),
               ),
             ],
           ),
@@ -138,35 +137,51 @@ class TodoPage extends StatelessWidget {
     List<TaskItem> tasks,
     AppProvider provider,
   ) {
-    return Container(
-      margin: const EdgeInsets.only(bottom: 16),
-      decoration: BoxDecoration(
-        color: AppColors.surface,
-        borderRadius: BorderRadius.circular(16),
-        boxShadow: AppColors.shadow,
+    return Dismissible(
+      key: Key(collection.id),
+      direction: DismissDirection.endToStart,
+      background: Container(
+        margin: const EdgeInsets.only(bottom: 16),
+        decoration: BoxDecoration(
+          color: AppColors.danger,
+          borderRadius: BorderRadius.circular(16),
+        ),
+        alignment: Alignment.centerRight,
+        padding: const EdgeInsets.only(right: 20),
+        child: const Icon(Icons.delete, color: Colors.white),
       ),
-      child: Theme(
-        data: Theme.of(context).copyWith(dividerColor: Colors.transparent),
-        child: ExpansionTile(
-          initiallyExpanded: collection.isExpanded,
-          onExpansionChanged: (_) =>
-              provider.toggleCollectionExpand(collection.id),
-          tilePadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
-          title: Text(
-            collection.title,
-            style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 16),
-          ),
-          trailing: Container(
-            padding: const EdgeInsets.all(6),
-            decoration: BoxDecoration(
-              color: AppColors.bg,
-              borderRadius: BorderRadius.circular(8),
+      onDismissed: (_) => provider.removeCollection(collection.id),
+      child: Container(
+        margin: const EdgeInsets.only(bottom: 16),
+        decoration: BoxDecoration(
+          color: AppColors.surface,
+          borderRadius: BorderRadius.circular(16),
+          boxShadow: AppColors.shadow,
+        ),
+        child: Theme(
+          data: Theme.of(context).copyWith(dividerColor: Colors.transparent),
+          child: ExpansionTile(
+            initiallyExpanded: collection.isExpanded,
+            onExpansionChanged: (_) =>
+                provider.toggleCollectionExpand(collection.id),
+            tilePadding: const EdgeInsets.symmetric(
+              horizontal: 16,
+              vertical: 4,
             ),
-            child: const Icon(Icons.add, size: 20, color: AppColors.primary),
+            title: Text(
+              collection.title,
+              style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 16),
+            ),
+            trailing: IconButton(
+              icon: const Icon(Icons.add, size: 24, color: AppColors.primary),
+              onPressed: () {
+                _showAddTaskDialog(context, collectionId: collection.id);
+              },
+            ),
+            children: tasks
+                .map((t) => _buildTaskItem(context, t, provider))
+                .toList(),
           ),
-          children: tasks
-              .map((t) => _buildTaskItem(context, t, provider))
-              .toList(),
         ),
       ),
     );
@@ -256,7 +271,7 @@ class TodoPage extends StatelessWidget {
           color: AppColors.danger,
           borderRadius: BorderRadius.circular(16),
         ),
-        child: const Icon(Icons.delete_outline, color: Colors.white),
+        child: const Icon(Icons.delete, color: Colors.white),
       ),
       child: Container(
         margin: const EdgeInsets.only(bottom: 12),

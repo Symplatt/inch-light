@@ -14,16 +14,6 @@ class TimerPage extends StatelessWidget {
   Widget build(BuildContext context) {
     final provider = Provider.of<AppProvider>(context);
 
-    // 获取当前正在计时的任务（用于黑屏显示）
-    TaskItem? activeTask;
-    if (provider.activeTimerId != null) {
-      try {
-        activeTask = provider.timerTasks.firstWhere(
-          (t) => t.id == provider.activeTimerId,
-        );
-      } catch (_) {}
-    }
-
     return Scaffold(
       backgroundColor: AppColors.bg,
       appBar: AppBar(
@@ -39,7 +29,6 @@ class TimerPage extends StatelessWidget {
           ),
         ),
         actions: [
-          // 需求2：Settings 按钮
           IconButton(
             icon: const Icon(
               Icons.settings_outlined,
@@ -49,82 +38,36 @@ class TimerPage extends StatelessWidget {
           ),
         ],
       ),
-      body: Stack(
+      body: Column(
         children: [
-          // 正常列表层
-          Column(
-            children: [
-              Expanded(
-                child: provider.timerTasks.isEmpty
-                    ? Center(
-                        child: Column(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          children: [
-                            Icon(
-                              Icons.timer_off_outlined,
-                              size: 60,
-                              color: Colors.grey[300],
-                            ),
-                            const SizedBox(height: 12),
-                            Text(
-                              "点击右下角添加专注任务",
-                              style: TextStyle(color: Colors.grey[400]),
-                            ),
-                          ],
+          Expanded(
+            child: provider.timerTasks.isEmpty
+                ? Center(
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Icon(
+                          Icons.timer_off_outlined,
+                          size: 60,
+                          color: Colors.grey[300],
                         ),
-                      )
-                    : ListView(
-                        padding: const EdgeInsets.fromLTRB(16, 10, 16, 100),
-                        children: [
-                          ...provider.timerTasks.map(
-                            (task) => _buildTimerCard(context, task, provider),
-                          ),
-                        ],
-                      ),
-              ),
-            ],
-          ),
-
-          // 需求5：专注增强模式（黑屏遮罩）
-          if (provider.isFocusMode && activeTask != null)
-            Positioned.fill(
-              child: GestureDetector(
-                onTap: () => provider.exitFocusMode(), // 点击退出黑屏
-                child: Container(
-                  color: Colors.black,
-                  alignment: Alignment.center,
-                  child: Column(
-                    mainAxisAlignment: MainAxisAlignment.center,
+                        const SizedBox(height: 12),
+                        Text(
+                          "点击右下角添加专注任务",
+                          style: TextStyle(color: Colors.grey[400]),
+                        ),
+                      ],
+                    ),
+                  )
+                : ListView(
+                    padding: const EdgeInsets.fromLTRB(16, 10, 16, 100),
                     children: [
-                      Text(
-                        activeTask.title,
-                        style: const TextStyle(
-                          color: Colors.white54,
-                          fontSize: 20,
-                        ),
-                      ),
-                      const SizedBox(height: 20),
-                      Text(
-                        _formatDuration(activeTask.durationSeconds),
-                        style: TextStyle(
-                          color:
-                              taskColors[activeTask.colorIndex %
-                                  taskColors.length],
-                          fontSize: 80,
-                          fontFamily: 'Monospace',
-                          fontWeight: FontWeight.bold,
-                        ),
-                      ),
-                      const SizedBox(height: 40),
-                      const Text(
-                        "点击屏幕唤醒",
-                        style: TextStyle(color: Colors.white24, fontSize: 14),
+                      ...provider.timerTasks.map(
+                        (task) => _buildTimerCard(context, task, provider),
                       ),
                     ],
                   ),
-                ),
-              ),
-            ),
+          ),
         ],
       ),
       floatingActionButton: FloatingActionButton(
@@ -413,8 +356,7 @@ class TimerPage extends StatelessWidget {
                 child: ElevatedButton(
                   style: ElevatedButton.styleFrom(
                     backgroundColor: AppColors.textDark,
-                    // 需求1：按钮文字高亮
-                    foregroundColor: Colors.white,
+                    foregroundColor: Colors.white, // 按钮文字白色
                     shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(16),
                     ),

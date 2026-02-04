@@ -4,11 +4,12 @@ import 'package:provider/provider.dart';
 
 import '../providers/app_provider.dart';
 import '../constants/app_colors.dart';
+import '../models/task_model.dart';
 import 'timer_page.dart';
 import 'todo_page.dart';
 import 'cycle_page.dart';
 
-// 需求2 & 3: 全局通用的、垂直居中的设置弹窗
+// 全局通用的设置弹窗
 void showGlobalSettingsDialog(BuildContext context, AppProvider provider) {
   showDialog(
     context: context,
@@ -40,7 +41,6 @@ void showGlobalSettingsDialog(BuildContext context, AppProvider provider) {
             onTap: () async {
               final data = await Clipboard.getData(Clipboard.kTextPlain);
               if (data?.text != null) {
-                // 二次确认
                 if (ctx.mounted) {
                   showDialog(
                     context: ctx,
@@ -54,7 +54,7 @@ void showGlobalSettingsDialog(BuildContext context, AppProvider provider) {
                         ),
                         TextButton(
                           onPressed: () async {
-                            Navigator.pop(subCtx); // 关确认框
+                            Navigator.pop(subCtx);
                             bool success = await provider.importData(
                               data!.text!,
                             );
@@ -65,7 +65,7 @@ void showGlobalSettingsDialog(BuildContext context, AppProvider provider) {
                                 ),
                               );
                             }
-                            if (ctx.mounted) Navigator.pop(ctx); // 关设置框
+                            if (ctx.mounted) Navigator.pop(ctx);
                           },
                           child: const Text(
                             "确认导入",
@@ -120,52 +120,130 @@ class _MainScreenState extends State<MainScreen> {
     Provider.of<AppProvider>(context, listen: false).setLastPageIndex(index);
   }
 
+  String _formatDuration(int sec) {
+    Duration d = Duration(seconds: sec);
+    return "${d.inHours}:${(d.inMinutes % 60).toString().padLeft(2, '0')}:${(d.inSeconds % 60).toString().padLeft(2, '0')}";
+  }
+
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      body: PageView(
-        controller: _pageController,
-        physics: const NeverScrollableScrollPhysics(),
-        children: const [TimerPage(), TodoPage(), CyclePage()],
-      ),
-      bottomNavigationBar: Container(
-        decoration: BoxDecoration(
-          boxShadow: [
-            BoxShadow(
-              color: Colors.black.withOpacity(0.05),
-              blurRadius: 20,
-              offset: const Offset(0, -5),
+    return Consumer<AppProvider>(
+      builder: (context, provider, child) {
+        if (provider.isFocusMode) {
+          SystemChrome.setEnabledSystemUIMode(SystemUiMode.immersiveSticky);
+        } else {
+          SystemChrome.setEnabledSystemUIMode(SystemUiMode.edgeToEdge);
+        }
+
+        TaskItem? activeTask;
+        if (provider.activeTimerId != null) {
+          try {
+            activeTask = provider.timerTasks.firstWhere(
+              (t) => t.id == provider.activeTimerId,
+            );
+          } catch (_) {}
+        }
+
+        return Stack(
+          children: [
+            Scaffold(
+              body: PageView(
+                controller: _pageController,
+                physics: const NeverScrollableScrollPhysics(),
+                children: const [TimerPage(), TodoPage(), CyclePage()],
+              ),
+              bottomNavigationBar: Container(
+                decoration: BoxDecoration(
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.black.withOpacity(0.05),
+                      blurRadius: 20,
+                      offset: const Offset(0, -5),
+                    ),
+                  ],
+                ),
+                child: BottomNavigationBar(
+                  currentIndex: _currentIndex,
+                  onTap: _onTabTapped,
+                  type: BottomNavigationBarType.fixed,
+                  backgroundColor: Colors.white,
+                  selectedItemColor: AppColors.primary,
+                  unselectedItemColor: AppColors.textGrey,
+                  showUnselectedLabels: true,
+                  elevation: 0,
+                  items: const [
+                    BottomNavigationBarItem(
+                      icon: Icon(Icons.timer_outlined),
+                      activeIcon: Icon(Icons.timer),
+                      label: '专注',
+                    ),
+                    BottomNavigationBarItem(
+                      icon: Icon(Icons.check_circle_outline),
+                      activeIcon: Icon(Icons.check_circle),
+                      label: '待办',
+                    ),
+                    BottomNavigationBarItem(
+                      icon: Icon(Icons.loop),
+                      activeIcon: Icon(Icons.loop),
+                      label: '周期',
+                    ),
+                  ],
+                ),
+              ),
             ),
+
+            // 专注增强模式
+            if (provider.isFocusMode && activeTask != null)
+              Positioned.fill(
+                child: Material(
+                  color: Colors.black,
+                  child: GestureDetector(
+                    onTap: () => provider.exitFocusMode(),
+                    behavior: HitTestBehavior.opaque,
+                    child: Center(
+                      child: Column(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          Text(
+                            activeTask.title,
+                            style: const TextStyle(
+                              color: Colors.white54,
+                              fontSize: 24,
+                              decoration: TextDecoration.none,
+                            ),
+                          ),
+                          const SizedBox(height: 30),
+                          Text(
+                            _formatDuration(activeTask.durationSeconds),
+                            style: TextStyle(
+                              color:
+                                  taskColors[activeTask.colorIndex %
+                                      taskColors.length],
+                              // 【修改点】字体改小到 64
+                              fontSize: 64,
+                              fontFamily: 'Monospace',
+                              fontWeight: FontWeight.bold,
+                              decoration: TextDecoration.none,
+                            ),
+                          ),
+                          const SizedBox(height: 60),
+                          const Text(
+                            "点击屏幕唤醒",
+                            style: TextStyle(
+                              color: Colors.white24,
+                              fontSize: 16,
+                              decoration: TextDecoration.none,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ),
+              ),
           ],
-        ),
-        child: BottomNavigationBar(
-          currentIndex: _currentIndex,
-          onTap: _onTabTapped,
-          type: BottomNavigationBarType.fixed,
-          backgroundColor: Colors.white,
-          selectedItemColor: AppColors.primary,
-          unselectedItemColor: AppColors.textGrey,
-          showUnselectedLabels: true,
-          elevation: 0,
-          items: const [
-            BottomNavigationBarItem(
-              icon: Icon(Icons.timer_outlined),
-              activeIcon: Icon(Icons.timer),
-              label: '专注',
-            ),
-            BottomNavigationBarItem(
-              icon: Icon(Icons.check_circle_outline),
-              activeIcon: Icon(Icons.check_circle),
-              label: '待办',
-            ),
-            BottomNavigationBarItem(
-              icon: Icon(Icons.loop),
-              activeIcon: Icon(Icons.loop),
-              label: '周期',
-            ),
-          ],
-        ),
-      ),
+        );
+      },
     );
   }
 }

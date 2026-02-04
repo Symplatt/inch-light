@@ -6,7 +6,7 @@ import 'package:intl/intl.dart';
 import '../providers/app_provider.dart';
 import '../models/task_model.dart';
 import '../constants/app_colors.dart';
-import 'main_screen.dart'; // 引入通用设置弹窗
+import 'main_screen.dart';
 
 class CyclePage extends StatelessWidget {
   const CyclePage({super.key});
@@ -56,7 +56,6 @@ class CyclePage extends StatelessWidget {
               ),
             ),
             actions: [
-              // 需求2：齿轮按钮
               IconButton(
                 icon: const Icon(
                   Icons.settings_outlined,
@@ -123,6 +122,28 @@ class CyclePage extends StatelessWidget {
     CycleTask task,
     AppProvider provider,
   ) {
+    // 【修改点】获取周期对应的颜色
+    Color tagColor;
+    String tagText;
+    switch (task.frequency) {
+      case CycleFrequency.daily:
+        tagColor = Colors.blueAccent;
+        tagText = "每天";
+        break;
+      case CycleFrequency.weekly:
+        tagColor = Colors.purpleAccent;
+        tagText = "每周";
+        break;
+      case CycleFrequency.monthly:
+        tagColor = Colors.orangeAccent;
+        tagText = "每月";
+        break;
+      case CycleFrequency.yearly:
+        tagColor = Colors.redAccent;
+        tagText = "每年";
+        break;
+    }
+
     return Dismissible(
       key: Key(task.id),
       direction: DismissDirection.endToStart,
@@ -147,23 +168,53 @@ class CyclePage extends StatelessWidget {
         child: ListTile(
           contentPadding: const EdgeInsets.symmetric(
             horizontal: 16,
-            vertical: 8,
+            vertical: 12,
           ),
           leading: Container(
-            padding: const EdgeInsets.all(8),
+            padding: const EdgeInsets.all(10),
             decoration: BoxDecoration(
-              color: AppColors.primary.withOpacity(0.1),
+              color: tagColor.withOpacity(0.1),
               shape: BoxShape.circle,
             ),
-            child: const Icon(Icons.loop, color: AppColors.primary, size: 20),
+            child: Icon(Icons.loop, color: tagColor, size: 22),
           ),
           title: Text(
             task.title,
-            style: const TextStyle(fontWeight: FontWeight.w600),
+            style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 16),
           ),
-          subtitle: Text(
-            "${task.frequency.name.toUpperCase()} | 下次: ${DateFormat('MM-dd HH:mm').format(task.nextRunTime)}",
-            style: const TextStyle(fontSize: 12, color: AppColors.textGrey),
+          subtitle: Padding(
+            padding: const EdgeInsets.only(top: 6.0),
+            child: Row(
+              children: [
+                // 【修改点】彩色胶囊标签
+                Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 6,
+                    vertical: 2,
+                  ),
+                  decoration: BoxDecoration(
+                    color: tagColor.withOpacity(0.1),
+                    borderRadius: BorderRadius.circular(4),
+                  ),
+                  child: Text(
+                    tagText,
+                    style: TextStyle(
+                      fontSize: 10,
+                      color: tagColor,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 8),
+                Text(
+                  "下次: ${DateFormat('MM-dd HH:mm').format(task.nextRunTime)}",
+                  style: const TextStyle(
+                    fontSize: 12,
+                    color: AppColors.textGrey,
+                  ),
+                ),
+              ],
+            ),
           ),
         ),
       ),
@@ -202,17 +253,31 @@ class CyclePage extends StatelessWidget {
                 const SizedBox(height: 20),
                 TextField(
                   controller: titleController,
+                  autofocus: true,
                   decoration: const InputDecoration(labelText: "任务名称"),
                 ),
                 const SizedBox(height: 10),
                 DropdownButton<CycleFrequency>(
                   value: frequency,
                   isExpanded: true,
-                  items: CycleFrequency.values
-                      .map(
-                        (e) => DropdownMenuItem(value: e, child: Text(e.name)),
-                      )
-                      .toList(),
+                  items: CycleFrequency.values.map((e) {
+                    String label = "";
+                    switch (e) {
+                      case CycleFrequency.daily:
+                        label = "每天";
+                        break;
+                      case CycleFrequency.weekly:
+                        label = "每周 (按设定日)";
+                        break;
+                      case CycleFrequency.monthly:
+                        label = "每月 (按设定日)";
+                        break;
+                      case CycleFrequency.yearly:
+                        label = "每年 (按设定日)";
+                        break;
+                    }
+                    return DropdownMenuItem(value: e, child: Text(label));
+                  }).toList(),
                   onChanged: (val) => setState(() => frequency = val!),
                 ),
                 const SizedBox(height: 10),

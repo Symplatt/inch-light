@@ -9,7 +9,7 @@ import 'package:wakelock_plus/wakelock_plus.dart';
 import 'package:flutter_background_service/flutter_background_service.dart';
 
 import '../models/task_model.dart';
-import '../constants/app_colors.dart'; // 需要读取 taskColors 长度
+import '../constants/app_colors.dart';
 
 class AppProvider with ChangeNotifier, WidgetsBindingObserver {
   final List<TaskItem> _timerTasks = [];
@@ -19,9 +19,9 @@ class AppProvider with ChangeNotifier, WidgetsBindingObserver {
   List<TaskCollection> _collections = [];
 
   Timer? _timer;
-  Timer? _focusModeTrigger; // 20秒自动进入沉浸模式的触发器
+  Timer? _focusModeTrigger;
   String? _activeTimerId;
-  bool _isFocusMode = false; // 是否处于沉浸黑屏模式
+  bool _isFocusMode = false;
   int _lastPageIndex = 0;
 
   final AudioPlayer _audioPlayer = AudioPlayer();
@@ -36,7 +36,6 @@ class AppProvider with ChangeNotifier, WidgetsBindingObserver {
   bool get isFocusMode => _isFocusMode;
   int get lastPageIndex => _lastPageIndex;
 
-  // 排序保持不变
   List<TaskItem> get sortedNormalTasks {
     List<TaskItem> tasks = List.from(_normalTasks);
     tasks.sort((a, b) {
@@ -86,7 +85,6 @@ class AppProvider with ChangeNotifier, WidgetsBindingObserver {
     }
   }
 
-  // ... (InitData, LoadData, SaveData, CheckReset, SetLastPage, Export/Import 逻辑保持不变)
   Future<void> _initData() async {
     await _loadData();
     notifyListeners();
@@ -213,6 +211,20 @@ class AppProvider with ChangeNotifier, WidgetsBindingObserver {
     notifyListeners();
   }
 
+  // 【修复 2】删除合集逻辑
+  void removeCollection(String collectionId) {
+    // 策略：不删除任务，而是把它们释放出来（变为 looseTasks）
+    // 这样防止用户手滑删了合集导致里面的任务也没了
+    for (var task in _normalTasks) {
+      if (task.collectionId == collectionId) {
+        task.collectionId = null;
+      }
+    }
+    _collections.removeWhere((c) => c.id == collectionId);
+    _saveData();
+    notifyListeners();
+  }
+
   void toggleCollectionExpand(String id) {
     final index = _collections.indexWhere((c) => c.id == id);
     if (index != -1) {
@@ -259,15 +271,12 @@ class AppProvider with ChangeNotifier, WidgetsBindingObserver {
     notifyListeners();
   }
 
-  // --- 专注逻辑升级 ---
-
-  // 需求4：每个新建任务颜色轮流 (index % 7)
   void addTimerTask(
     String title, {
     TimerMode mode = TimerMode.stopwatch,
     int? targetSeconds,
   }) {
-    int nextColorIndex = _timerTasks.length % taskColors.length; // 自动分配颜色
+    int nextColorIndex = _timerTasks.length % taskColors.length;
     _timerTasks.add(
       TaskItem(
         id: const Uuid().v4(),
@@ -306,13 +315,9 @@ class AppProvider with ChangeNotifier, WidgetsBindingObserver {
     if (_activeTimerId != null && _activeTimerId != taskId) return;
     final task = _timerTasks.firstWhere((e) => e.id == taskId);
     _activeTimerId = taskId;
-
     WakelockPlus.enable();
     FlutterBackgroundService().invoke("setAsForeground");
-
-    // 需求5：开启20秒自动进入专注增强模式
     _resetFocusTrigger();
-
     _timer = Timer.periodic(const Duration(seconds: 1), (timer) {
       if (task.timerMode == TimerMode.stopwatch) {
         task.durationSeconds++;
@@ -334,15 +339,14 @@ class AppProvider with ChangeNotifier, WidgetsBindingObserver {
     _timer?.cancel();
     _timer = null;
     _activeTimerId = null;
-    _focusModeTrigger?.cancel(); // 停止计时则取消黑屏触发
-    _isFocusMode = false; // 退出黑屏
+    _focusModeTrigger?.cancel();
+    _isFocusMode = false;
     WakelockPlus.disable();
     FlutterBackgroundService().invoke("setAsBackground");
     _saveData();
     notifyListeners();
   }
 
-  // 触发 20秒 倒计时
   void _resetFocusTrigger() {
     _focusModeTrigger?.cancel();
     if (_activeTimerId != null) {
@@ -353,11 +357,10 @@ class AppProvider with ChangeNotifier, WidgetsBindingObserver {
     }
   }
 
-  // 用户点击屏幕唤醒时调用
   void exitFocusMode() {
     if (_activeTimerId != null) {
       _isFocusMode = false;
-      _resetFocusTrigger(); // 重置20秒
+      _resetFocusTrigger();
       notifyListeners();
     }
   }
@@ -370,7 +373,6 @@ class AppProvider with ChangeNotifier, WidgetsBindingObserver {
     }
   }
 
-  // 周期逻辑
   void addCycleTask(String title, CycleFrequency frequency, DateTime time) {
     _cycleTasks.add(
       CycleTask(
