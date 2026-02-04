@@ -1,0 +1,68 @@
+@echo off
+setlocal enabledelayedexpansion
+
+echo ===============================
+echo   Flutter Release Script
+echo ===============================
+
+:: 1. 输入版本号
+set /p version=请输入版本号(例如 v1.2.3): 
+
+echo.
+echo ---- 结束 dart.exe ----
+taskkill /F /IM dart.exe >nul 2>&1
+
+echo.
+echo ---- Flutter clean ----
+flutter clean
+
+echo.
+echo ---- Flutter pub get ----
+flutter pub get
+
+echo.
+echo ---- 开始打包 APK (含 split-per-abi) ----
+flutter build apk --release --split-per-abi
+
+echo.
+echo ---- 搜索 APK 文件 ----
+set apk_path=E:\Project\Flutter\inch_light\build\app\outputs\flutter-apk
+
+if not exist "%apk_path%" (
+    echo 找不到 APK 输出目录：%apk_path%
+    pause
+    exit /b
+)
+
+:: 收集所有 apk 文件（可能多个：arm64、armeabi、x86_64）
+set files=
+for %%f in ("%apk_path%\*.apk") do (
+    set files=!files! "%%f"
+)
+
+if "%files%"=="" (
+    echo 未找到任何 APK 文件，请检查打包是否成功。
+    pause
+    exit /b
+)
+
+echo 找到以下 APK 文件:
+echo %files%
+echo.
+
+echo ---- Git 提交代码 ----
+git add .
+git commit -m "%version%"
+git tag %version%
+git push
+git push origin %version%
+
+echo.
+echo ---- 创建 GitHub Release 并上传 APK ----
+gh release create %version% %files% --generate-notes --title "%version%"
+
+echo.
+echo ===============================
+echo 发布完成：%version%
+echo ===============================
+pause

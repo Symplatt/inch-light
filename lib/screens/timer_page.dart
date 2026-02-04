@@ -71,7 +71,11 @@ class TimerPage extends StatelessWidget {
     AppProvider provider,
   ) {
     bool isRunning = provider.activeTimerId == task.id;
-    Color themeColor = taskColors[task.colorIndex];
+    // 如果 colorIndex 超出范围，给一个默认颜色
+    Color themeColor =
+        (task.colorIndex >= 0 && task.colorIndex < taskColors.length)
+        ? taskColors[task.colorIndex]
+        : taskColors[0];
     String timeStr = _formatDuration(task.durationSeconds);
 
     if (task.timerMode == TimerMode.countdown) {
@@ -93,7 +97,7 @@ class TimerPage extends StatelessWidget {
         child: const Icon(Icons.delete, color: Colors.red),
       ),
       direction: DismissDirection.endToStart,
-      onDismissed: (_) => provider.deleteTimerTask(task.id),
+      onDismissed: (_) => provider.deleteTimerTask(task), // 修复：传入 task 对象
       child: Container(
         margin: const EdgeInsets.only(bottom: 16),
         decoration: BoxDecoration(
@@ -101,7 +105,7 @@ class TimerPage extends StatelessWidget {
           borderRadius: BorderRadius.circular(20),
           boxShadow: [
             BoxShadow(
-              color: Colors.black.withOpacity(0.03),
+              color: Colors.black.withValues(alpha: 0.03),
               blurRadius: 12,
               offset: const Offset(0, 4),
             ),
@@ -119,7 +123,7 @@ class TimerPage extends StatelessWidget {
                     width: 100,
                     height: 100,
                     decoration: BoxDecoration(
-                      color: themeColor.withOpacity(0.1),
+                      color: themeColor.withValues(alpha: 0.1),
                       shape: BoxShape.circle,
                     ),
                   ),
@@ -129,7 +133,7 @@ class TimerPage extends StatelessWidget {
                 child: Row(
                   children: [
                     GestureDetector(
-                      onTap: () => provider.toggleTimer(task.id),
+                      onTap: () => provider.toggleTimer(task), // 修复：传入 task 对象
                       child: AnimatedContainer(
                         duration: const Duration(milliseconds: 200),
                         width: 56,
@@ -165,7 +169,7 @@ class TimerPage extends StatelessWidget {
                               vertical: 2,
                             ),
                             decoration: BoxDecoration(
-                              color: themeColor.withOpacity(0.1),
+                              color: themeColor.withValues(alpha: 0.1),
                               borderRadius: BorderRadius.circular(4),
                             ),
                             child: Text(
@@ -241,7 +245,7 @@ class TimerPage extends StatelessWidget {
             ListTile(
               title: const Center(child: Text("重置时间")),
               onTap: () {
-                provider.resetTimerTask(task.id);
+                provider.resetTimerTask(task); // 修复：传入 task 对象
                 Navigator.pop(ctx);
               },
             ),
@@ -251,7 +255,7 @@ class TimerPage extends StatelessWidget {
                 child: Text("删除任务", style: TextStyle(color: Colors.red)),
               ),
               onTap: () {
-                provider.deleteTimerTask(task.id);
+                provider.deleteTimerTask(task); // 修复：传入 task 对象
                 Navigator.pop(ctx);
               },
             ),
@@ -376,10 +380,11 @@ class TimerPage extends StatelessWidget {
                         (target == null || target == 0)) {
                       return;
                     }
+                    // 修复：正确调用 Provider 的 addTimerTask
                     Provider.of<AppProvider>(
                       context,
                       listen: false,
-                    ).addTimerTask(tc.text, mode, target);
+                    ).addTimerTask(tc.text, mode: mode, targetSeconds: target);
                     Navigator.pop(ctx);
                   },
                   child: const Text(
@@ -418,7 +423,7 @@ class TimerPage extends StatelessWidget {
           TextButton(
             onPressed: () {
               if (tc.text.isNotEmpty) {
-                provider.renameTimerTask(task.id, tc.text);
+                provider.renameTimerTask(task, tc.text); // 修复：传入 task
                 Navigator.pop(ctx);
               }
             },

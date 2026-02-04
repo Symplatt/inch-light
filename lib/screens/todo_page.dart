@@ -1,634 +1,254 @@
 import 'package:flutter/material.dart';
-import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
+import 'package:intl/intl.dart';
+import 'package:uuid/uuid.dart';
 
-import '../constants/app_colors.dart';
-import '../models/task_model.dart';
 import '../providers/app_provider.dart';
-import '../widgets/common_widgets.dart';
-import '../widgets/custom_date_picker.dart';
+import '../models/task_model.dart';
+import '../constants/app_colors.dart';
 
-class TodoPage extends StatefulWidget {
+class TodoPage extends StatelessWidget {
   const TodoPage({super.key});
-  @override
-  State<TodoPage> createState() => _TodoPageState();
-}
-
-class _TodoPageState extends State<TodoPage> {
-  bool showCompleted = false;
 
   @override
   Widget build(BuildContext context) {
-    final provider = Provider.of<AppProvider>(context);
-    final daily = provider.dailyTasks
-        .where((t) => t.isCompleted == showCompleted)
-        .toList();
-    final normal = provider.normalTasks
-        .where((t) => t.isCompleted == showCompleted)
-        .toList();
+    return Consumer<AppProvider>(
+      builder: (context, provider, child) {
+        final looseTasks = provider.looseTasks;
+        final collections = provider.collections;
 
-    return Stack(
-      children: [
-        Column(
-          children: [
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
-              child: Row(
-                children: [
-                  FilterChipWidget(
-                    text: "未完成",
-                    selected: !showCompleted,
-                    onTap: () => setState(() => showCompleted = false),
-                  ),
-                  const SizedBox(width: 12),
-                  FilterChipWidget(
-                    text: "已完成",
-                    selected: showCompleted,
-                    onTap: () => setState(() => showCompleted = true),
-                  ),
-                  const Spacer(),
-                  InkWell(
-                    onTap: () => _confirmClear(context, () {
-                      provider.clearTodos(completedOnly: showCompleted);
-                    }),
-                    borderRadius: BorderRadius.circular(20),
-                    child: Padding(
-                      padding: const EdgeInsets.all(8.0),
-                      child: Icon(
-                        Icons.delete_sweep_outlined,
-                        size: 22,
-                        color: Colors.grey[400],
-                      ),
-                    ),
-                  ),
-                ],
+        return Scaffold(
+          appBar: AppBar(
+            title: const Text('待办清单'),
+            actions: [
+              IconButton(
+                icon: const Icon(Icons.create_new_folder_outlined),
+                onPressed: () => _showAddCollectionDialog(context),
               ),
-            ),
-            Expanded(
-              child: ListView(
-                padding: const EdgeInsets.symmetric(horizontal: 20),
-                children: [
-                  if (daily.isNotEmpty) ...[
-                    const SectionHeader(title: "每日打卡"),
-                    ...daily.map((t) => _buildTodoCard(t, provider)),
-                    const SizedBox(height: 20),
-                  ],
-                  if (normal.isNotEmpty) ...[
-                    const SectionHeader(title: "任务清单"),
-                    ...normal.map((t) => _buildTodoCard(t, provider)),
-                  ],
-                  if (daily.isEmpty && normal.isEmpty)
-                    Center(
-                      child: Padding(
-                        padding: const EdgeInsets.only(top: 100),
-                        child: Text(
-                          "暂无任务",
-                          style: TextStyle(color: Colors.grey[300]),
-                        ),
-                      ),
-                    ),
-                  const SizedBox(height: 100),
-                ],
-              ),
-            ),
-          ],
-        ),
-        Positioned(
-          right: 20,
-          bottom: 20,
-          child: FloatingActionButton(
-            heroTag: "todo_add",
-            backgroundColor: AppColors.textDark,
-            foregroundColor: Colors.white,
-            elevation: 4,
-            shape: const CircleBorder(),
-            child: const Icon(Icons.add),
-            onPressed: () => _showAddTodo(context),
+            ],
           ),
-        ),
-      ],
+          body: ListView(
+            padding: const EdgeInsets.all(16),
+            children: [
+              // 渲染合集列表
+              ...collections.map((collection) {
+                final tasksInCollection = provider.getTasksInCollection(
+                  collection.id,
+                );
+                return Card(
+                  margin: const EdgeInsets.only(bottom: 12),
+                  child: ExpansionTile(
+                    key: Key(collection.id),
+                    initiallyExpanded: collection.isExpanded,
+                    onExpansionChanged: (expanded) {
+                      provider.toggleCollectionExpand(collection.id);
+                    },
+                    title: Text(
+                      "${collection.title} (${tasksInCollection.length})",
+                      style: const TextStyle(fontWeight: FontWeight.bold),
+                    ),
+                    trailing: IconButton(
+                      icon: const Icon(Icons.add),
+                      onPressed: () {
+                        _showAddTaskDialog(
+                          context,
+                          collectionId: collection.id,
+                        );
+                      },
+                    ),
+                    children: tasksInCollection
+                        .map((task) => _buildTaskItem(context, task, provider))
+                        .toList(),
+                  ),
+                );
+              }), // 修复：这里之前可能多了一个 .toList()，...map 展开不需要 toList
+
+              if (collections.isNotEmpty) const Divider(),
+
+              if (looseTasks.isNotEmpty || collections.isNotEmpty)
+                const Padding(
+                  padding: EdgeInsets.symmetric(vertical: 8.0),
+                  child: Text("其他任务", style: TextStyle(color: Colors.grey)),
+                ),
+
+              // 渲染散装任务
+              ...looseTasks.map(
+                (task) => _buildTaskItem(context, task, provider),
+              ),
+
+              const SizedBox(height: 80),
+            ],
+          ),
+          floatingActionButton: FloatingActionButton(
+            onPressed: () => _showAddTaskDialog(context),
+            child: const Icon(Icons.add),
+          ),
+        );
+      },
     );
   }
 
-  void _confirmClear(BuildContext context, VoidCallback onConfirm) {
+  Widget _buildTaskItem(
+    BuildContext context,
+    TaskItem task,
+    AppProvider provider,
+  ) {
+    return Card(
+      child: ListTile(
+        leading: Checkbox(
+          value: task.isCompleted,
+          onChanged: (val) {
+            provider.toggleTaskCompletion(task);
+          },
+        ),
+        title: Text(
+          task.title,
+          maxLines: null,
+          style: TextStyle(
+            decoration: task.isCompleted ? TextDecoration.lineThrough : null,
+            color: task.isCompleted ? Colors.grey : Colors.black,
+          ),
+        ),
+        subtitle: task.deadline != null
+            ? Text(
+                DateFormat('MM-dd HH:mm').format(task.deadline!),
+                style: const TextStyle(fontSize: 12),
+              )
+            : null,
+        trailing: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            IconButton(
+              icon: Icon(
+                task.isPinned ? Icons.push_pin : Icons.push_pin_outlined,
+                color: task.isPinned ? AppColors.primary : Colors.grey,
+              ),
+              onPressed: () => provider.toggleTaskPin(task),
+            ),
+            IconButton(
+              icon: const Icon(Icons.delete_outline, color: Colors.red),
+              onPressed: () => provider.removeTask(task),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  void _showAddCollectionDialog(BuildContext context) {
+    final controller = TextEditingController();
     showDialog(
       context: context,
-      builder: (ctx) => AlertDialog(
-        backgroundColor: Colors.white,
-        title: const Text("确认清空"),
-        content: Text("确定清空所有${showCompleted ? "已完成" : "未完成"}的任务吗？"),
+      builder: (context) => AlertDialog(
+        title: const Text("新建合集"),
+        content: TextField(
+          controller: controller,
+          decoration: const InputDecoration(labelText: "合集名称"),
+        ),
         actions: [
           TextButton(
-            onPressed: () => Navigator.pop(ctx),
+            onPressed: () => Navigator.pop(context),
             child: const Text("取消"),
           ),
           TextButton(
             onPressed: () {
-              Navigator.pop(ctx);
-              onConfirm();
+              if (controller.text.isNotEmpty) {
+                Provider.of<AppProvider>(
+                  context,
+                  listen: false,
+                ).addCollection(controller.text);
+                Navigator.pop(context);
+              }
             },
-            child: const Text("清空", style: TextStyle(color: Colors.red)),
+            child: const Text("创建"),
           ),
         ],
       ),
     );
   }
 
-  Widget _buildTodoCard(TaskItem task, AppProvider provider) {
-    // 判断是否超时
-    bool isOverdue = false;
-    if (task.deadline != null) {
-      isOverdue = task.deadline!.isBefore(DateTime.now());
-    }
+  void _showAddTaskDialog(BuildContext context, {String? collectionId}) {
+    final titleController = TextEditingController();
+    DateTime? selectedDeadline;
 
-    return Dismissible(
-      key: Key(task.id),
-      background: Container(
-        color: Colors.red[100],
-        alignment: Alignment.centerRight,
-        padding: const EdgeInsets.only(right: 20),
-        child: const Icon(Icons.delete, color: Colors.red),
-      ),
-      direction: DismissDirection.endToStart,
-      onDismissed: (_) => provider.deleteTodo(task),
-      child: Container(
-        margin: const EdgeInsets.only(bottom: 12),
-        decoration: BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.circular(16),
-          boxShadow: [
-            BoxShadow(
-              color: Colors.black.withOpacity(0.02),
-              blurRadius: 8,
-              offset: const Offset(0, 2),
-            ),
-          ],
-        ),
-        child: Padding(
-          padding: const EdgeInsets.all(0),
-          child: Row(
-            children: [
-              InkWell(
-                borderRadius: const BorderRadius.horizontal(
-                  left: Radius.circular(16),
-                ),
-                onTap: () => provider.toggleTodo(task),
-                child: Padding(
-                  padding: const EdgeInsets.all(16),
-                  child: Container(
-                    width: 24,
-                    height: 24,
-                    decoration: BoxDecoration(
-                      color: task.isCompleted
-                          ? AppColors.primary
-                          : Colors.white,
-                      shape: BoxShape.circle,
-                      border: Border.all(
-                        color: task.isCompleted
-                            ? AppColors.primary
-                            : Colors.grey[300]!,
-                        width: 2,
-                      ),
-                    ),
-                    child: task.isCompleted
-                        ? const Icon(Icons.check, size: 14, color: Colors.white)
-                        : null,
-                  ),
-                ),
-              ),
-              Expanded(
-                child: InkWell(
-                  borderRadius: const BorderRadius.horizontal(
-                    right: Radius.circular(16),
-                  ),
-                  onTap: () => _showEditTodo(context, provider, task),
-                  child: Padding(
-                    padding: const EdgeInsets.fromLTRB(0, 16, 16, 16),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          task.title,
-                          style: TextStyle(
-                            fontSize: 16,
-                            color: task.isCompleted
-                                ? Colors.grey[400]
-                                : AppColors.textDark,
-                            decoration: task.isCompleted
-                                ? TextDecoration.lineThrough
-                                : null,
-                            decorationColor: Colors.grey[400],
-                          ),
-                        ),
-                        if (task.deadline != null || task.tags.isNotEmpty)
-                          Padding(
-                            padding: const EdgeInsets.only(top: 6),
-                            child: Row(
-                              children: [
-                                if (task.deadline != null) ...[
-                                  Icon(
-                                    Icons.access_time_rounded, // 换个图标
-                                    size: 12,
-                                    // 【修改点】超时变红，未超时变绿
-                                    color: isOverdue
-                                        ? Colors.red
-                                        : Colors.green[600],
-                                  ),
-                                  const SizedBox(width: 4),
-                                  Text(
-                                    DateFormat(
-                                      'MM-dd HH:mm',
-                                    ).format(task.deadline!),
-                                    style: TextStyle(
-                                      fontSize: 12,
-                                      fontWeight: FontWeight.bold,
-                                      // 【修改点】超时变红，未超时变绿
-                                      color: isOverdue
-                                          ? Colors.red
-                                          : Colors.green[600],
-                                    ),
-                                  ),
-                                  const SizedBox(width: 10),
-                                ],
-                                ...task.tags.map(
-                                  (tag) => Padding(
-                                    padding: const EdgeInsets.only(right: 6),
-                                    child: Text(
-                                      "#$tag",
-                                      style: TextStyle(
-                                        fontSize: 12,
-                                        color: Colors.blue[400],
-                                      ),
-                                    ),
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ),
-                      ],
-                    ),
-                  ),
-                ),
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-
-  // 提取出来的通用日期选择器方法
-  Future<DateTime?> _showCustomDatePicker(
-    BuildContext context, {
-    DateTime? initialTime,
-  }) async {
-    DateTime tempDate = initialTime ?? DateTime.now();
-
-    return await showDialog<DateTime>(
+    showDialog(
       context: context,
-      builder: (ctx) => Dialog(
-        backgroundColor: Colors.white,
-        surfaceTintColor: Colors.transparent,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-        child: SizedBox(
-          width: 340,
-          child: CustomDateTimePickerWidget(initialDate: tempDate),
-        ),
-      ),
-    );
-  }
-
-  void _showEditTodo(
-    BuildContext context,
-    AppProvider provider,
-    TaskItem task,
-  ) {
-    final tc = TextEditingController(text: task.title);
-    final tagC = TextEditingController(text: task.tags.join(" "));
-    DateTime? dead = task.deadline;
-
-    showModalBottomSheet(
-      context: context,
-      isScrollControlled: true,
-      backgroundColor: Colors.white,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
-      ),
       builder: (ctx) => StatefulBuilder(
-        builder: (ctx, setState) => Padding(
-          padding: EdgeInsets.fromLTRB(
-            24,
-            24,
-            24,
-            MediaQuery.of(ctx).viewInsets.bottom + 24,
-          ),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              const Text(
-                "编辑任务",
-                style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
-              ),
-              const SizedBox(height: 20),
-              TextField(
-                controller: tc,
-                autofocus: true,
-                decoration: InputDecoration(
-                  labelText: "任务名称",
-                  filled: true,
-                  fillColor: AppColors.bg,
-                  border: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(16),
-                    borderSide: BorderSide.none,
-                  ),
-                ),
-              ),
-              const SizedBox(height: 16),
-              TextField(
-                controller: tagC,
-                decoration: const InputDecoration(
-                  labelText: "标签 (空格分隔)",
-                  prefixIcon: Icon(Icons.tag),
-                  border: OutlineInputBorder(),
-                ),
-              ),
-              const SizedBox(height: 16),
-
-              InkWell(
-                onTap: () async {
-                  final result = await _showCustomDatePicker(
-                    context,
-                    initialTime: dead,
-                  );
-                  if (result != null) {
-                    if (result.year == 0) {
-                      setState(() => dead = null);
-                    } else {
-                      setState(() => dead = result);
-                    }
-                  }
-                },
-                borderRadius: BorderRadius.circular(12),
-                child: Container(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 16,
-                    vertical: 14,
-                  ),
-                  decoration: BoxDecoration(
-                    color: AppColors.bg,
-                    borderRadius: BorderRadius.circular(12),
-                    border: Border.all(color: Colors.grey.withOpacity(0.2)),
-                  ),
-                  child: Row(
-                    children: [
-                      Icon(
-                        Icons.access_time_rounded,
-                        color: dead == null
-                            ? Colors.grey[400]
-                            : AppColors.primary,
-                      ),
-                      const SizedBox(width: 12),
-                      Text(
-                        dead == null
-                            ? "设置截止时间"
-                            : DateFormat('yyyy-MM-dd HH:mm').format(dead!),
-                        style: TextStyle(
-                          color: dead == null
-                              ? Colors.grey[500]
-                              : AppColors.textDark,
-                          fontWeight: dead == null
-                              ? FontWeight.normal
-                              : FontWeight.bold,
-                        ),
-                      ),
-                      const Spacer(),
-                      if (dead != null)
-                        GestureDetector(
-                          onTap: () => setState(() => dead = null),
-                          child: const Icon(
-                            Icons.close,
-                            size: 18,
-                            color: Colors.grey,
-                          ),
-                        )
-                      else
-                        const Icon(
-                          Icons.arrow_forward_ios_rounded,
-                          size: 14,
-                          color: Colors.grey,
-                        ),
-                    ],
-                  ),
-                ),
-              ),
-              const SizedBox(height: 30),
-              SizedBox(
-                width: double.infinity,
-                height: 54,
-                child: ElevatedButton(
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: AppColors.textDark,
-                    foregroundColor: Colors.white,
-                    elevation: 0,
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(16),
-                    ),
-                  ),
-                  onPressed: () {
-                    if (tc.text.isEmpty) return;
-                    List<String> tags = tagC.text
-                        .split(' ')
-                        .where((s) => s.isNotEmpty)
-                        .toList();
-                    provider.updateTodoTask(task, tc.text, dead, tags);
-                    Navigator.pop(ctx);
-                  },
-                  child: const Text(
-                    "保存修改",
-                    style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
-                  ),
-                ),
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-
-  void _showAddTodo(BuildContext context) {
-    final tc = TextEditingController();
-    final tagC = TextEditingController();
-    TaskType type = TaskType.normal;
-    DateTime? dead;
-
-    showModalBottomSheet(
-      context: context,
-      isScrollControlled: true,
-      backgroundColor: Colors.white,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
-      ),
-      builder: (ctx) => StatefulBuilder(
-        builder: (ctx, setState) => Padding(
-          padding: EdgeInsets.fromLTRB(
-            24,
-            24,
-            24,
-            MediaQuery.of(ctx).viewInsets.bottom + 24,
-          ),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              const Text(
-                "添加任务",
-                style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
-              ),
-              const SizedBox(height: 20),
-              TextField(
-                controller: tc,
-                autofocus: true,
-                decoration: InputDecoration(
-                  hintText: "准备做什么？",
-                  filled: true,
-                  fillColor: AppColors.bg,
-                  border: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(16),
-                    borderSide: BorderSide.none,
-                  ),
-                ),
-              ),
-              const SizedBox(height: 20),
-              Row(
-                children: [
-                  ModeChipWidget(
-                    label: "每日打卡",
-                    selected: type == TaskType.daily,
-                    onTap: () => setState(() => type = TaskType.daily),
-                  ),
-                  const SizedBox(width: 12),
-                  ModeChipWidget(
-                    label: "普通待办",
-                    selected: type == TaskType.normal,
-                    onTap: () => setState(() => type = TaskType.normal),
-                  ),
-                ],
-              ),
-              if (type == TaskType.normal) ...[
-                const SizedBox(height: 20),
+        builder: (context, setState) {
+          return AlertDialog(
+            title: Text(collectionId != null ? "新建合集任务" : "新建任务"),
+            content: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
                 TextField(
-                  controller: tagC,
-                  decoration: const InputDecoration(
-                    labelText: "标签 (空格分隔)",
-                    prefixIcon: Icon(Icons.tag),
-                    border: OutlineInputBorder(),
-                  ),
+                  controller: titleController,
+                  maxLines: 3,
+                  minLines: 1,
+                  decoration: const InputDecoration(labelText: "任务名称"),
                 ),
-                const SizedBox(height: 16),
-                InkWell(
-                  onTap: () async {
-                    final result = await _showCustomDatePicker(
-                      context,
-                      initialTime: dead,
-                    );
-                    if (result != null) {
-                      if (result.year == 0) {
-                        setState(() => dead = null);
-                      } else {
-                        setState(() => dead = result);
-                      }
-                    }
-                  },
-                  borderRadius: BorderRadius.circular(12),
-                  child: Container(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 16,
-                      vertical: 14,
+                const SizedBox(height: 10),
+                Row(
+                  children: [
+                    Text(
+                      selectedDeadline == null
+                          ? "无截止时间"
+                          : DateFormat('MM-dd HH:mm').format(selectedDeadline!),
                     ),
-                    decoration: BoxDecoration(
-                      color: AppColors.bg,
-                      borderRadius: BorderRadius.circular(12),
-                      border: Border.all(color: Colors.grey.withOpacity(0.2)),
+                    const Spacer(),
+                    IconButton(
+                      icon: const Icon(Icons.calendar_today),
+                      onPressed: () async {
+                        final date = await showDatePicker(
+                          context: context,
+                          initialDate: DateTime.now(),
+                          firstDate: DateTime.now(),
+                          lastDate: DateTime(2030),
+                        );
+                        if (date != null) {
+                          final newTime = DateTime(
+                            date.year,
+                            date.month,
+                            date.day,
+                            23,
+                            59,
+                          );
+                          setState(() {
+                            selectedDeadline = newTime;
+                          });
+                        }
+                      },
                     ),
-                    child: Row(
-                      children: [
-                        Icon(
-                          Icons.access_time_rounded,
-                          color: dead == null
-                              ? Colors.grey[400]
-                              : AppColors.primary,
-                        ),
-                        const SizedBox(width: 12),
-                        Text(
-                          dead == null
-                              ? "设置截止时间"
-                              : DateFormat('yyyy-MM-dd HH:mm').format(dead!),
-                          style: TextStyle(
-                            color: dead == null
-                                ? Colors.grey[500]
-                                : AppColors.textDark,
-                            fontWeight: dead == null
-                                ? FontWeight.normal
-                                : FontWeight.bold,
-                          ),
-                        ),
-                        const Spacer(),
-                        if (dead != null)
-                          GestureDetector(
-                            onTap: () => setState(() => dead = null),
-                            child: const Icon(
-                              Icons.close,
-                              size: 18,
-                              color: Colors.grey,
-                            ),
-                          )
-                        else
-                          const Icon(
-                            Icons.arrow_forward_ios_rounded,
-                            size: 14,
-                            color: Colors.grey,
-                          ),
-                      ],
-                    ),
-                  ),
+                  ],
                 ),
               ],
-              const SizedBox(height: 30),
-              SizedBox(
-                width: double.infinity,
-                height: 54,
-                child: ElevatedButton(
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: AppColors.textDark,
-                    foregroundColor: Colors.white,
-                    elevation: 0,
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(16),
-                    ),
-                  ),
-                  onPressed: () {
-                    if (tc.text.isEmpty) return;
-                    List<String> tags = tagC.text
-                        .split(' ')
-                        .where((s) => s.isNotEmpty)
-                        .toList();
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(context),
+                child: const Text("取消"),
+              ),
+              TextButton(
+                onPressed: () {
+                  if (titleController.text.isNotEmpty) {
+                    final newTask = TaskItem(
+                      id: const Uuid().v4(),
+                      title: titleController.text,
+                      type: TaskType.normal,
+                      deadline: selectedDeadline,
+                      collectionId: collectionId,
+                    );
                     Provider.of<AppProvider>(
                       context,
                       listen: false,
-                    ).addTodoTask(tc.text, type, deadline: dead, tags: tags);
-                    Navigator.pop(ctx);
-                  },
-                  child: const Text(
-                    "确认添加",
-                    style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
-                  ),
-                ),
+                    ).addTaskToCollection(newTask, collectionId);
+                    Navigator.pop(context);
+                  }
+                },
+                child: const Text("保存"),
               ),
             ],
-          ),
-        ),
+          );
+        },
       ),
     );
   }

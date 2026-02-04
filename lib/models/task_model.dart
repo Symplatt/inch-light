@@ -1,28 +1,54 @@
-// 任务类型枚举
 enum TaskType { timer, daily, normal }
 
-// 计时模式枚举
 enum TimerMode { stopwatch, countdown }
 
-// 周期频率枚举
 enum CycleFrequency { daily, weekly, monthly, yearly }
+
+class TaskCollection {
+  String id;
+  String title;
+  bool isExpanded;
+
+  TaskCollection({
+    required this.id,
+    required this.title,
+    this.isExpanded = true,
+  });
+
+  Map<String, dynamic> toJson() => {
+    'id': id,
+    'title': title,
+    'isExpanded': isExpanded,
+  };
+
+  factory TaskCollection.fromJson(Map<String, dynamic> json) {
+    return TaskCollection(
+      id: json['id'],
+      title: json['title'],
+      isExpanded: json['isExpanded'] ?? true,
+    );
+  }
+}
 
 class TaskItem {
   String id;
   String title;
   TaskType type;
 
-  // 计时专用
+  // 计时专用属性
   int colorIndex;
   TimerMode timerMode;
   int durationSeconds;
   int? targetSeconds;
 
-  // 记事专用
+  // 任务专用属性
   bool isCompleted;
   DateTime? deadline;
   List<String> tags;
   DateTime? finishedAt;
+  bool isPinned;
+  DateTime createdAt;
+  String? collectionId;
 
   TaskItem({
     required this.id,
@@ -36,7 +62,10 @@ class TaskItem {
     this.deadline,
     this.tags = const [],
     this.finishedAt,
-  });
+    this.isPinned = false,
+    DateTime? createdAt,
+    this.collectionId,
+  }) : createdAt = createdAt ?? DateTime.now();
 
   Map<String, dynamic> toJson() => {
     'id': id,
@@ -50,6 +79,9 @@ class TaskItem {
     'deadline': deadline?.toIso8601String(),
     'tags': tags,
     'finishedAt': finishedAt?.toIso8601String(),
+    'isPinned': isPinned,
+    'createdAt': createdAt.toIso8601String(),
+    'collectionId': collectionId,
   };
 
   factory TaskItem.fromJson(Map<String, dynamic> json) {
@@ -69,18 +101,22 @@ class TaskItem {
       finishedAt: json['finishedAt'] != null
           ? DateTime.parse(json['finishedAt'])
           : null,
+      isPinned: json['isPinned'] ?? false,
+      createdAt: json['createdAt'] != null
+          ? DateTime.parse(json['createdAt'])
+          : DateTime.now(),
+      collectionId: json['collectionId'],
     );
   }
 }
 
-// 周期任务模型
 class CycleTask {
   String id;
   String title;
   CycleFrequency frequency;
-  DateTime time; // 设定的具体时间（只取时分，或日期）
-  int? specificValue; // 周几(1-7) 或 月几(1-31)
-  DateTime nextRunTime; // 下一次提醒时间（用于排序）
+  DateTime time;
+  int? specificValue;
+  DateTime nextRunTime;
 
   CycleTask({
     required this.id,
