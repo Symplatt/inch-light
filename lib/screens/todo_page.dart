@@ -8,16 +8,25 @@ import '../models/task_model.dart';
 import '../constants/app_colors.dart';
 import 'main_screen.dart';
 
-class TodoPage extends StatelessWidget {
+class TodoPage extends StatefulWidget {
   const TodoPage({super.key});
+
+  @override
+  State<TodoPage> createState() => _TodoPageState();
+}
+
+class _TodoPageState extends State<TodoPage> {
+  // 视图状态 (默认显示未完成)
+  bool _showCompleted = false;
 
   @override
   Widget build(BuildContext context) {
     return Consumer<AppProvider>(
       builder: (context, provider, child) {
-        final looseTasks = provider.looseTasks;
         final collections = provider.collections;
-        final dailyTasks = provider.dailyTasks;
+        // 获取排序后、并按完成状态过滤的日常打卡
+        final dailyTasks = provider.getDailyTasks(isCompleted: _showCompleted);
+        final looseTasks = provider.getLooseTasks(isCompleted: _showCompleted);
 
         return Scaffold(
           backgroundColor: AppColors.bg,
@@ -25,16 +34,29 @@ class TodoPage extends StatelessWidget {
             backgroundColor: AppColors.bg,
             elevation: 0,
             centerTitle: false,
-            title: const Text(
-              '待办清单',
-              style: TextStyle(
+            title: Text(
+              _showCompleted ? '已完成清单' : '待办清单',
+              style: const TextStyle(
                 color: AppColors.textDark,
                 fontWeight: FontWeight.bold,
                 fontSize: 24,
               ),
             ),
             actions: [
-              // 【修改点】按钮顺序交换：合集在左，设置在右
+              IconButton(
+                icon: Icon(
+                  _showCompleted ? Icons.check_circle : Icons.circle_outlined,
+                  color: _showCompleted
+                      ? AppColors.success
+                      : AppColors.textGrey,
+                ),
+                tooltip: _showCompleted ? "查看待办" : "查看已完成",
+                onPressed: () {
+                  setState(() {
+                    _showCompleted = !_showCompleted;
+                  });
+                },
+              ),
               IconButton(
                 icon: const Icon(
                   Icons.create_new_folder_outlined,
@@ -54,24 +76,42 @@ class TodoPage extends StatelessWidget {
           body: ListView(
             padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
             children: [
+              // --- 1. 日常打卡区域 ---
               if (dailyTasks.isNotEmpty) ...[
-                _buildSectionHeader("日常打卡"),
-                SizedBox(
-                  height: 100,
-                  child: ListView.separated(
-                    scrollDirection: Axis.horizontal,
-                    itemCount: dailyTasks.length,
-                    separatorBuilder: (_, __) => const SizedBox(width: 12),
-                    itemBuilder: (ctx, index) =>
-                        _buildDailyCard(context, dailyTasks[index], provider),
+                _buildSectionHeader(
+                  "日常打卡",
+                  // 点击右侧按钮，清空当前视图下的所有日常打卡
+                  onClear: () =>
+                      provider.clearDailyTasks(isCompleted: _showCompleted),
+                ),
+                SingleChildScrollView(
+                  scrollDirection: Axis.horizontal,
+                  child: Row(
+                    children: dailyTasks
+                        .map(
+                          (task) => Padding(
+                            padding: const EdgeInsets.only(right: 12),
+                            child: _buildDailyCard(context, task, provider),
+                          ),
+                        )
+                        .toList(),
                   ),
                 ),
                 const SizedBox(height: 20),
               ],
+
+              // --- 2. 任务合集 ---
               if (collections.isNotEmpty) ...[
-                _buildSectionHeader("合集"),
+                _buildSectionHeader(
+                  "合集",
+                  // 合集本身不分完成/未完成，这里设为点击即清空所有合集（释放任务）
+                  onClear: () => provider.clearCollections(),
+                ),
                 ...collections.map((collection) {
-                  final tasks = provider.getTasksInCollection(collection.id);
+                  final tasks = provider.getTasksInCollection(
+                    collection.id,
+                    isCompleted: _showCompleted,
+                  );
                   return _buildCollectionCard(
                     context,
                     collection,
@@ -81,7 +121,14 @@ class TodoPage extends StatelessWidget {
                 }),
                 const SizedBox(height: 20),
               ],
-              _buildSectionHeader("所有任务"),
+
+              // --- 3. 散落任务 ---
+              _buildSectionHeader(
+                "所有任务",
+                // 清空当前视图下的所有散落任务
+                onClear: () =>
+                    provider.clearLooseTasks(isCompleted: _showCompleted),
+              ),
               if (looseTasks.isEmpty &&
                   collections.isEmpty &&
                   dailyTasks.isEmpty)
@@ -89,6 +136,7 @@ class TodoPage extends StatelessWidget {
               ...looseTasks.map(
                 (task) => _buildTaskItem(context, task, provider),
               ),
+
               const SizedBox(height: 80),
             ],
           ),
@@ -102,16 +150,31 @@ class TodoPage extends StatelessWidget {
     );
   }
 
-  Widget _buildSectionHeader(String title) {
+  // 需求2：修改 Header 增加删除按钮
+  Widget _buildSectionHeader(String title, {required VoidCallback onClear}) {
     return Padding(
-      padding: const EdgeInsets.only(bottom: 12, left: 4),
-      child: Text(
-        title,
-        style: const TextStyle(
-          fontSize: 18,
-          fontWeight: FontWeight.bold,
-          color: AppColors.textDark,
-        ),
+      padding: const EdgeInsets.only(bottom: 12, left: 4, right: 4),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        children: [
+          Text(
+            title,
+            style: const TextStyle(
+              fontSize: 18,
+              fontWeight: FontWeight.bold,
+              color: AppColors.textDark,
+            ),
+          ),
+          IconButton(
+            icon: const Icon(
+              Icons.delete_sweep,
+              color: AppColors.textGrey,
+              size: 20,
+            ),
+            onPressed: onClear,
+            tooltip: "清空此项",
+          ),
+        ],
       ),
     );
   }
@@ -124,7 +187,7 @@ class TodoPage extends StatelessWidget {
           children: const [
             Icon(Icons.inbox_outlined, size: 60, color: Color(0xFFE0E0E0)),
             SizedBox(height: 10),
-            Text("没有任务，享受生活吧", style: TextStyle(color: AppColors.textGrey)),
+            Text("空空如也", style: TextStyle(color: AppColors.textGrey)),
           ],
         ),
       ),
@@ -174,13 +237,21 @@ class TodoPage extends StatelessWidget {
             ),
             trailing: IconButton(
               icon: const Icon(Icons.add, size: 24, color: AppColors.primary),
-              onPressed: () {
-                _showAddTaskDialog(context, collectionId: collection.id);
-              },
+              onPressed: () =>
+                  _showAddTaskDialog(context, collectionId: collection.id),
             ),
-            children: tasks
-                .map((t) => _buildTaskItem(context, t, provider))
-                .toList(),
+            children: [
+              const Divider(
+                height: 1,
+                thickness: 0.5,
+                color: Color(0xFFEEEEEE),
+                indent: 16,
+                endIndent: 16,
+              ),
+              ...tasks
+                  .map((t) => _buildTaskItem(context, t, provider))
+                  .toList(),
+            ],
           ),
         ),
       ),
@@ -192,13 +263,15 @@ class TodoPage extends StatelessWidget {
     TaskItem task,
     AppProvider provider,
   ) {
+    // 需求1：上下滑动删除 (vertical)
     return Dismissible(
       key: Key(task.id),
-      direction: DismissDirection.endToStart,
+      direction: DismissDirection.vertical,
       onDismissed: (_) => provider.removeTask(task),
       background: Container(color: Colors.transparent),
       child: GestureDetector(
         onTap: () => provider.toggleTaskCompletion(task),
+        onLongPress: () => _showEditTaskDialog(context, task),
         child: AnimatedContainer(
           duration: const Duration(milliseconds: 200),
           width: 100,
@@ -225,17 +298,23 @@ class TodoPage extends StatelessWidget {
                 size: 28,
               ),
               const SizedBox(height: 8),
-              Text(
-                task.title,
-                maxLines: 2,
-                overflow: TextOverflow.ellipsis,
-                textAlign: TextAlign.center,
-                style: TextStyle(
-                  fontSize: 12,
-                  fontWeight: FontWeight.w600,
-                  color: task.isCompleted
-                      ? AppColors.success
-                      : AppColors.textDark,
+              SizedBox(
+                height: 32,
+                child: Align(
+                  alignment: Alignment.topCenter,
+                  child: Text(
+                    task.title,
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                    textAlign: TextAlign.center,
+                    style: TextStyle(
+                      fontSize: 12,
+                      fontWeight: FontWeight.w600,
+                      color: task.isCompleted
+                          ? AppColors.success
+                          : AppColors.textDark,
+                    ),
+                  ),
                 ),
               ),
             ],
@@ -271,7 +350,7 @@ class TodoPage extends StatelessWidget {
           color: AppColors.danger,
           borderRadius: BorderRadius.circular(16),
         ),
-        child: const Icon(Icons.delete, color: Colors.white),
+        child: const Icon(Icons.delete_outline, color: Colors.white),
       ),
       child: Container(
         margin: const EdgeInsets.only(bottom: 12),
@@ -280,104 +359,272 @@ class TodoPage extends StatelessWidget {
           borderRadius: BorderRadius.circular(16),
           boxShadow: AppColors.shadow,
         ),
-        child: ListTile(
-          contentPadding: const EdgeInsets.symmetric(
-            horizontal: 16,
-            vertical: 8,
-          ),
-          leading: GestureDetector(
-            onTap: () => provider.toggleTaskCompletion(task),
-            child: AnimatedContainer(
-              duration: const Duration(milliseconds: 200),
-              width: 24,
-              height: 24,
-              decoration: BoxDecoration(
-                color: task.isCompleted
-                    ? AppColors.primary
-                    : Colors.transparent,
-                shape: BoxShape.circle,
-                border: Border.all(
+        child: InkWell(
+          onLongPress: () => _showEditTaskDialog(context, task),
+          borderRadius: BorderRadius.circular(16),
+          child: ListTile(
+            contentPadding: const EdgeInsets.symmetric(
+              horizontal: 16,
+              vertical: 8,
+            ),
+            leading: GestureDetector(
+              onTap: () => provider.toggleTaskCompletion(task),
+              child: AnimatedContainer(
+                duration: const Duration(milliseconds: 200),
+                width: 24,
+                height: 24,
+                decoration: BoxDecoration(
                   color: task.isCompleted
                       ? AppColors.primary
-                      : AppColors.textGrey,
-                  width: 2,
+                      : Colors.transparent,
+                  shape: BoxShape.circle,
+                  border: Border.all(
+                    color: task.isCompleted
+                        ? AppColors.primary
+                        : AppColors.textGrey,
+                    width: 2,
+                  ),
                 ),
+                child: task.isCompleted
+                    ? const Icon(Icons.check, size: 16, color: Colors.white)
+                    : null,
               ),
-              child: task.isCompleted
-                  ? const Icon(Icons.check, size: 16, color: Colors.white)
-                  : null,
             ),
-          ),
-          title: Text(
-            task.title,
-            style: TextStyle(
-              fontSize: 16,
-              fontWeight: FontWeight.w500,
-              decoration: task.isCompleted ? TextDecoration.lineThrough : null,
-              color: task.isCompleted ? AppColors.textGrey : AppColors.textDark,
+            title: Text(
+              task.title,
+              style: TextStyle(
+                fontSize: 16,
+                fontWeight: FontWeight.w500,
+                decoration: task.isCompleted
+                    ? TextDecoration.lineThrough
+                    : null,
+                color: task.isCompleted
+                    ? AppColors.textGrey
+                    : AppColors.textDark,
+              ),
             ),
-          ),
-          subtitle: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              if (task.deadline != null)
-                Padding(
-                  padding: const EdgeInsets.only(top: 4),
-                  child: Row(
+            subtitle: (task.deadline == null && task.tags.isEmpty)
+                ? null
+                : Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Icon(Icons.access_time, size: 12, color: dateColor),
-                      const SizedBox(width: 4),
-                      Text(
-                        DateFormat('MM-dd HH:mm').format(task.deadline!),
-                        style: TextStyle(
-                          fontSize: 12,
-                          color: dateColor,
-                          fontWeight: FontWeight.bold,
+                      if (task.deadline != null)
+                        Padding(
+                          padding: const EdgeInsets.only(top: 4),
+                          child: Row(
+                            children: [
+                              Icon(
+                                Icons.access_time,
+                                size: 12,
+                                color: dateColor,
+                              ),
+                              const SizedBox(width: 4),
+                              Text(
+                                DateFormat(
+                                  'MM-dd HH:mm',
+                                ).format(task.deadline!),
+                                style: TextStyle(
+                                  fontSize: 12,
+                                  color: dateColor,
+                                  fontWeight: FontWeight.bold,
+                                ),
+                              ),
+                            ],
+                          ),
                         ),
-                      ),
+                      if (task.tags.isNotEmpty)
+                        Padding(
+                          padding: const EdgeInsets.only(top: 6),
+                          child: Wrap(
+                            spacing: 6,
+                            children: task.tags
+                                .map(
+                                  (tag) => Container(
+                                    padding: const EdgeInsets.symmetric(
+                                      horizontal: 6,
+                                      vertical: 2,
+                                    ),
+                                    decoration: BoxDecoration(
+                                      color: AppColors.bg,
+                                      borderRadius: BorderRadius.circular(4),
+                                    ),
+                                    child: Text(
+                                      tag,
+                                      style: const TextStyle(
+                                        fontSize: 10,
+                                        color: AppColors.textGrey,
+                                      ),
+                                    ),
+                                  ),
+                                )
+                                .toList(),
+                          ),
+                        ),
                     ],
                   ),
-                ),
-              if (task.tags.isNotEmpty)
-                Padding(
-                  padding: const EdgeInsets.only(top: 6),
-                  child: Wrap(
-                    spacing: 6,
-                    children: task.tags
-                        .map(
-                          (tag) => Container(
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: 6,
-                              vertical: 2,
-                            ),
-                            decoration: BoxDecoration(
-                              color: AppColors.bg,
-                              borderRadius: BorderRadius.circular(4),
-                            ),
-                            child: Text(
-                              tag,
-                              style: const TextStyle(
-                                fontSize: 10,
-                                color: AppColors.textGrey,
-                              ),
-                            ),
-                          ),
-                        )
-                        .toList(),
-                  ),
-                ),
-            ],
-          ),
-          trailing: IconButton(
-            icon: Icon(
-              task.isPinned ? Icons.push_pin : Icons.push_pin_outlined,
-              color: task.isPinned
-                  ? AppColors.primary
-                  : AppColors.textGrey.withOpacity(0.3),
+            trailing: IconButton(
+              icon: Icon(
+                task.isPinned ? Icons.push_pin : Icons.push_pin_outlined,
+                color: task.isPinned
+                    ? AppColors.primary
+                    : AppColors.textGrey.withOpacity(0.3),
+              ),
+              onPressed: () => provider.toggleTaskPin(task),
             ),
-            onPressed: () => provider.toggleTaskPin(task),
           ),
         ),
+      ),
+    );
+  }
+
+  void _showEditTaskDialog(BuildContext context, TaskItem task) {
+    final titleController = TextEditingController(text: task.title);
+    final tagController = TextEditingController(text: task.tags.join(" "));
+    DateTime? selectedDeadline = task.deadline;
+    List<String> tags = List.from(task.tags);
+
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (ctx) => StatefulBuilder(
+        builder: (context, setState) {
+          return Container(
+            padding: EdgeInsets.fromLTRB(
+              20,
+              20,
+              20,
+              MediaQuery.of(context).viewInsets.bottom + 20,
+            ),
+            decoration: const BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+            ),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const Text(
+                  "编辑任务",
+                  style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
+                ),
+                const SizedBox(height: 20),
+                TextField(
+                  controller: titleController,
+                  autofocus: true,
+                  decoration: InputDecoration(
+                    hintText: "任务内容",
+                    filled: true,
+                    fillColor: AppColors.bg,
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(12),
+                      borderSide: BorderSide.none,
+                    ),
+                  ),
+                ),
+
+                if (task.type != TaskType.daily) ...[
+                  const SizedBox(height: 16),
+                  TextField(
+                    controller: tagController,
+                    decoration: InputDecoration(
+                      hintText: "标签 (空格分隔)",
+                      prefixIcon: const Icon(Icons.tag, size: 18),
+                      filled: true,
+                      fillColor: AppColors.bg,
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(12),
+                        borderSide: BorderSide.none,
+                      ),
+                    ),
+                    onChanged: (v) {
+                      tags = v.split(' ').where((e) => e.isNotEmpty).toList();
+                    },
+                  ),
+                  const SizedBox(height: 16),
+                  GestureDetector(
+                    onTap: () async {
+                      await _showCupertinoDatePicker(
+                        context,
+                        selectedDeadline ?? DateTime.now(),
+                        (dateTime) {
+                          setState(() => selectedDeadline = dateTime);
+                        },
+                      );
+                    },
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 12,
+                        vertical: 12,
+                      ),
+                      decoration: BoxDecoration(
+                        color: AppColors.bg,
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      child: Row(
+                        children: [
+                          const Icon(
+                            Icons.calendar_today,
+                            size: 18,
+                            color: AppColors.textGrey,
+                          ),
+                          const SizedBox(width: 8),
+                          Text(
+                            selectedDeadline == null
+                                ? "设置截止时间"
+                                : DateFormat(
+                                    'yyyy-MM-dd HH:mm',
+                                  ).format(selectedDeadline!),
+                            style: TextStyle(
+                              color: selectedDeadline == null
+                                  ? AppColors.textGrey
+                                  : AppColors.primary,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ],
+                const SizedBox(height: 24),
+                SizedBox(
+                  width: double.infinity,
+                  height: 50,
+                  child: ElevatedButton(
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: AppColors.primary,
+                      foregroundColor: Colors.white,
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                    ),
+                    onPressed: () {
+                      if (titleController.text.isNotEmpty) {
+                        Provider.of<AppProvider>(
+                          context,
+                          listen: false,
+                        ).updateTask(
+                          task,
+                          titleController.text,
+                          newDeadline: selectedDeadline,
+                          newTags: tags,
+                        );
+                        Navigator.pop(context);
+                      }
+                    },
+                    child: const Text(
+                      "保存修改",
+                      style: TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          );
+        },
       ),
     );
   }
@@ -466,7 +713,9 @@ class TodoPage extends StatelessWidget {
                   const SizedBox(height: 16),
                   GestureDetector(
                     onTap: () async {
-                      await _showCupertinoDatePicker(context, (dateTime) {
+                      await _showCupertinoDatePicker(context, DateTime.now(), (
+                        dateTime,
+                      ) {
                         setState(() => selectedDeadline = dateTime);
                       });
                     },
@@ -557,10 +806,16 @@ class TodoPage extends StatelessWidget {
 
   Future<void> _showCupertinoDatePicker(
     BuildContext context,
+    DateTime initialTime,
     Function(DateTime) onConfirm,
   ) async {
     final now = DateTime.now();
     DateTime tempDate = DateTime(now.year, now.month, now.day, 23, 59);
+    if (initialTime.year != now.year ||
+        initialTime.month != now.month ||
+        initialTime.day != now.day) {
+      tempDate = initialTime;
+    }
     await showModalBottomSheet(
       context: context,
       builder: (ctx) => Container(

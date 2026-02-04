@@ -1,7 +1,6 @@
 import 'dart:async';
 import 'dart:convert';
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:uuid/uuid.dart';
 import 'package:audioplayers/audioplayers.dart';
@@ -36,32 +35,62 @@ class AppProvider with ChangeNotifier, WidgetsBindingObserver {
   bool get isFocusMode => _isFocusMode;
   int get lastPageIndex => _lastPageIndex;
 
-  List<TaskItem> get sortedNormalTasks {
-    List<TaskItem> tasks = List.from(_normalTasks);
+  // 需求7：日常打卡排序（未完成在前，已完成在后）
+  List<TaskItem> get sortedDailyTasks {
+    List<TaskItem> tasks = List.from(_dailyTasks);
     tasks.sort((a, b) {
       if (a.isCompleted != b.isCompleted) return a.isCompleted ? 1 : -1;
+      return a.createdAt.compareTo(b.createdAt);
+    });
+    return tasks;
+  }
+
+  // 获取特定状态的日常打卡（用于批量删除）
+  List<TaskItem> getDailyTasks({required bool isCompleted}) {
+    return _dailyTasks.where((t) => t.isCompleted == isCompleted).toList();
+  }
+
+  // 根据完成状态过滤合集中的任务
+  List<TaskItem> getTasksInCollection(
+    String collectionId, {
+    required bool isCompleted,
+  }) {
+    List<TaskItem> all = _normalTasks
+        .where((t) => t.collectionId == collectionId)
+        .toList();
+    List<TaskItem> filtered = all
+        .where((t) => t.isCompleted == isCompleted)
+        .toList();
+
+    filtered.sort((a, b) {
       if (a.isPinned != b.isPinned) return a.isPinned ? -1 : 1;
       bool hasDeadlineA = a.deadline != null;
       bool hasDeadlineB = b.deadline != null;
       if (hasDeadlineA && !hasDeadlineB) return -1;
       if (!hasDeadlineA && hasDeadlineB) return 1;
-      if (hasDeadlineA && hasDeadlineB) {
+      if (hasDeadlineA && hasDeadlineB)
         return a.deadline!.compareTo(b.deadline!);
-      } else {
-        return a.createdAt.compareTo(b.createdAt);
-      }
+      return a.createdAt.compareTo(b.createdAt);
+    });
+    return filtered;
+  }
+
+  // 根据完成状态过滤散落任务
+  List<TaskItem> getLooseTasks({required bool isCompleted}) {
+    List<TaskItem> tasks = _normalTasks
+        .where((t) => t.collectionId == null && t.isCompleted == isCompleted)
+        .toList();
+    tasks.sort((a, b) {
+      if (a.isPinned != b.isPinned) return a.isPinned ? -1 : 1;
+      bool hasDeadlineA = a.deadline != null;
+      bool hasDeadlineB = b.deadline != null;
+      if (hasDeadlineA && !hasDeadlineB) return -1;
+      if (!hasDeadlineA && hasDeadlineB) return 1;
+      if (hasDeadlineA && hasDeadlineB)
+        return a.deadline!.compareTo(b.deadline!);
+      return a.createdAt.compareTo(b.createdAt);
     });
     return tasks;
-  }
-
-  List<TaskItem> getTasksInCollection(String collectionId) {
-    return sortedNormalTasks
-        .where((t) => t.collectionId == collectionId)
-        .toList();
-  }
-
-  List<TaskItem> get looseTasks {
-    return sortedNormalTasks.where((t) => t.collectionId == null).toList();
   }
 
   AppProvider() {
@@ -211,10 +240,7 @@ class AppProvider with ChangeNotifier, WidgetsBindingObserver {
     notifyListeners();
   }
 
-  // 【修复 2】删除合集逻辑
   void removeCollection(String collectionId) {
-    // 策略：不删除任务，而是把它们释放出来（变为 looseTasks）
-    // 这样防止用户手滑删了合集导致里面的任务也没了
     for (var task in _normalTasks) {
       if (task.collectionId == collectionId) {
         task.collectionId = null;
@@ -224,6 +250,39 @@ class AppProvider with ChangeNotifier, WidgetsBindingObserver {
     _saveData();
     notifyListeners();
   }
+
+  // --- 批量删除功能 (需求2) ---
+
+  // 清空日常打卡 (根据状态)
+  void clearDailyTasks({required bool isCompleted}) {
+    _dailyTasks.removeWhere((t) => t.isCompleted == isCompleted);
+    _saveData();
+    notifyListeners();
+  }
+
+  // 清空合集 (这里逻辑为：清空所有合集，内部任务释放为散落。因为合集本身不分“完成/未完成”，
+  // 但为了响应前端按钮，我们简单定义为：点击清理就清理所有合集)
+  void clearCollections() {
+    // 释放所有合集任务
+    for (var task in _normalTasks) {
+      task.collectionId = null;
+    }
+    _collections.clear();
+    _saveData();
+    notifyListeners();
+  }
+
+  // 清空散落任务 (根据状态)
+  void clearLooseTasks({required bool isCompleted}) {
+    // 注意：只删除 loose tasks (collectionId == null)，且符合状态的
+    _normalTasks.removeWhere(
+      (t) => t.collectionId == null && t.isCompleted == isCompleted,
+    );
+    _saveData();
+    notifyListeners();
+  }
+
+  // ---------------------------
 
   void toggleCollectionExpand(String id) {
     final index = _collections.indexWhere((c) => c.id == id);
@@ -258,6 +317,21 @@ class AppProvider with ChangeNotifier, WidgetsBindingObserver {
     _dailyTasks.add(
       TaskItem(id: const Uuid().v4(), title: title, type: TaskType.daily),
     );
+    _saveData();
+    notifyListeners();
+  }
+
+  void updateTask(
+    TaskItem task,
+    String newTitle, {
+    DateTime? newDeadline,
+    List<String>? newTags,
+  }) {
+    task.title = newTitle;
+    task.deadline = newDeadline;
+    if (newTags != null) {
+      task.tags = newTags;
+    }
     _saveData();
     notifyListeners();
   }
