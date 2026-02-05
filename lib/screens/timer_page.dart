@@ -21,7 +21,7 @@ class TimerPage extends StatelessWidget {
         elevation: 0,
         centerTitle: false,
         title: const Text(
-          '专注任务',
+          '专注事项',
           style: TextStyle(
             color: AppColors.textDark,
             fontWeight: FontWeight.bold,
@@ -53,7 +53,7 @@ class TimerPage extends StatelessWidget {
                         ),
                         const SizedBox(height: 12),
                         Text(
-                          "点击右下角添加专注任务",
+                          "点击右下角添加专注事项",
                           style: TextStyle(color: Colors.grey[400]),
                         ),
                       ],

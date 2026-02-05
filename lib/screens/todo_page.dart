@@ -103,7 +103,7 @@ class _TodoPageState extends State<TodoPage> {
               // --- 2. 任务合集 ---
               if (collections.isNotEmpty) ...[
                 _buildSectionHeader(
-                  "合集",
+                  "任务合集",
                   // 合集本身不分完成/未完成，这里设为点击即清空所有合集（释放任务）
                   onClear: () => provider.clearCollections(),
                 ),
@@ -124,7 +124,7 @@ class _TodoPageState extends State<TodoPage> {
 
               // --- 3. 散落任务 ---
               _buildSectionHeader(
-                "所有任务",
+                "零散任务",
                 // 清空当前视图下的所有散落任务
                 onClear: () =>
                     provider.clearLooseTasks(isCompleted: _showCompleted),
