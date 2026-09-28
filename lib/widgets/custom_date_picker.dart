@@ -110,7 +110,7 @@ class _CustomDateTimePickerWidgetState
               "设置日期和时间",
               style: TextStyle(
                 fontSize: 20,
-                fontWeight: FontWeight.bold,
+                fontWeight: FontWeight.w500,
                 color: AppColors.textDark,
               ),
             ),
@@ -164,7 +164,7 @@ class _CustomDateTimePickerWidgetState
                     ":",
                     style: TextStyle(
                       fontSize: 20,
-                      fontWeight: FontWeight.bold,
+                      fontWeight: FontWeight.w500,
                       color: Colors.grey,
                     ),
                   ),
@@ -220,7 +220,7 @@ class _CustomDateTimePickerWidgetState
                     "设置",
                     style: TextStyle(
                       fontSize: 16,
-                      fontWeight: FontWeight.bold,
+                      fontWeight: FontWeight.w500,
                       color: AppColors.primary,
                     ),
                   ),

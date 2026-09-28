@@ -7,6 +7,7 @@ import '../providers/app_provider.dart';
 import '../models/task_model.dart';
 import '../constants/app_colors.dart';
 import 'main_screen.dart';
+import '../utils/deadline.dart';
 
 class TodoPage extends StatefulWidget {
   const TodoPage({super.key});
@@ -38,7 +39,7 @@ class _TodoPageState extends State<TodoPage> {
               _showCompleted ? '已完成清单' : '待办清单',
               style: const TextStyle(
                 color: AppColors.textDark,
-                fontWeight: FontWeight.bold,
+                fontWeight: FontWeight.w500,
                 fontSize: 24,
               ),
             ),
@@ -161,7 +162,7 @@ class _TodoPageState extends State<TodoPage> {
             title,
             style: const TextStyle(
               fontSize: 18,
-              fontWeight: FontWeight.bold,
+              fontWeight: FontWeight.w500,
               color: AppColors.textDark,
             ),
           ),
@@ -200,58 +201,72 @@ class _TodoPageState extends State<TodoPage> {
     List<TaskItem> tasks,
     AppProvider provider,
   ) {
-    return Dismissible(
-      key: Key(collection.id),
-      direction: DismissDirection.endToStart,
-      background: Container(
-        margin: const EdgeInsets.only(bottom: 16),
-        decoration: BoxDecoration(
-          color: AppColors.danger,
-          borderRadius: BorderRadius.circular(16),
+    final nearest = provider.nearestDeadline(collection.id);
+    return GestureDetector(
+      onLongPress: () => _showCollectionActions(context, collection, provider),
+      child: Dismissible(
+        key: Key(collection.id),
+        direction: DismissDirection.endToStart,
+        background: Container(
+          margin: const EdgeInsets.only(bottom: 16),
+          decoration: BoxDecoration(
+            color: AppColors.danger,
+            borderRadius: BorderRadius.circular(16),
+          ),
+          alignment: Alignment.centerRight,
+          padding: const EdgeInsets.only(right: 20),
+          child: const Icon(Icons.delete, color: Colors.white),
         ),
-        alignment: Alignment.centerRight,
-        padding: const EdgeInsets.only(right: 20),
-        child: const Icon(Icons.delete, color: Colors.white),
-      ),
-      onDismissed: (_) => provider.removeCollection(collection.id),
-      child: Container(
-        margin: const EdgeInsets.only(bottom: 16),
-        decoration: BoxDecoration(
-          color: AppColors.surface,
-          borderRadius: BorderRadius.circular(16),
-          boxShadow: AppColors.shadow,
-        ),
-        child: Theme(
-          data: Theme.of(context).copyWith(dividerColor: Colors.transparent),
-          child: ExpansionTile(
-            initiallyExpanded: collection.isExpanded,
-            onExpansionChanged: (_) =>
-                provider.toggleCollectionExpand(collection.id),
-            tilePadding: const EdgeInsets.symmetric(
-              horizontal: 16,
-              vertical: 4,
-            ),
-            title: Text(
-              collection.title,
-              style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 16),
-            ),
-            trailing: IconButton(
-              icon: const Icon(Icons.add, size: 24, color: AppColors.primary),
-              onPressed: () =>
-                  _showAddTaskDialog(context, collectionId: collection.id),
-            ),
-            children: [
-              const Divider(
-                height: 1,
-                thickness: 0.5,
-                color: Color(0xFFEEEEEE),
-                indent: 16,
-                endIndent: 16,
+        onDismissed: (_) => provider.removeCollection(collection.id),
+        child: Container(
+          margin: const EdgeInsets.only(bottom: 16),
+          decoration: BoxDecoration(
+            color: AppColors.surface,
+            borderRadius: BorderRadius.circular(16),
+            boxShadow: AppColors.shadow,
+          ),
+          child: Theme(
+            data: Theme.of(context).copyWith(dividerColor: Colors.transparent),
+            child: ExpansionTile(
+              initiallyExpanded: collection.isExpanded,
+              onExpansionChanged: (_) =>
+                  provider.toggleCollectionExpand(collection.id),
+              tilePadding: const EdgeInsets.symmetric(
+                horizontal: 16,
+                vertical: 4,
               ),
-              ...tasks
-                  .map((t) => _buildTaskItem(context, t, provider))
-                  .toList(),
-            ],
+              subtitle: nearest == null
+                  ? null
+                  : Text(
+                      DateFormat('yyyy-MM-dd HH:mm').format(nearest),
+                      style: TextStyle(
+                        color: deadlineColor(nearest),
+                        fontSize: 12,
+                      ),
+                    ),
+              title: Text(
+                collection.title,
+                style: const TextStyle(
+                  fontWeight: FontWeight.w500,
+                  fontSize: 16,
+                ),
+              ),
+              trailing: IconButton(
+                icon: const Icon(Icons.add, size: 24, color: AppColors.primary),
+                onPressed: () =>
+                    _showAddTaskDialog(context, collectionId: collection.id),
+              ),
+              children: [
+                const Divider(
+                  height: 1,
+                  thickness: 0.5,
+                  color: Color(0xFFEEEEEE),
+                  indent: 16,
+                  endIndent: 16,
+                ),
+                ...tasks.map((t) => _buildTaskItem(context, t, provider)),
+              ],
+            ),
           ),
         ),
       ),
@@ -278,7 +293,7 @@ class _TodoPageState extends State<TodoPage> {
           padding: const EdgeInsets.all(12),
           decoration: BoxDecoration(
             color: task.isCompleted
-                ? AppColors.success.withOpacity(0.1)
+                ? AppColors.success.withValues(alpha: 0.1)
                 : AppColors.surface,
             borderRadius: BorderRadius.circular(16),
             border: Border.all(
@@ -309,7 +324,7 @@ class _TodoPageState extends State<TodoPage> {
                     textAlign: TextAlign.center,
                     style: TextStyle(
                       fontSize: 12,
-                      fontWeight: FontWeight.w600,
+                      fontWeight: FontWeight.w500,
                       color: task.isCompleted
                           ? AppColors.success
                           : AppColors.textDark,
@@ -329,14 +344,7 @@ class _TodoPageState extends State<TodoPage> {
     TaskItem task,
     AppProvider provider,
   ) {
-    Color dateColor = AppColors.textGrey;
-    if (task.deadline != null) {
-      if (task.deadline!.isBefore(DateTime.now())) {
-        dateColor = AppColors.danger;
-      } else {
-        dateColor = AppColors.success;
-      }
-    }
+    final dateColor = deadlineColor(task.deadline);
 
     return Dismissible(
       key: Key(task.id),
@@ -360,7 +368,7 @@ class _TodoPageState extends State<TodoPage> {
           boxShadow: AppColors.shadow,
         ),
         child: InkWell(
-          onLongPress: () => _showEditTaskDialog(context, task),
+          onLongPress: () => _showTaskActions(context, task, provider),
           borderRadius: BorderRadius.circular(16),
           child: ListTile(
             contentPadding: const EdgeInsets.symmetric(
@@ -426,7 +434,7 @@ class _TodoPageState extends State<TodoPage> {
                                 style: TextStyle(
                                   fontSize: 12,
                                   color: dateColor,
-                                  fontWeight: FontWeight.bold,
+                                  fontWeight: FontWeight.w500,
                                 ),
                               ),
                             ],
@@ -462,17 +470,101 @@ class _TodoPageState extends State<TodoPage> {
                         ),
                     ],
                   ),
-            trailing: IconButton(
-              icon: Icon(
-                task.isPinned ? Icons.push_pin : Icons.push_pin_outlined,
-                color: task.isPinned
-                    ? AppColors.primary
-                    : AppColors.textGrey.withOpacity(0.3),
-              ),
-              onPressed: () => provider.toggleTaskPin(task),
-            ),
+            trailing: task.isPinned
+                ? const Icon(Icons.push_pin, size: 16, color: AppColors.primary)
+                : task.isBottom
+                ? const Icon(
+                    Icons.vertical_align_bottom,
+                    size: 16,
+                    color: AppColors.textGrey,
+                  )
+                : null,
           ),
         ),
+      ),
+    );
+  }
+
+  void _showCollectionActions(
+    BuildContext context,
+    TaskCollection collection,
+    AppProvider provider,
+  ) {
+    showDialog(
+      context: context,
+      builder: (ctx) => SimpleDialog(
+        title: Text(collection.title),
+        children: [
+          SimpleDialogOption(
+            onPressed: () {
+              Navigator.pop(ctx);
+              provider.completeCollection(collection.id);
+            },
+            child: const Text('一键完成所有事项'),
+          ),
+          SimpleDialogOption(
+            onPressed: () {
+              Navigator.pop(ctx);
+              provider.clearCollectionTasks(collection.id);
+            },
+            child: const Text(
+              '一键删除所有事项',
+              style: TextStyle(color: AppColors.danger),
+            ),
+          ),
+          SimpleDialogOption(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text('取消'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _showTaskActions(
+    BuildContext context,
+    TaskItem task,
+    AppProvider provider,
+  ) {
+    showDialog(
+      context: context,
+      builder: (ctx) => SimpleDialog(
+        title: Text(task.title),
+        children: [
+          SimpleDialogOption(
+            onPressed: () {
+              Navigator.pop(ctx);
+              provider.setTaskPosition(task, -1);
+            },
+            child: const Text('置顶'),
+          ),
+          SimpleDialogOption(
+            onPressed: () {
+              Navigator.pop(ctx);
+              provider.setTaskPosition(task, 1);
+            },
+            child: const Text('置底'),
+          ),
+          if (task.isPinned || task.isBottom)
+            SimpleDialogOption(
+              onPressed: () {
+                Navigator.pop(ctx);
+                provider.setTaskPosition(task, 0);
+              },
+              child: const Text('恢复默认排序'),
+            ),
+          SimpleDialogOption(
+            onPressed: () {
+              Navigator.pop(ctx);
+              _showEditTaskDialog(context, task);
+            },
+            child: const Text('编辑事项'),
+          ),
+          SimpleDialogOption(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text('取消'),
+          ),
+        ],
       ),
     );
   }
@@ -505,7 +597,7 @@ class _TodoPageState extends State<TodoPage> {
               children: [
                 const Text(
                   "编辑任务",
-                  style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
+                  style: TextStyle(fontSize: 20, fontWeight: FontWeight.w500),
                 ),
                 const SizedBox(height: 20),
                 TextField(
@@ -578,7 +670,7 @@ class _TodoPageState extends State<TodoPage> {
                               color: selectedDeadline == null
                                   ? AppColors.textGrey
                                   : AppColors.primary,
-                              fontWeight: FontWeight.w600,
+                              fontWeight: FontWeight.w500,
                             ),
                           ),
                         ],
@@ -616,7 +708,7 @@ class _TodoPageState extends State<TodoPage> {
                       "保存修改",
                       style: TextStyle(
                         fontSize: 16,
-                        fontWeight: FontWeight.bold,
+                        fontWeight: FontWeight.w500,
                       ),
                     ),
                   ),
@@ -659,7 +751,7 @@ class _TodoPageState extends State<TodoPage> {
               children: [
                 const Text(
                   "新建",
-                  style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
+                  style: TextStyle(fontSize: 20, fontWeight: FontWeight.w500),
                 ),
                 const SizedBox(height: 20),
                 if (collectionId == null)
@@ -746,7 +838,7 @@ class _TodoPageState extends State<TodoPage> {
                               color: selectedDeadline == null
                                   ? AppColors.textGrey
                                   : AppColors.primary,
-                              fontWeight: FontWeight.w600,
+                              fontWeight: FontWeight.w500,
                             ),
                           ),
                         ],
@@ -791,7 +883,7 @@ class _TodoPageState extends State<TodoPage> {
                       "完成",
                       style: TextStyle(
                         fontSize: 16,
-                        fontWeight: FontWeight.bold,
+                        fontWeight: FontWeight.w500,
                       ),
                     ),
                   ),

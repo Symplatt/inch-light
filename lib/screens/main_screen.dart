@@ -4,10 +4,11 @@ import 'package:provider/provider.dart';
 
 import '../providers/app_provider.dart';
 import '../constants/app_colors.dart';
-import '../models/task_model.dart';
-import 'timer_page.dart';
+
+
 import 'todo_page.dart';
 import 'cycle_page.dart';
+import 'journal_page.dart';
 
 // 全局通用的设置弹窗
 void showGlobalSettingsDialog(BuildContext context, AppProvider provider) {
@@ -69,7 +70,7 @@ void showGlobalSettingsDialog(BuildContext context, AppProvider provider) {
                           },
                           child: const Text(
                             "确认导入",
-                            style: TextStyle(color: Colors.red),
+                            style: TextStyle(color: AppColors.danger),
                           ),
                         ),
                       ],
@@ -77,10 +78,11 @@ void showGlobalSettingsDialog(BuildContext context, AppProvider provider) {
                   );
                 }
               } else {
-                if (context.mounted)
+                if (context.mounted) {
                   ScaffoldMessenger.of(
                     context,
                   ).showSnackBar(const SnackBar(content: Text("剪贴板为空")));
+                }
               }
             },
           ),
@@ -104,8 +106,7 @@ class _MainScreenState extends State<MainScreen> {
   @override
   void initState() {
     super.initState();
-    final provider = Provider.of<AppProvider>(context, listen: false);
-    _currentIndex = provider.lastPageIndex;
+    _currentIndex = 0;
 
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (_pageController.hasClients) {
@@ -114,136 +115,46 @@ class _MainScreenState extends State<MainScreen> {
     });
   }
 
+  @override
+  void dispose() {
+    _pageController.dispose();
+    super.dispose();
+  }
+
   void _onTabTapped(int index) {
     setState(() => _currentIndex = index);
     _pageController.jumpToPage(index);
     Provider.of<AppProvider>(context, listen: false).setLastPageIndex(index);
   }
 
-  String _formatDuration(int sec) {
-    Duration d = Duration(seconds: sec);
-    return "${d.inHours}:${(d.inMinutes % 60).toString().padLeft(2, '0')}:${(d.inSeconds % 60).toString().padLeft(2, '0')}";
-  }
-
   @override
   Widget build(BuildContext context) {
-    return Consumer<AppProvider>(
-      builder: (context, provider, child) {
-        if (provider.isFocusMode) {
-          SystemChrome.setEnabledSystemUIMode(SystemUiMode.immersiveSticky);
-        } else {
-          SystemChrome.setEnabledSystemUIMode(SystemUiMode.edgeToEdge);
-        }
-
-        TaskItem? activeTask;
-        if (provider.activeTimerId != null) {
-          try {
-            activeTask = provider.timerTasks.firstWhere(
-              (t) => t.id == provider.activeTimerId,
-            );
-          } catch (_) {}
-        }
-
-        return Stack(
-          children: [
-            Scaffold(
-              body: PageView(
-                controller: _pageController,
-                physics: const NeverScrollableScrollPhysics(),
-                children: const [TimerPage(), TodoPage(), CyclePage()],
-              ),
-              bottomNavigationBar: Container(
-                decoration: BoxDecoration(
-                  boxShadow: [
-                    BoxShadow(
-                      color: Colors.black.withOpacity(0.05),
-                      blurRadius: 20,
-                      offset: const Offset(0, -5),
-                    ),
-                  ],
-                ),
-                child: BottomNavigationBar(
-                  currentIndex: _currentIndex,
-                  onTap: _onTabTapped,
-                  type: BottomNavigationBarType.fixed,
-                  backgroundColor: Colors.white,
-                  selectedItemColor: AppColors.primary,
-                  unselectedItemColor: AppColors.textGrey,
-                  showUnselectedLabels: true,
-                  elevation: 0,
-                  items: const [
-                    BottomNavigationBarItem(
-                      icon: Icon(Icons.timer_outlined),
-                      activeIcon: Icon(Icons.timer),
-                      label: '专注',
-                    ),
-                    BottomNavigationBarItem(
-                      icon: Icon(Icons.check_circle_outline),
-                      activeIcon: Icon(Icons.check_circle),
-                      label: '待办',
-                    ),
-                    BottomNavigationBarItem(
-                      icon: Icon(Icons.loop),
-                      activeIcon: Icon(Icons.loop),
-                      label: '周期',
-                    ),
-                  ],
-                ),
-              ),
-            ),
-
-            // 专注增强模式
-            if (provider.isFocusMode && activeTask != null)
-              Positioned.fill(
-                child: Material(
-                  color: Colors.black,
-                  child: GestureDetector(
-                    onTap: () => provider.exitFocusMode(),
-                    behavior: HitTestBehavior.opaque,
-                    child: Center(
-                      child: Column(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          Text(
-                            activeTask.title,
-                            style: const TextStyle(
-                              color: Colors.white54,
-                              fontSize: 24,
-                              decoration: TextDecoration.none,
-                            ),
-                          ),
-                          const SizedBox(height: 30),
-                          Text(
-                            _formatDuration(activeTask.durationSeconds),
-                            style: TextStyle(
-                              color:
-                                  taskColors[activeTask.colorIndex %
-                                      taskColors.length],
-                              // 【修改点】字体改小到 64
-                              fontSize: 64,
-                              fontFamily: 'Monospace',
-                              fontWeight: FontWeight.bold,
-                              decoration: TextDecoration.none,
-                            ),
-                          ),
-                          const SizedBox(height: 60),
-                          const Text(
-                            "点击屏幕唤醒",
-                            style: TextStyle(
-                              color: Colors.white24,
-                              fontSize: 16,
-                              decoration: TextDecoration.none,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ),
-                ),
-              ),
-          ],
-        );
-      },
+    return Scaffold(
+      body: PageView(
+        controller: _pageController,
+        physics: const NeverScrollableScrollPhysics(),
+        children: const [TodoPage(), JournalPage(), CyclePage()],
+      ),
+      bottomNavigationBar: BottomNavigationBar(
+        currentIndex: _currentIndex,
+        onTap: _onTabTapped,
+        backgroundColor: AppColors.surface,
+        selectedItemColor: AppColors.primary,
+        unselectedItemColor: AppColors.textGrey,
+        selectedLabelStyle: const TextStyle(fontWeight: FontWeight.w500),
+        elevation: 2,
+        items: const [
+          BottomNavigationBarItem(
+            icon: Icon(Icons.check_circle_outline),
+            activeIcon: Icon(Icons.check_circle),
+            label: '待办',
+          ),
+          BottomNavigationBarItem(icon: Icon(Icons.edit_note), label: '记录'),
+          BottomNavigationBarItem(
+            icon: Icon(Icons.calendar_month_outlined), label: '时历',
+          ),
+        ],
+      ),
     );
   }
 }

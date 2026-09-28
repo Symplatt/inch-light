@@ -12,7 +12,7 @@ class SectionHeader extends StatelessWidget {
         title,
         style: TextStyle(
           fontSize: 14,
-          fontWeight: FontWeight.bold,
+          fontWeight: FontWeight.w500,
           color: Colors.grey[400],
         ),
       ),
@@ -49,7 +49,7 @@ class FilterChipWidget extends StatelessWidget {
           text,
           style: TextStyle(
             color: selected ? Colors.white : Colors.grey[600],
-            fontWeight: FontWeight.bold,
+            fontWeight: FontWeight.w500,
             fontSize: 13,
           ),
         ),
@@ -58,69 +58,3 @@ class FilterChipWidget extends StatelessWidget {
   }
 }
 
-class ModeChipWidget extends StatelessWidget {
-  final String label;
-  final bool selected;
-  final VoidCallback onTap;
-  const ModeChipWidget({
-    super.key,
-    required this.label,
-    required this.selected,
-    required this.onTap,
-  });
-  @override
-  Widget build(BuildContext context) {
-    return GestureDetector(
-      onTap: onTap,
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
-        decoration: BoxDecoration(
-          color: selected
-              ? AppColors.primary.withValues(alpha: 0.1)
-              : AppColors.bg,
-          border: Border.all(
-            color: selected ? AppColors.primary : Colors.transparent,
-          ),
-          borderRadius: BorderRadius.circular(12),
-        ),
-        child: Text(
-          label,
-          style: TextStyle(
-            color: selected ? AppColors.primary : Colors.grey,
-            fontWeight: FontWeight.bold,
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-class TimeInputWidget extends StatelessWidget {
-  final String label;
-  final ValueChanged<String> onChanged;
-  const TimeInputWidget({
-    super.key,
-    required this.label,
-    required this.onChanged,
-  });
-  @override
-  Widget build(BuildContext context) {
-    return TextField(
-      keyboardType: TextInputType.number,
-      onChanged: onChanged,
-      textAlign: TextAlign.center,
-      style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-      decoration: InputDecoration(
-        hintText: "0",
-        hintStyle: TextStyle(color: Colors.grey[400]),
-        suffixText: label,
-        filled: true,
-        fillColor: AppColors.bg,
-        border: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(12),
-          borderSide: BorderSide.none,
-        ),
-      ),
-    );
-  }
-}

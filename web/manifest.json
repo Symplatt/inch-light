@@ -1,11 +1,11 @@
 {
-    "name": "inch_light",
-    "short_name": "inch_light",
+    "name": "一日千录",
+    "short_name": "一日千录",
     "start_url": ".",
     "display": "standalone",
     "background_color": "#0175C2",
     "theme_color": "#0175C2",
-    "description": "A new Flutter project.",
+    "description": "一日千录：记录、待办、时历与专注。",
     "orientation": "portrait-primary",
     "prefer_related_applications": false,
     "icons": [

@@ -1,5 +1,5 @@
 name: inch_light
-description: "A new Flutter project."
+description: "一日千录：记录、待办与时历。"
 # The following line prevents the package from being accidentally published to
 # pub.dev using `flutter pub publish`. This is preferred for private packages.
 publish_to: "none" # Remove this line if you wish to publish to pub.dev
@@ -40,12 +40,10 @@ dependencies:
   uuid: ^4.5.2
   google_fonts: ^6.3.2
   fl_chart: ^1.1.1
-  flutter_ringtone_player: ^4.0.0+4
-  wakelock_plus: ^1.4.0
-  flutter_background_service: ^5.0.0 # 后台服务
   flutter_local_notifications: ^17.0.0 # 本地通知
   permission_handler: ^11.0.0 # 权限管理
-  audioplayers: ^6.5.1
+  flutter_markdown: ^0.7.7
+  timezone: ^0.9.4
 
 dev_dependencies:
   flutter_launcher_icons: ^0.13.1
@@ -57,6 +55,17 @@ flutter_launcher_icons:
   android: true
   ios: true
   image_path: "assets/icon.png"
+  remove_alpha_ios: true
+  web:
+    generate: true
+    image_path: "assets/icon.png"
+  windows:
+    generate: true
+    image_path: "assets/icon.png"
+    icon_size: 256
+  macos:
+    generate: true
+    image_path: "assets/icon.png"
   min_sdk_android: 21 # 加上这个防止旧版兼容问题
 
 # For information on the generic Dart part of this file, see the
@@ -71,7 +80,6 @@ flutter:
 
   assets:
     - assets/fonts/
-    - assets/audio/ # 确保这一行存在
 
   fonts:
     - family: ArtFont # 这个名字必须和你代码里的 fontFamily 一致

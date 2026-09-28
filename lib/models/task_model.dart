@@ -1,6 +1,5 @@
-enum TaskType { timer, daily, normal }
+enum TaskType { daily, normal }
 
-enum TimerMode { stopwatch, countdown }
 
 enum CycleFrequency { daily, weekly, monthly, yearly }
 
@@ -35,11 +34,6 @@ class TaskItem {
   String title;
   TaskType type;
 
-  // 计时专用属性
-  int colorIndex;
-  TimerMode timerMode;
-  int durationSeconds;
-  int? targetSeconds;
 
   // 任务专用属性
   bool isCompleted;
@@ -47,6 +41,7 @@ class TaskItem {
   List<String> tags;
   DateTime? finishedAt;
   bool isPinned;
+  bool isBottom;
   DateTime createdAt;
   String? collectionId;
 
@@ -54,15 +49,12 @@ class TaskItem {
     required this.id,
     required this.title,
     required this.type,
-    this.colorIndex = 0,
-    this.timerMode = TimerMode.stopwatch,
-    this.durationSeconds = 0,
-    this.targetSeconds,
     this.isCompleted = false,
     this.deadline,
     this.tags = const [],
     this.finishedAt,
     this.isPinned = false,
+    this.isBottom = false,
     DateTime? createdAt,
     this.collectionId,
   }) : createdAt = createdAt ?? DateTime.now();
@@ -70,16 +62,13 @@ class TaskItem {
   Map<String, dynamic> toJson() => {
     'id': id,
     'title': title,
-    'type': type.index,
-    'colorIndex': colorIndex,
-    'timerMode': timerMode.index,
-    'durationSeconds': durationSeconds,
-    'targetSeconds': targetSeconds,
+    'type': type == TaskType.daily ? 1 : 2, // 保持已有数据的类型编号
     'isCompleted': isCompleted,
     'deadline': deadline?.toIso8601String(),
     'tags': tags,
     'finishedAt': finishedAt?.toIso8601String(),
     'isPinned': isPinned,
+    'isBottom': isBottom,
     'createdAt': createdAt.toIso8601String(),
     'collectionId': collectionId,
   };
@@ -88,11 +77,7 @@ class TaskItem {
     return TaskItem(
       id: json['id'],
       title: json['title'],
-      type: TaskType.values[json['type']],
-      colorIndex: json['colorIndex'] ?? 0,
-      timerMode: TimerMode.values[json['timerMode'] ?? 0],
-      durationSeconds: json['durationSeconds'] ?? 0,
-      targetSeconds: json['targetSeconds'],
+      type: json['type'] == 1 ? TaskType.daily : TaskType.normal,
       isCompleted: json['isCompleted'] ?? false,
       deadline: json['deadline'] != null
           ? DateTime.parse(json['deadline'])
@@ -102,6 +87,7 @@ class TaskItem {
           ? DateTime.parse(json['finishedAt'])
           : null,
       isPinned: json['isPinned'] ?? false,
+      isBottom: json['isBottom'] ?? false,
       createdAt: json['createdAt'] != null
           ? DateTime.parse(json['createdAt'])
           : DateTime.now(),
@@ -117,6 +103,7 @@ class CycleTask {
   DateTime time;
   int? specificValue;
   DateTime nextRunTime;
+  bool allDay;
 
   CycleTask({
     required this.id,
@@ -125,6 +112,7 @@ class CycleTask {
     required this.time,
     this.specificValue,
     required this.nextRunTime,
+    this.allDay = false,
   });
 
   Map<String, dynamic> toJson() => {
@@ -134,6 +122,7 @@ class CycleTask {
     'time': time.toIso8601String(),
     'specificValue': specificValue,
     'nextRunTime': nextRunTime.toIso8601String(),
+    'allDay': allDay,
   };
 
   factory CycleTask.fromJson(Map<String, dynamic> json) {
@@ -144,6 +133,50 @@ class CycleTask {
       time: DateTime.parse(json['time']),
       specificValue: json['specificValue'],
       nextRunTime: DateTime.parse(json['nextRunTime']),
+      allDay: json['allDay'] ?? false,
     );
   }
+}
+
+class JournalEntry {
+  final String id;
+  final String content;
+  final DateTime createdAt;
+  JournalEntry({
+    required this.id,
+    required this.content,
+    required this.createdAt,
+  });
+  Map<String, dynamic> toJson() => {
+    'id': id,
+    'content': content,
+    'createdAt': createdAt.toIso8601String(),
+  };
+  factory JournalEntry.fromJson(Map<String, dynamic> json) => JournalEntry(
+    id: json['id'],
+    content: json['content'],
+    createdAt: DateTime.parse(json['createdAt']),
+  );
+}
+
+class CalendarCountdown {
+  final String id;
+  final String title;
+  final DateTime deadline;
+  CalendarCountdown({
+    required this.id,
+    required this.title,
+    required this.deadline,
+  });
+  Map<String, dynamic> toJson() => {
+    'id': id,
+    'title': title,
+    'deadline': deadline.toIso8601String(),
+  };
+  factory CalendarCountdown.fromJson(Map<String, dynamic> json) =>
+      CalendarCountdown(
+        id: json['id'],
+        title: json['title'],
+        deadline: DateTime.parse(json['deadline']),
+      );
 }
