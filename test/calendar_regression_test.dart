@@ -85,6 +85,12 @@ void main() {
   testWidgets('Today deadline works directly in create and edit', (
     tester,
   ) async {
+    tester.view.physicalSize = const Size(390, 844);
+    tester.view.devicePixelRatio = 1;
+    tester.view.viewInsets = const FakeViewPadding(bottom: 300);
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    addTearDown(tester.view.resetViewInsets);
     final provider = AppProvider();
     await tester.runAsync(() => provider.ready);
     await tester.pumpWidget(
