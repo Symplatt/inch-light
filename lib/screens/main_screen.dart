@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:provider/provider.dart';
 
 import '../providers/app_provider.dart';
 import '../constants/app_colors.dart';
@@ -120,7 +119,6 @@ class _MainScreenState extends State<MainScreen> {
   void _onTabTapped(int index) {
     setState(() => _currentIndex = index);
     _pageController.jumpToPage(index);
-    Provider.of<AppProvider>(context, listen: false).setLastPageIndex(index);
   }
 
   @override

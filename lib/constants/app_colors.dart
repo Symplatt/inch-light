@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
 
 class AppColors {
-  // 主色调：柔和蓝灰与玫瑰粉
-  static const Color primary = Color(0xFF74798A);
+  // 主色调：黑色与低饱和玫瑰粉
+  static const Color primary = Color(0xFF171717);
   static const Color accent = Color(0xFFB99DA7);
 
   // 背景色
@@ -10,8 +10,8 @@ class AppColors {
   static const Color surface = Colors.white;
 
   // 文本颜色
-  static const Color textDark = Color(0xFF6B707A);
-  static const Color textGrey = Color(0xFF7B808B);
+  static const Color textDark = Color(0xFF252525);
+  static const Color textGrey = Color(0xFF60636A);
 
   // 功能色
   static const Color success = Color(0xFF84978A);

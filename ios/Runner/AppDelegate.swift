@@ -8,7 +8,9 @@ import UIKit
     didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey: Any]?
   ) -> Bool {
     if #available(iOS 10.0, *) {
-      UNUserNotificationCenter.current().delegate = self as UNUserNotificationCenterDelegate
+      // Remove pending reminders from versions before 2.0.2 without requesting permission.
+      UNUserNotificationCenter.current().removeAllPendingNotificationRequests()
+      UNUserNotificationCenter.current().removeAllDeliveredNotifications()
     }
     GeneratedPluginRegistrant.register(with: self)
     return super.application(application, didFinishLaunchingWithOptions: launchOptions)

@@ -14,8 +14,6 @@ android {
         sourceCompatibility = JavaVersion.VERSION_17
         targetCompatibility = JavaVersion.VERSION_17
 
-        // 核心库脱糖（拖堂？我都大学了还拖堂！）
-        isCoreLibraryDesugaringEnabled = true
     }
 
     kotlinOptions {
@@ -40,11 +38,6 @@ android {
             signingConfig = signingConfigs.getByName("debug")
         }
     }
-}
-
-dependencies {
-    // 脱糖库的实现
-    coreLibraryDesugaring("com.android.tools:desugar_jdk_libs:2.0.4")
 }
 
 flutter {

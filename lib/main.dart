@@ -1,8 +1,6 @@
 import 'package:flutter/material.dart';
-import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
-import 'package:permission_handler/permission_handler.dart';
 
 import 'constants/app_colors.dart';
 import 'providers/app_provider.dart';
@@ -14,7 +12,7 @@ void main() async {
   SystemChrome.setSystemUIOverlayStyle(
     const SystemUiOverlayStyle(
       statusBarColor: Colors.transparent,
-      statusBarIconBrightness: Brightness.light,
+      statusBarIconBrightness: Brightness.dark,
     ),
   );
 
@@ -26,28 +24,8 @@ void main() async {
   );
 }
 
-class MyApp extends StatefulWidget {
+class MyApp extends StatelessWidget {
   const MyApp({super.key});
-
-  @override
-  State<MyApp> createState() => _MyAppState();
-}
-
-class _MyAppState extends State<MyApp> {
-  @override
-  void initState() {
-    super.initState();
-    _requestPermissions();
-  }
-
-  // 申请通知权限
-  void _requestPermissions() async {
-    if (!kIsWeb &&
-        (defaultTargetPlatform == TargetPlatform.android ||
-            defaultTargetPlatform == TargetPlatform.iOS)) {
-      await Permission.notification.request();
-    }
-  }
 
   @override
   Widget build(BuildContext context) {
@@ -84,7 +62,7 @@ class _MyAppState extends State<MyApp> {
           centerTitle: false,
           titleTextStyle: TextStyle(
             fontSize: 22,
-            fontWeight: FontWeight.w400,
+            fontWeight: FontWeight.w600,
             color: AppColors.textDark,
           ),
         ),

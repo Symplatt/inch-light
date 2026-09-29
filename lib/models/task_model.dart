@@ -99,7 +99,6 @@ class CycleTask {
   String title;
   CycleFrequency frequency;
   DateTime time;
-  int? specificValue;
   DateTime nextRunTime;
   bool allDay;
 
@@ -108,7 +107,6 @@ class CycleTask {
     required this.title,
     required this.frequency,
     required this.time,
-    this.specificValue,
     required this.nextRunTime,
     this.allDay = false,
   });
@@ -118,7 +116,6 @@ class CycleTask {
     'title': title,
     'frequency': frequency.index,
     'time': time.toIso8601String(),
-    'specificValue': specificValue,
     'nextRunTime': nextRunTime.toIso8601String(),
     'allDay': allDay,
   };
@@ -129,7 +126,6 @@ class CycleTask {
       title: json['title'],
       frequency: CycleFrequency.values[json['frequency']],
       time: DateTime.parse(json['time']),
-      specificValue: json['specificValue'],
       nextRunTime: DateTime.parse(json['nextRunTime']),
       allDay: json['allDay'] ?? false,
     );

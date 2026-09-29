@@ -6,7 +6,6 @@ import 'package:uuid/uuid.dart';
 
 import '../models/task_model.dart';
 
-import '../services/reminder_service.dart';
 import '../utils/schedule.dart';
 
 class AppProvider with ChangeNotifier, WidgetsBindingObserver {
@@ -19,8 +18,6 @@ class AppProvider with ChangeNotifier, WidgetsBindingObserver {
   List<CalendarCountdown> get countdowns => List.unmodifiable(_countdowns);
   Timer? _maintenanceTimer;
   bool _disposed = false;
-  String? reminderError;
-  int _lastPageIndex = 0;
 
   late final Future<void> ready;
 
@@ -29,17 +26,6 @@ class AppProvider with ChangeNotifier, WidgetsBindingObserver {
   List<TaskItem> get normalTasks => _normalTasks;
   List<CycleTask> get cycleTasks => _cycleTasks;
   List<TaskCollection> get collections => _collections;
-  int get lastPageIndex => _lastPageIndex;
-
-  // 需求7：日常打卡排序（未完成在前，已完成在后）
-  List<TaskItem> get sortedDailyTasks {
-    List<TaskItem> tasks = List.from(_dailyTasks);
-    tasks.sort((a, b) {
-      if (a.isCompleted != b.isCompleted) return a.isCompleted ? 1 : -1;
-      return a.createdAt.compareTo(b.createdAt);
-    });
-    return tasks;
-  }
 
   // 获取特定状态的日常打卡（用于批量删除）
   List<TaskItem> getDailyTasks({required bool isCompleted}) {
@@ -110,7 +96,6 @@ class AppProvider with ChangeNotifier, WidgetsBindingObserver {
   void didChangeAppLifecycleState(AppLifecycleState state) {
     if (state == AppLifecycleState.resumed) {
       _maintainData();
-      _syncReminders();
     }
   }
 
@@ -118,7 +103,6 @@ class AppProvider with ChangeNotifier, WidgetsBindingObserver {
     await _loadData();
     if (_disposed) return;
     _maintainData();
-    _syncReminders();
     _maintenanceTimer = Timer.periodic(
       const Duration(seconds: 1),
       (_) => _maintainData(),
@@ -165,7 +149,6 @@ class AppProvider with ChangeNotifier, WidgetsBindingObserver {
         debugPrint("Error parsing collections: $e");
       }
     }
-    _lastPageIndex = prefs.getInt('last_page_index') ?? 0;
     await _checkAndResetDailyTasks();
   }
 
@@ -200,13 +183,6 @@ class AppProvider with ChangeNotifier, WidgetsBindingObserver {
         _saveData();
       }
     }
-  }
-
-  void setLastPageIndex(int index) {
-    _lastPageIndex = index;
-    SharedPreferences.getInstance().then((prefs) {
-      prefs.setInt('last_page_index', index);
-    });
   }
 
   String exportData() {
@@ -269,7 +245,6 @@ class AppProvider with ChangeNotifier, WidgetsBindingObserver {
         ..clear()
         ..addAll(countdowns);
       _maintainData();
-      _syncReminders();
       await _saveData();
       notifyListeners();
       return true;
@@ -286,11 +261,7 @@ class AppProvider with ChangeNotifier, WidgetsBindingObserver {
   }
 
   void removeCollection(String collectionId) {
-    for (var task in _normalTasks) {
-      if (task.collectionId == collectionId) {
-        task.collectionId = null;
-      }
-    }
+    _normalTasks.removeWhere((task) => task.collectionId == collectionId);
     _collections.removeWhere((c) => c.id == collectionId);
     _saveData();
     notifyListeners();
@@ -305,13 +276,9 @@ class AppProvider with ChangeNotifier, WidgetsBindingObserver {
     notifyListeners();
   }
 
-  // 清空合集 (这里逻辑为：清空所有合集，内部任务释放为散落。因为合集本身不分“完成/未完成”，
-  // 但为了响应前端按钮，我们简单定义为：点击清理就清理所有合集)
+  // 删除所有合集及其中的已完成、未完成事项。
   void clearCollections() {
-    // 释放所有合集任务
-    for (var task in _normalTasks) {
-      task.collectionId = null;
-    }
+    _normalTasks.removeWhere((task) => task.collectionId != null);
     _collections.clear();
     _saveData();
     notifyListeners();
@@ -404,14 +371,12 @@ class AppProvider with ChangeNotifier, WidgetsBindingObserver {
         allDay: allDay,
       ),
     );
-    _syncReminders();
     _saveData();
     notifyListeners();
   }
 
   void removeCycleTask(CycleTask task) {
     _cycleTasks.remove(task);
-    _syncReminders();
     _saveData();
     notifyListeners();
   }
@@ -465,14 +430,12 @@ class AppProvider with ChangeNotifier, WidgetsBindingObserver {
       ),
     );
     _saveData();
-    _syncReminders();
     notifyListeners();
   }
 
   void removeCountdown(CalendarCountdown task) {
     _countdowns.remove(task);
     _saveData();
-    _syncReminders();
     notifyListeners();
   }
 
@@ -484,7 +447,6 @@ class AppProvider with ChangeNotifier, WidgetsBindingObserver {
     if (_lastMaintenanceDay != day) {
       _lastMaintenanceDay = day;
       _checkAndResetDailyTasks();
-      _syncReminders();
     }
     final before = _normalTasks.length;
     _normalTasks.removeWhere(
@@ -502,33 +464,12 @@ class AppProvider with ChangeNotifier, WidgetsBindingObserver {
       }
     }
     if (changed || cyclesChanged) _saveData();
-    if (cyclesChanged) _syncReminders();
     notifyListeners();
-  }
-
-  Future<void> _syncReminders() async {
-    try {
-      await ReminderService.instance.sync(
-        List.of(_cycleTasks),
-        List.of(_countdowns),
-      );
-      reminderError = null;
-    } catch (e) {
-      reminderError = '提醒未能安排，请检查系统通知权限后重新打开应用';
-      debugPrint('Reminder scheduling failed: $e');
-    }
-    if (!_disposed) notifyListeners();
   }
 
   void toggleTaskCompletion(TaskItem task) {
     task.isCompleted = !task.isCompleted;
     task.finishedAt = task.isCompleted ? DateTime.now() : null;
-    _saveData();
-    notifyListeners();
-  }
-
-  void toggleTaskPin(TaskItem task) {
-    task.isPinned = !task.isPinned;
     _saveData();
     notifyListeners();
   }

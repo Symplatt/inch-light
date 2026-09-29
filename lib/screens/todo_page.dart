@@ -36,7 +36,7 @@ class _TodoPageState extends State<TodoPage> {
             backgroundColor: AppColors.bg,
             elevation: 0,
             centerTitle: false,
-            title: Text(_showCompleted ? '已完成清单' : '待办清单'),
+            title: Text(_showCompleted ? '已完成待办' : '待办'),
             actions: [
               IconButton(
                 icon: Icon(
@@ -99,7 +99,7 @@ class _TodoPageState extends State<TodoPage> {
               if (collections.isNotEmpty) ...[
                 _buildSectionHeader(
                   "任务合集",
-                  // 合集本身不分完成/未完成，这里设为点击即清空所有合集（释放任务）
+                  // 删除合集和其中所有状态的事项
                   onClear: () => provider.clearCollections(),
                 ),
                 ...collections.map((collection) {
@@ -599,6 +599,20 @@ class _TodoPageState extends State<TodoPage> {
                     },
                   ),
                   const SizedBox(height: 16),
+                  TextButton.icon(
+                    icon: const Icon(Icons.today_outlined, size: 18),
+                    label: const Text("今日截止"),
+                    onPressed: () => setState(() {
+                      final now = DateTime.now();
+                      selectedDeadline = DateTime(
+                        now.year,
+                        now.month,
+                        now.day,
+                        23,
+                        59,
+                      );
+                    }),
+                  ),
                   GestureDetector(
                     onTap: () async {
                       await _showDateTimePicker(
@@ -772,6 +786,20 @@ class _TodoPageState extends State<TodoPage> {
                     },
                   ),
                   const SizedBox(height: 16),
+                  TextButton.icon(
+                    icon: const Icon(Icons.today_outlined, size: 18),
+                    label: const Text("今日截止"),
+                    onPressed: () => setState(() {
+                      final now = DateTime.now();
+                      selectedDeadline = DateTime(
+                        now.year,
+                        now.month,
+                        now.day,
+                        23,
+                        59,
+                      );
+                    }),
+                  ),
                   GestureDetector(
                     onTap: () async {
                       await _showDateTimePicker(

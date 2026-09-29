@@ -1,17 +1,25 @@
-import '../widgets/date_time_sheet.dart';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
 import '../constants/app_colors.dart';
 import '../models/task_model.dart';
 import '../providers/app_provider.dart';
-import '../services/reminder_service.dart';
+import '../utils/countdown.dart';
+import '../widgets/date_time_sheet.dart';
 import 'main_screen.dart';
 
 const _frequencyLabels = ['每天', '每周', '每月', '每年'];
 
-class CyclePage extends StatelessWidget {
+class CyclePage extends StatefulWidget {
   const CyclePage({super.key});
+  @override
+  State<CyclePage> createState() => _CyclePageState();
+}
+
+class _CyclePageState extends State<CyclePage> {
+  bool _countdownsExpanded = true;
+  bool _cyclesExpanded = true;
+
   @override
   Widget build(BuildContext context) {
     final provider = context.watch<AppProvider>();
@@ -19,6 +27,7 @@ class CyclePage extends StatelessWidget {
       ..sort((a, b) => a.deadline.compareTo(b.deadline));
     final cycles = provider.cycleTasks.toList()
       ..sort((a, b) => a.nextRunTime.compareTo(b.nextRunTime));
+    final now = DateTime.now();
     return Scaffold(
       backgroundColor: AppColors.bg,
       appBar: AppBar(
@@ -34,113 +43,53 @@ class CyclePage extends StatelessWidget {
         child: ConstrainedBox(
           constraints: const BoxConstraints(maxWidth: 720),
           child: ListView(
-            padding: const EdgeInsets.fromLTRB(20, 12, 20, 104),
+            padding: const EdgeInsets.fromLTRB(16, 4, 16, 96),
             children: [
-              if (provider.reminderError != null)
-                Padding(
-                  padding: const EdgeInsets.only(bottom: 16),
-                  child: Text(
-                    provider.reminderError!,
-                    style: const TextStyle(color: AppColors.danger),
+              _header(
+                '倒计时',
+                countdowns.length,
+                _countdownsExpanded,
+                () =>
+                    setState(() => _countdownsExpanded = !_countdownsExpanded),
+              ),
+              if (_countdownsExpanded) ...[
+                if (countdowns.isEmpty) _empty(Icons.hourglass_empty_rounded),
+                for (final task in countdowns)
+                  _card(
+                    title: task.title,
+                    subtitle: DateFormat(
+                      'yyyy.MM.dd  HH:mm',
+                    ).format(task.deadline),
+                    deadline: task.deadline,
+                    now: now,
+                    onDelete: () => _confirmDelete(
+                      context,
+                      () => provider.removeCountdown(task),
+                    ),
                   ),
-                ),
-              _header('倒计时', countdowns.length),
-              if (countdowns.isEmpty) _empty(Icons.hourglass_empty_rounded),
-              for (final task in countdowns)
-                _card(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      _title(
-                        task.title,
-                        () => _confirmDelete(
-                          context,
-                          () => provider.removeCountdown(task),
-                        ),
-                      ),
-                      const SizedBox(height: 4),
-                      Text(
-                        DateFormat('yyyy.MM.dd  HH:mm').format(task.deadline),
-                        style: const TextStyle(
-                          fontSize: 12,
-                          color: AppColors.textGrey,
-                        ),
-                      ),
-                      const SizedBox(height: 24),
-                      _countdown(task.deadline),
-                    ],
+              ],
+              const SizedBox(height: 12),
+              _header(
+                '周期',
+                cycles.length,
+                _cyclesExpanded,
+                () => setState(() => _cyclesExpanded = !_cyclesExpanded),
+              ),
+              if (_cyclesExpanded) ...[
+                if (cycles.isEmpty) _empty(Icons.event_repeat_outlined),
+                for (final task in cycles)
+                  _card(
+                    title: task.title,
+                    subtitle:
+                        '${_frequencyLabels[task.frequency.index]} · ${task.allDay ? '全天' : DateFormat('HH:mm').format(task.time)} · 下次 ${DateFormat('yyyy.MM.dd').format(task.nextRunTime)}',
+                    deadline: task.nextRunTime,
+                    now: now,
+                    onDelete: () => _confirmDelete(
+                      context,
+                      () => provider.removeCycleTask(task),
+                    ),
                   ),
-                ),
-              const SizedBox(height: 24),
-              _header('周期', cycles.length),
-              if (cycles.isEmpty) _empty(Icons.event_repeat_outlined),
-              for (final task in cycles)
-                _card(
-                  child: Row(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Container(
-                        width: 62,
-                        padding: const EdgeInsets.symmetric(vertical: 12),
-                        decoration: BoxDecoration(
-                          color: AppColors.bg,
-                          borderRadius: BorderRadius.circular(14),
-                        ),
-                        child: Column(
-                          children: [
-                            Text(
-                              DateFormat('MM月').format(task.nextRunTime),
-                              style: const TextStyle(
-                                fontSize: 11,
-                                color: AppColors.textGrey,
-                              ),
-                            ),
-                            const SizedBox(height: 4),
-                            Text(
-                              DateFormat('dd').format(task.nextRunTime),
-                              style: const TextStyle(
-                                fontSize: 24,
-                                fontWeight: FontWeight.w300,
-                                color: AppColors.primary,
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                      const SizedBox(width: 16),
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            _title(
-                              task.title,
-                              () => _confirmDelete(
-                                context,
-                                () => provider.removeCycleTask(task),
-                              ),
-                            ),
-                            const SizedBox(height: 6),
-                            Text(
-                              '${_frequencyLabels[task.frequency.index]} · ${task.allDay ? '全天' : DateFormat('HH:mm').format(task.time)}',
-                              style: const TextStyle(
-                                fontSize: 12,
-                                color: AppColors.textGrey,
-                              ),
-                            ),
-                            const SizedBox(height: 8),
-                            Text(
-                              DateFormat('yyyy.MM.dd').format(task.nextRunTime),
-                              style: const TextStyle(
-                                fontSize: 12,
-                                color: AppColors.textGrey,
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
+              ],
             ],
           ),
         ),
@@ -157,124 +106,139 @@ class CyclePage extends StatelessWidget {
     );
   }
 
-  Widget _header(String title, int count) => Padding(
-    padding: const EdgeInsets.only(bottom: 16),
-    child: Row(
-      children: [
-        Text(
-          title,
-          style: const TextStyle(
-            fontSize: 16,
-            color: AppColors.textDark,
-            fontWeight: FontWeight.w400,
-          ),
+  Widget _header(
+    String title,
+    int count,
+    bool expanded,
+    VoidCallback onTap,
+  ) => Semantics(
+    button: true,
+    expanded: expanded,
+    child: InkWell(
+      key: ValueKey('section-$title'),
+      borderRadius: BorderRadius.circular(12),
+      onTap: onTap,
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 12),
+        child: Row(
+          children: [
+            Text(
+              title,
+              style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
+            ),
+            const SizedBox(width: 8),
+            Text(
+              '$count',
+              style: const TextStyle(fontSize: 13, color: AppColors.textGrey),
+            ),
+            const Spacer(),
+            Icon(expanded ? Icons.expand_less : Icons.expand_more, size: 22),
+          ],
         ),
-        const SizedBox(width: 10),
+      ),
+    ),
+  );
+
+  Widget _card({
+    required String title,
+    required String subtitle,
+    required DateTime deadline,
+    required DateTime now,
+    required VoidCallback onDelete,
+  }) => Container(
+    margin: const EdgeInsets.only(bottom: 8),
+    padding: const EdgeInsets.fromLTRB(16, 10, 8, 14),
+    decoration: BoxDecoration(
+      color: AppColors.surface,
+      borderRadius: BorderRadius.circular(16),
+      border: Border.all(color: AppColors.divider),
+    ),
+    child: Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          children: [
+            Expanded(
+              child: Text(
+                title,
+                maxLines: 2,
+                overflow: TextOverflow.ellipsis,
+                style: const TextStyle(
+                  fontSize: 17,
+                  fontWeight: FontWeight.w600,
+                  color: AppColors.textDark,
+                ),
+              ),
+            ),
+            IconButton(
+              tooltip: '删除$title',
+              onPressed: onDelete,
+              icon: const Icon(
+                Icons.close_rounded,
+                size: 18,
+                color: AppColors.textGrey,
+              ),
+            ),
+          ],
+        ),
+        Padding(
+          padding: const EdgeInsets.only(right: 8),
+          child: _countdown(deadline, now),
+        ),
+        const SizedBox(height: 6),
         Text(
-          '$count',
+          subtitle,
           style: const TextStyle(fontSize: 12, color: AppColors.textGrey),
         ),
       ],
     ),
   );
 
-  Widget _card({required Widget child}) => Container(
-    margin: const EdgeInsets.only(bottom: 12),
-    padding: const EdgeInsets.all(20),
-    decoration: BoxDecoration(
-      color: AppColors.surface,
-      borderRadius: BorderRadius.circular(20),
-      border: Border.all(color: AppColors.divider),
-    ),
-    child: child,
+  Widget _empty(IconData icon) => Padding(
+    padding: const EdgeInsets.symmetric(vertical: 20),
+    child: Icon(icon, size: 26, color: AppColors.textGrey),
   );
 
-  Widget _empty(IconData icon) => _card(
-    child: Padding(
-      padding: const EdgeInsets.symmetric(vertical: 22),
-      child: Center(
-        child: Icon(
-          icon,
-          size: 30,
-          color: AppColors.primary.withValues(alpha: 0.3),
-        ),
-      ),
-    ),
-  );
-
-  Widget _title(String title, VoidCallback onDelete) => Row(
-    children: [
-      Expanded(
-        child: Text(
-          title,
-          maxLines: 1,
-          overflow: TextOverflow.ellipsis,
-          style: const TextStyle(
-            fontSize: 16,
-            fontWeight: FontWeight.w400,
-            color: AppColors.textDark,
-          ),
-        ),
-      ),
-      const SizedBox(width: 8),
-      SizedBox(
-        width: 40,
-        height: 40,
-        child: IconButton(
-          tooltip: '删除',
-          onPressed: onDelete,
-          icon: const Icon(
-            Icons.close_rounded,
-            size: 18,
-            color: AppColors.textGrey,
-          ),
-        ),
-      ),
-    ],
-  );
-
-  Widget _countdown(DateTime deadline) {
-    final remaining = deadline.difference(DateTime.now());
-    if (remaining.isNegative) {
-      return const Text('已到时间', style: TextStyle(color: AppColors.textGrey));
+  Widget _countdown(DateTime deadline, DateTime now) {
+    if (!deadline.isAfter(now)) {
+      return const Text(
+        '已到时间',
+        style: TextStyle(fontSize: 20, fontWeight: FontWeight.w600),
+      );
     }
-    final values = [
-      remaining.inDays,
-      remaining.inHours % 24,
-      remaining.inMinutes % 60,
-      remaining.inSeconds % 60,
-    ];
-    const units = ['天', '时', '分', '秒'];
-    return Row(
-      children: [
-        for (var i = 0; i < values.length; i++)
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                FittedBox(
-                  fit: BoxFit.scaleDown,
-                  child: Text(
-                    values[i].toString().padLeft(2, '0'),
-                    style: const TextStyle(
-                      fontSize: 30,
-                      fontWeight: FontWeight.w300,
-                      color: AppColors.primary,
-                    ),
-                  ),
-                ),
-                const SizedBox(height: 4),
-                Text(
-                  units[i],
-                  style: const TextStyle(
-                    fontSize: 11,
-                    color: AppColors.textGrey,
-                  ),
-                ),
-              ],
+    final parts = countdownParts(deadline, now);
+    return FittedBox(
+      fit: BoxFit.scaleDown,
+      alignment: Alignment.centerLeft,
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.end,
+        children: [
+          for (var i = 0; i < parts.length; i++) ...[
+            if (i > 0) const SizedBox(width: 14),
+            Text(
+              '${parts[i].value}',
+              style: const TextStyle(
+                fontSize: 28,
+                height: 1.15,
+                fontWeight: FontWeight.w600,
+                color: AppColors.primary,
+              ),
             ),
-          ),
-      ],
+            Padding(
+              padding: const EdgeInsets.only(left: 4, bottom: 2),
+              child: Text(
+                parts[i].unit,
+                style: const TextStyle(
+                  fontSize: 12,
+                  height: 1.2,
+                  color: AppColors.textGrey,
+                ),
+              ),
+            ),
+          ],
+        ],
+      ),
     );
   }
 
@@ -311,7 +275,6 @@ class _CalendarEditorState extends State<_CalendarEditor> {
   final _title = TextEditingController();
   bool _cycle = false;
   bool _allDay = false;
-  bool _saving = false;
   CycleFrequency _frequency = CycleFrequency.weekly;
   DateTime _date = DateTime.now().add(const Duration(days: 1));
   String? _error;
@@ -393,10 +356,10 @@ class _CalendarEditorState extends State<_CalendarEditor> {
         onPressed: () => Navigator.pop(context),
         child: const Text('取消'),
       ),
-      FilledButton(onPressed: _saving ? null : _save, child: const Text('确定')),
+      FilledButton(onPressed: _save, child: const Text('确定')),
     ],
   );
-  Future<void> _save() async {
+  void _save() {
     final date = _cycle && _allDay
         ? DateTime(_date.year, _date.month, _date.day)
         : DateTime(
@@ -413,13 +376,6 @@ class _CalendarEditorState extends State<_CalendarEditor> {
       );
       return;
     }
-    setState(() => _saving = true);
-    try {
-      await ReminderService.instance.requestPermission();
-    } catch (_) {
-      /* Saving remains available without notification permission. */
-    }
-    if (!mounted) return;
     if (_cycle) {
       widget.provider.addCycleTask(
         _title.text.trim(),
