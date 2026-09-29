@@ -1,4 +1,5 @@
-import 'package:flutter/cupertino.dart';
+import '../widgets/task_action_dialog.dart';
+import '../widgets/date_time_sheet.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:intl/intl.dart';
@@ -39,7 +40,7 @@ class _TodoPageState extends State<TodoPage> {
               _showCompleted ? '已完成清单' : '待办清单',
               style: const TextStyle(
                 color: AppColors.textDark,
-                fontWeight: FontWeight.w500,
+                fontWeight: FontWeight.w400,
                 fontSize: 24,
               ),
             ),
@@ -162,7 +163,7 @@ class _TodoPageState extends State<TodoPage> {
             title,
             style: const TextStyle(
               fontSize: 18,
-              fontWeight: FontWeight.w500,
+              fontWeight: FontWeight.w400,
               color: AppColors.textDark,
             ),
           ),
@@ -247,7 +248,7 @@ class _TodoPageState extends State<TodoPage> {
               title: Text(
                 collection.title,
                 style: const TextStyle(
-                  fontWeight: FontWeight.w500,
+                  fontWeight: FontWeight.w400,
                   fontSize: 16,
                 ),
               ),
@@ -298,7 +299,7 @@ class _TodoPageState extends State<TodoPage> {
             borderRadius: BorderRadius.circular(16),
             border: Border.all(
               color: task.isCompleted ? AppColors.success : Colors.transparent,
-              width: 2,
+              width: 1.4,
             ),
             boxShadow: AppColors.shadow,
           ),
@@ -324,7 +325,7 @@ class _TodoPageState extends State<TodoPage> {
                     textAlign: TextAlign.center,
                     style: TextStyle(
                       fontSize: 12,
-                      fontWeight: FontWeight.w500,
+                      fontWeight: FontWeight.w400,
                       color: task.isCompleted
                           ? AppColors.success
                           : AppColors.textDark,
@@ -390,7 +391,7 @@ class _TodoPageState extends State<TodoPage> {
                     color: task.isCompleted
                         ? AppColors.primary
                         : AppColors.textGrey,
-                    width: 2,
+                    width: 1.4,
                   ),
                 ),
                 child: task.isCompleted
@@ -402,7 +403,7 @@ class _TodoPageState extends State<TodoPage> {
               task.title,
               style: TextStyle(
                 fontSize: 16,
-                fontWeight: FontWeight.w500,
+                fontWeight: FontWeight.w400,
                 decoration: task.isCompleted
                     ? TextDecoration.lineThrough
                     : null,
@@ -434,7 +435,7 @@ class _TodoPageState extends State<TodoPage> {
                                 style: TextStyle(
                                   fontSize: 12,
                                   color: dateColor,
-                                  fontWeight: FontWeight.w500,
+                                  fontWeight: FontWeight.w400,
                                 ),
                               ),
                             ],
@@ -490,34 +491,23 @@ class _TodoPageState extends State<TodoPage> {
     TaskCollection collection,
     AppProvider provider,
   ) {
-    showDialog(
-      context: context,
-      builder: (ctx) => SimpleDialog(
-        title: Text(collection.title),
-        children: [
-          SimpleDialogOption(
-            onPressed: () {
-              Navigator.pop(ctx);
-              provider.completeCollection(collection.id);
-            },
-            child: const Text('一键完成所有事项'),
-          ),
-          SimpleDialogOption(
-            onPressed: () {
-              Navigator.pop(ctx);
-              provider.clearCollectionTasks(collection.id);
-            },
-            child: const Text(
-              '一键删除所有事项',
-              style: TextStyle(color: AppColors.danger),
-            ),
-          ),
-          SimpleDialogOption(
-            onPressed: () => Navigator.pop(ctx),
-            child: const Text('取消'),
-          ),
-        ],
-      ),
+    showTaskActionDialog(
+      context,
+      title: collection.title,
+      caption: '合集操作',
+      actions: [
+        TaskAction(
+          label: '一键完成所有事项',
+          icon: Icons.done_all_rounded,
+          onTap: () => provider.completeCollection(collection.id),
+        ),
+        TaskAction(
+          label: '一键删除所有事项',
+          icon: Icons.delete_outline_rounded,
+          destructive: true,
+          onTap: () => provider.clearCollectionTasks(collection.id),
+        ),
+      ],
     );
   }
 
@@ -526,46 +516,32 @@ class _TodoPageState extends State<TodoPage> {
     TaskItem task,
     AppProvider provider,
   ) {
-    showDialog(
-      context: context,
-      builder: (ctx) => SimpleDialog(
-        title: Text(task.title),
-        children: [
-          SimpleDialogOption(
-            onPressed: () {
-              Navigator.pop(ctx);
-              provider.setTaskPosition(task, -1);
-            },
-            child: const Text('置顶'),
+    showTaskActionDialog(
+      context,
+      title: task.title,
+      actions: [
+        TaskAction(
+          label: '置顶',
+          icon: Icons.vertical_align_top_rounded,
+          onTap: () => provider.setTaskPosition(task, -1),
+        ),
+        TaskAction(
+          label: '置底',
+          icon: Icons.vertical_align_bottom_rounded,
+          onTap: () => provider.setTaskPosition(task, 1),
+        ),
+        if (task.isPinned || task.isBottom)
+          TaskAction(
+            label: '恢复默认排序',
+            icon: Icons.sort_rounded,
+            onTap: () => provider.setTaskPosition(task, 0),
           ),
-          SimpleDialogOption(
-            onPressed: () {
-              Navigator.pop(ctx);
-              provider.setTaskPosition(task, 1);
-            },
-            child: const Text('置底'),
-          ),
-          if (task.isPinned || task.isBottom)
-            SimpleDialogOption(
-              onPressed: () {
-                Navigator.pop(ctx);
-                provider.setTaskPosition(task, 0);
-              },
-              child: const Text('恢复默认排序'),
-            ),
-          SimpleDialogOption(
-            onPressed: () {
-              Navigator.pop(ctx);
-              _showEditTaskDialog(context, task);
-            },
-            child: const Text('编辑事项'),
-          ),
-          SimpleDialogOption(
-            onPressed: () => Navigator.pop(ctx),
-            child: const Text('取消'),
-          ),
-        ],
-      ),
+        TaskAction(
+          label: '编辑事项',
+          icon: Icons.edit_outlined,
+          onTap: () => _showEditTaskDialog(context, task),
+        ),
+      ],
     );
   }
 
@@ -597,7 +573,7 @@ class _TodoPageState extends State<TodoPage> {
               children: [
                 const Text(
                   "编辑任务",
-                  style: TextStyle(fontSize: 20, fontWeight: FontWeight.w500),
+                  style: TextStyle(fontSize: 20, fontWeight: FontWeight.w400),
                 ),
                 const SizedBox(height: 20),
                 TextField(
@@ -637,7 +613,10 @@ class _TodoPageState extends State<TodoPage> {
                     onTap: () async {
                       await _showCupertinoDatePicker(
                         context,
-                        selectedDeadline ?? DateTime.now(),
+                        selectedDeadline ??
+                            DateUtils.dateOnly(
+                              DateTime.now(),
+                            ).add(const Duration(hours: 23, minutes: 59)),
                         (dateTime) {
                           setState(() => selectedDeadline = dateTime);
                         },
@@ -670,7 +649,7 @@ class _TodoPageState extends State<TodoPage> {
                               color: selectedDeadline == null
                                   ? AppColors.textGrey
                                   : AppColors.primary,
-                              fontWeight: FontWeight.w500,
+                              fontWeight: FontWeight.w400,
                             ),
                           ),
                         ],
@@ -708,7 +687,7 @@ class _TodoPageState extends State<TodoPage> {
                       "保存修改",
                       style: TextStyle(
                         fontSize: 16,
-                        fontWeight: FontWeight.w500,
+                        fontWeight: FontWeight.w400,
                       ),
                     ),
                   ),
@@ -751,7 +730,7 @@ class _TodoPageState extends State<TodoPage> {
               children: [
                 const Text(
                   "新建",
-                  style: TextStyle(fontSize: 20, fontWeight: FontWeight.w500),
+                  style: TextStyle(fontSize: 20, fontWeight: FontWeight.w400),
                 ),
                 const SizedBox(height: 20),
                 if (collectionId == null)
@@ -805,11 +784,16 @@ class _TodoPageState extends State<TodoPage> {
                   const SizedBox(height: 16),
                   GestureDetector(
                     onTap: () async {
-                      await _showCupertinoDatePicker(context, DateTime.now(), (
-                        dateTime,
-                      ) {
-                        setState(() => selectedDeadline = dateTime);
-                      });
+                      await _showCupertinoDatePicker(
+                        context,
+                        selectedDeadline ??
+                            DateUtils.dateOnly(
+                              DateTime.now(),
+                            ).add(const Duration(hours: 23, minutes: 59)),
+                        (dateTime) {
+                          setState(() => selectedDeadline = dateTime);
+                        },
+                      );
                     },
                     child: Container(
                       padding: const EdgeInsets.symmetric(
@@ -838,7 +822,7 @@ class _TodoPageState extends State<TodoPage> {
                               color: selectedDeadline == null
                                   ? AppColors.textGrey
                                   : AppColors.primary,
-                              fontWeight: FontWeight.w500,
+                              fontWeight: FontWeight.w400,
                             ),
                           ),
                         ],
@@ -883,7 +867,7 @@ class _TodoPageState extends State<TodoPage> {
                       "完成",
                       style: TextStyle(
                         fontSize: 16,
-                        fontWeight: FontWeight.w500,
+                        fontWeight: FontWeight.w400,
                       ),
                     ),
                   ),
@@ -901,48 +885,8 @@ class _TodoPageState extends State<TodoPage> {
     DateTime initialTime,
     Function(DateTime) onConfirm,
   ) async {
-    final now = DateTime.now();
-    DateTime tempDate = DateTime(now.year, now.month, now.day, 23, 59);
-    if (initialTime.year != now.year ||
-        initialTime.month != now.month ||
-        initialTime.day != now.day) {
-      tempDate = initialTime;
-    }
-    await showModalBottomSheet(
-      context: context,
-      builder: (ctx) => Container(
-        height: 300,
-        color: Colors.white,
-        child: Column(
-          children: [
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                TextButton(
-                  onPressed: () => Navigator.pop(ctx),
-                  child: const Text("取消"),
-                ),
-                TextButton(
-                  onPressed: () {
-                    onConfirm(tempDate);
-                    Navigator.pop(ctx);
-                  },
-                  child: const Text("确定"),
-                ),
-              ],
-            ),
-            Expanded(
-              child: CupertinoDatePicker(
-                mode: CupertinoDatePickerMode.dateAndTime,
-                initialDateTime: tempDate,
-                use24hFormat: true,
-                onDateTimeChanged: (val) => tempDate = val,
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
+    final selected = await showDateTimeSheet(context, initialDate: initialTime);
+    if (selected != null && mounted) onConfirm(selected);
   }
 
   void _showAddCollectionDialog(BuildContext context) {

@@ -9,7 +9,6 @@ import 'constants/app_colors.dart';
 import 'providers/app_provider.dart';
 import 'screens/main_screen.dart';
 
-
 void main() async {
   WidgetsFlutterBinding.ensureInitialized(); // 必须调用
 
@@ -59,11 +58,33 @@ class _MyAppState extends State<MyApp> {
       theme: ThemeData(
         scaffoldBackgroundColor: AppColors.bg,
         primaryColor: AppColors.primary,
-        colorScheme: ColorScheme.fromSeed(seedColor: AppColors.primary).copyWith(
-          onSurface: AppColors.textDark,
-          error: AppColors.danger,
+        colorScheme: ColorScheme.fromSeed(seedColor: AppColors.primary)
+            .copyWith(
+              primary: AppColors.primary,
+              secondary: AppColors.accent,
+              onSurface: AppColors.textDark,
+              onSurfaceVariant: AppColors.textGrey,
+              error: AppColors.danger,
+            ),
+        textTheme: const TextTheme(
+          bodyLarge: TextStyle(fontWeight: FontWeight.w400, height: 1.5),
+          bodyMedium: TextStyle(fontWeight: FontWeight.w400, height: 1.5),
+          titleLarge: TextStyle(fontWeight: FontWeight.w500),
+          titleMedium: TextStyle(fontWeight: FontWeight.w400),
+          titleSmall: TextStyle(fontWeight: FontWeight.w400),
+          labelLarge: TextStyle(fontWeight: FontWeight.w400),
+          labelMedium: TextStyle(fontWeight: FontWeight.w400),
+          labelSmall: TextStyle(fontWeight: FontWeight.w400),
         ),
-        // textTheme: GoogleFonts.notoSansScTextTheme(),
+        dialogTheme: const DialogThemeData(
+          backgroundColor: AppColors.surface,
+          surfaceTintColor: Colors.transparent,
+          titleTextStyle: TextStyle(
+            fontSize: 18,
+            fontWeight: FontWeight.w500,
+            color: AppColors.textDark,
+          ),
+        ),
         useMaterial3: true,
       ),
       home: const MainScreen(),

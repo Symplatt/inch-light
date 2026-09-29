@@ -270,7 +270,7 @@ class AppProvider with ChangeNotifier, WidgetsBindingObserver {
         CalendarCountdown.fromJson,
         _countdowns,
       );
-        _dailyTasks
+      _dailyTasks
         ..clear()
         ..addAll(daily);
       _normalTasks
@@ -563,5 +563,4 @@ class AppProvider with ChangeNotifier, WidgetsBindingObserver {
     _saveData();
     notifyListeners();
   }
-
 }

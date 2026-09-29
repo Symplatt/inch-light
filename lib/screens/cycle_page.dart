@@ -1,3 +1,5 @@
+import 'package:flutter/cupertino.dart' show CupertinoDatePickerMode;
+import '../widgets/date_time_sheet.dart';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
@@ -79,7 +81,7 @@ class CyclePage extends StatelessWidget {
                 contentPadding: const EdgeInsets.all(16),
                 title: Text(
                   task.title,
-                  style: const TextStyle(fontWeight: FontWeight.w500),
+                  style: const TextStyle(fontWeight: FontWeight.w400),
                 ),
                 subtitle: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
@@ -91,7 +93,7 @@ class CyclePage extends StatelessWidget {
                       _remaining(task.deadline),
                       style: const TextStyle(
                         color: AppColors.primary,
-                        fontWeight: FontWeight.w500,
+                        fontWeight: FontWeight.w400,
                       ),
                     ),
                   ],
@@ -121,7 +123,7 @@ class CyclePage extends StatelessWidget {
                 ),
                 title: Text(
                   task.title,
-                  style: const TextStyle(fontWeight: FontWeight.w500),
+                  style: const TextStyle(fontWeight: FontWeight.w400),
                 ),
                 subtitle: Text(
                   '${_frequencyLabels[task.frequency.index]} · ${task.allDay ? '全天' : DateFormat('HH:mm').format(task.time)}\n下次：${DateFormat(task.allDay ? 'yyyy-MM-dd' : 'yyyy-MM-dd HH:mm').format(task.nextRunTime)}',
@@ -282,15 +284,10 @@ class _CalendarEditorState extends State<_CalendarEditor> {
                 subtitle: Text(DateFormat('HH:mm').format(_date)),
                 trailing: const Icon(Icons.schedule),
                 onTap: () async {
-                  final picked = await showTimePicker(
-                    context: context,
-                    initialTime: TimeOfDay.fromDateTime(_date),
-                    builder: (ctx, child) => MediaQuery(
-                      data: MediaQuery.of(
-                        ctx,
-                      ).copyWith(alwaysUse24HourFormat: true),
-                      child: child!,
-                    ),
+                  final picked = await showDateTimeSheet(
+                    context,
+                    initialDate: _date,
+                    mode: CupertinoDatePickerMode.time,
                   );
                   if (picked != null && mounted) {
                     setState(

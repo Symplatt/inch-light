@@ -1,6 +1,5 @@
 enum TaskType { daily, normal }
 
-
 enum CycleFrequency { daily, weekly, monthly, yearly }
 
 class TaskCollection {
@@ -33,7 +32,6 @@ class TaskItem {
   String id;
   String title;
   TaskType type;
-
 
   // 任务专用属性
   bool isCompleted;

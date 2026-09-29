@@ -19,6 +19,23 @@ void main() {
   });
   tearDown(() => debugDefaultTargetPlatformOverride = null);
 
+  test('Upgrade preserves task type IDs and removes retired stored data', () async {
+    SharedPreferences.setMockInitialValues({
+      'timer_tasks': '[]',
+      'daily_tasks': jsonEncode([{'id': 'daily', 'title': '打卡', 'type': 1}]),
+      'normal_tasks': jsonEncode([{'id': 'normal', 'title': '事项', 'type': 2}]),
+    });
+    final provider = AppProvider();
+    await provider.ready;
+    addTearDown(provider.dispose);
+    expect(provider.dailyTasks.single.type, TaskType.daily);
+    expect(provider.normalTasks.single.type, TaskType.normal);
+    expect(provider.dailyTasks.single.toJson()['type'], 1);
+    expect(provider.normalTasks.single.toJson()['type'], 2);
+    expect((await SharedPreferences.getInstance()).containsKey('timer_tasks'), isFalse);
+    expect(jsonDecode(provider.exportData()).containsKey('timer_tasks'), isFalse);
+  });
+
   test(
     'Deadline urgency changes exactly at 24 hours and preserves overdue red',
     () {

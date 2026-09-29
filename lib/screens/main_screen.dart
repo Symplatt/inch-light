@@ -5,7 +5,6 @@ import 'package:provider/provider.dart';
 import '../providers/app_provider.dart';
 import '../constants/app_colors.dart';
 
-
 import 'todo_page.dart';
 import 'cycle_page.dart';
 import 'journal_page.dart';
@@ -151,7 +150,8 @@ class _MainScreenState extends State<MainScreen> {
           ),
           BottomNavigationBarItem(icon: Icon(Icons.edit_note), label: '记录'),
           BottomNavigationBarItem(
-            icon: Icon(Icons.calendar_month_outlined), label: '时历',
+            icon: Icon(Icons.calendar_month_outlined),
+            label: '时历',
           ),
         ],
       ),
