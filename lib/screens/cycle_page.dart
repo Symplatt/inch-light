@@ -1,4 +1,3 @@
-import 'package:flutter/cupertino.dart' show CupertinoDatePickerMode;
 import '../widgets/date_time_sheet.dart';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
@@ -13,12 +12,6 @@ const _frequencyLabels = ['每天', '每周', '每月', '每年'];
 
 class CyclePage extends StatelessWidget {
   const CyclePage({super.key});
-  String _remaining(DateTime deadline) {
-    final d = deadline.difference(DateTime.now());
-    if (d.isNegative) return '已到时间';
-    return '${d.inDays}天 ${d.inHours % 24}小时 ${d.inMinutes % 60}分 ${d.inSeconds % 60}秒';
-  }
-
   @override
   Widget build(BuildContext context) {
     final provider = context.watch<AppProvider>();
@@ -30,7 +23,6 @@ class CyclePage extends StatelessWidget {
       backgroundColor: AppColors.bg,
       appBar: AppBar(
         title: const Text('时历'),
-        backgroundColor: AppColors.bg,
         actions: [
           IconButton(
             icon: const Icon(Icons.settings_outlined),
@@ -38,108 +30,120 @@ class CyclePage extends StatelessWidget {
           ),
         ],
       ),
-      body: ListView(
-        padding: const EdgeInsets.fromLTRB(16, 8, 16, 96),
-        children: [
-          if (provider.reminderError != null)
-            Padding(
-              padding: const EdgeInsets.all(12),
-              child: Text(
-                provider.reminderError!,
-                style: const TextStyle(color: AppColors.danger),
-              ),
-            ),
-          if (!ReminderService.supported)
-            const Padding(
-              padding: EdgeInsets.all(12),
-              child: Text('此平台可查看时历；系统提醒支持 Android 和 iOS。'),
-            ),
-          if (ReminderService.supported &&
-              ReminderService.instance.scheduledThrough != null)
-            Padding(
-              padding: const EdgeInsets.symmetric(vertical: 8),
-              child: Text(
-                '离线提醒已安排至 ${DateFormat('yyyy-MM-dd').format(ReminderService.instance.scheduledThrough!)}，打开应用会自动续排。',
-                style: const TextStyle(fontSize: 12, color: AppColors.textGrey),
-              ),
-            ),
-          if (ReminderService.supported && !ReminderService.instance.precise)
-            const Padding(
-              padding: EdgeInsets.symmetric(vertical: 8),
-              child: Text(
-                '未开启精确闹钟权限，系统提醒可能稍有延迟。',
-                style: TextStyle(fontSize: 12, color: AppColors.textGrey),
-              ),
-            ),
-          _header('倒计年月'),
-          if (countdowns.isEmpty) _empty('添加未来的重要时刻，从几小时到几百天'),
-          for (final task in countdowns)
-            Card(
-              margin: const EdgeInsets.only(bottom: 12),
-              color: Colors.white,
-              child: ListTile(
-                contentPadding: const EdgeInsets.all(16),
-                title: Text(
-                  task.title,
-                  style: const TextStyle(fontWeight: FontWeight.w400),
+      body: Center(
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 720),
+          child: ListView(
+            padding: const EdgeInsets.fromLTRB(20, 12, 20, 104),
+            children: [
+              if (provider.reminderError != null)
+                Padding(
+                  padding: const EdgeInsets.only(bottom: 16),
+                  child: Text(
+                    provider.reminderError!,
+                    style: const TextStyle(color: AppColors.danger),
+                  ),
                 ),
-                subtitle: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    const SizedBox(height: 8),
-                    Text(DateFormat('yyyy-MM-dd HH:mm').format(task.deadline)),
-                    const SizedBox(height: 8),
-                    Text(
-                      _remaining(task.deadline),
-                      style: const TextStyle(
-                        color: AppColors.primary,
-                        fontWeight: FontWeight.w400,
+              _header('倒计时', countdowns.length),
+              if (countdowns.isEmpty) _empty(Icons.hourglass_empty_rounded),
+              for (final task in countdowns)
+                _card(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      _title(
+                        task.title,
+                        () => _confirmDelete(
+                          context,
+                          () => provider.removeCountdown(task),
+                        ),
                       ),
-                    ),
-                  ],
-                ),
-                trailing: IconButton(
-                  tooltip: '删除倒计时',
-                  icon: const Icon(Icons.delete_outline),
-                  onPressed: () => _confirmDelete(
-                    context,
-                    () => provider.removeCountdown(task),
+                      const SizedBox(height: 4),
+                      Text(
+                        DateFormat('yyyy.MM.dd  HH:mm').format(task.deadline),
+                        style: const TextStyle(
+                          fontSize: 12,
+                          color: AppColors.textGrey,
+                        ),
+                      ),
+                      const SizedBox(height: 24),
+                      _countdown(task.deadline),
+                    ],
                   ),
                 ),
-              ),
-            ),
-          const Divider(height: 32, color: Color(0xFFDDDDDD)),
-          _header('时日周期'),
-          if (cycles.isEmpty) _empty('记录重要日期，按周、月或年提醒'),
-          for (final task in cycles)
-            Card(
-              margin: const EdgeInsets.only(bottom: 12),
-              color: Colors.white,
-              child: ListTile(
-                contentPadding: const EdgeInsets.all(16),
-                leading: const Icon(
-                  Icons.event_repeat,
-                  color: AppColors.primary,
-                ),
-                title: Text(
-                  task.title,
-                  style: const TextStyle(fontWeight: FontWeight.w400),
-                ),
-                subtitle: Text(
-                  '${_frequencyLabels[task.frequency.index]} · ${task.allDay ? '全天' : DateFormat('HH:mm').format(task.time)}\n下次：${DateFormat(task.allDay ? 'yyyy-MM-dd' : 'yyyy-MM-dd HH:mm').format(task.nextRunTime)}',
-                ),
-                isThreeLine: true,
-                trailing: IconButton(
-                  tooltip: '删除周期',
-                  icon: const Icon(Icons.delete_outline),
-                  onPressed: () => _confirmDelete(
-                    context,
-                    () => provider.removeCycleTask(task),
+              const SizedBox(height: 24),
+              _header('周期', cycles.length),
+              if (cycles.isEmpty) _empty(Icons.event_repeat_outlined),
+              for (final task in cycles)
+                _card(
+                  child: Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Container(
+                        width: 62,
+                        padding: const EdgeInsets.symmetric(vertical: 12),
+                        decoration: BoxDecoration(
+                          color: AppColors.bg,
+                          borderRadius: BorderRadius.circular(14),
+                        ),
+                        child: Column(
+                          children: [
+                            Text(
+                              DateFormat('MM月').format(task.nextRunTime),
+                              style: const TextStyle(
+                                fontSize: 11,
+                                color: AppColors.textGrey,
+                              ),
+                            ),
+                            const SizedBox(height: 4),
+                            Text(
+                              DateFormat('dd').format(task.nextRunTime),
+                              style: const TextStyle(
+                                fontSize: 24,
+                                fontWeight: FontWeight.w300,
+                                color: AppColors.primary,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                      const SizedBox(width: 16),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            _title(
+                              task.title,
+                              () => _confirmDelete(
+                                context,
+                                () => provider.removeCycleTask(task),
+                              ),
+                            ),
+                            const SizedBox(height: 6),
+                            Text(
+                              '${_frequencyLabels[task.frequency.index]} · ${task.allDay ? '全天' : DateFormat('HH:mm').format(task.time)}',
+                              style: const TextStyle(
+                                fontSize: 12,
+                                color: AppColors.textGrey,
+                              ),
+                            ),
+                            const SizedBox(height: 8),
+                            Text(
+                              DateFormat('yyyy.MM.dd').format(task.nextRunTime),
+                              style: const TextStyle(
+                                fontSize: 12,
+                                color: AppColors.textGrey,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
                   ),
                 ),
-              ),
-            ),
-        ],
+            ],
+          ),
+        ),
       ),
       floatingActionButton: FloatingActionButton(
         heroTag: 'calendar-add',
@@ -153,17 +157,127 @@ class CyclePage extends StatelessWidget {
     );
   }
 
-  Widget _header(String text) => Padding(
-    padding: const EdgeInsets.symmetric(vertical: 16),
-    child: Text(
-      text,
-      style: const TextStyle(fontSize: 20, fontWeight: FontWeight.w500),
+  Widget _header(String title, int count) => Padding(
+    padding: const EdgeInsets.only(bottom: 16),
+    child: Row(
+      children: [
+        Text(
+          title,
+          style: const TextStyle(
+            fontSize: 16,
+            color: AppColors.textDark,
+            fontWeight: FontWeight.w400,
+          ),
+        ),
+        const SizedBox(width: 10),
+        Text(
+          '$count',
+          style: const TextStyle(fontSize: 12, color: AppColors.textGrey),
+        ),
+      ],
     ),
   );
-  Widget _empty(String text) => Padding(
-    padding: const EdgeInsets.symmetric(vertical: 16),
-    child: Text(text, style: const TextStyle(color: AppColors.textGrey)),
+
+  Widget _card({required Widget child}) => Container(
+    margin: const EdgeInsets.only(bottom: 12),
+    padding: const EdgeInsets.all(20),
+    decoration: BoxDecoration(
+      color: AppColors.surface,
+      borderRadius: BorderRadius.circular(20),
+      border: Border.all(color: AppColors.divider),
+    ),
+    child: child,
   );
+
+  Widget _empty(IconData icon) => _card(
+    child: Padding(
+      padding: const EdgeInsets.symmetric(vertical: 22),
+      child: Center(
+        child: Icon(
+          icon,
+          size: 30,
+          color: AppColors.primary.withValues(alpha: 0.3),
+        ),
+      ),
+    ),
+  );
+
+  Widget _title(String title, VoidCallback onDelete) => Row(
+    children: [
+      Expanded(
+        child: Text(
+          title,
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+          style: const TextStyle(
+            fontSize: 16,
+            fontWeight: FontWeight.w400,
+            color: AppColors.textDark,
+          ),
+        ),
+      ),
+      const SizedBox(width: 8),
+      SizedBox(
+        width: 40,
+        height: 40,
+        child: IconButton(
+          tooltip: '删除',
+          onPressed: onDelete,
+          icon: const Icon(
+            Icons.close_rounded,
+            size: 18,
+            color: AppColors.textGrey,
+          ),
+        ),
+      ),
+    ],
+  );
+
+  Widget _countdown(DateTime deadline) {
+    final remaining = deadline.difference(DateTime.now());
+    if (remaining.isNegative) {
+      return const Text('已到时间', style: TextStyle(color: AppColors.textGrey));
+    }
+    final values = [
+      remaining.inDays,
+      remaining.inHours % 24,
+      remaining.inMinutes % 60,
+      remaining.inSeconds % 60,
+    ];
+    const units = ['天', '时', '分', '秒'];
+    return Row(
+      children: [
+        for (var i = 0; i < values.length; i++)
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                FittedBox(
+                  fit: BoxFit.scaleDown,
+                  child: Text(
+                    values[i].toString().padLeft(2, '0'),
+                    style: const TextStyle(
+                      fontSize: 30,
+                      fontWeight: FontWeight.w300,
+                      color: AppColors.primary,
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  units[i],
+                  style: const TextStyle(
+                    fontSize: 11,
+                    color: AppColors.textGrey,
+                  ),
+                ),
+              ],
+            ),
+          ),
+      ],
+    );
+  }
+
   void _confirmDelete(BuildContext context, VoidCallback onDelete) =>
       showDialog(
         context: context,
@@ -218,8 +332,8 @@ class _CalendarEditorState extends State<_CalendarEditor> {
           children: [
             SegmentedButton<bool>(
               segments: const [
-                ButtonSegment(value: false, label: Text('倒计年月')),
-                ButtonSegment(value: true, label: Text('时日周期')),
+                ButtonSegment(value: false, label: Text('倒计时')),
+                ButtonSegment(value: true, label: Text('周期')),
               ],
               selected: {_cycle},
               onSelectionChanged: (v) => setState(() => _cycle = v.first),
@@ -227,7 +341,7 @@ class _CalendarEditorState extends State<_CalendarEditor> {
             const SizedBox(height: 16),
             TextField(
               controller: _title,
-              decoration: const InputDecoration(labelText: '事项名称'),
+              decoration: const InputDecoration(hintText: '事项名称'),
               maxLength: 100,
             ),
             if (_cycle)
@@ -244,64 +358,30 @@ class _CalendarEditorState extends State<_CalendarEditor> {
                     .toList(),
                 onChanged: (v) => setState(() => _frequency = v!),
               ),
-            ListTile(
-              contentPadding: EdgeInsets.zero,
-              title: const Text('日期'),
-              subtitle: Text(DateFormat('yyyy-MM-dd').format(_date)),
-              trailing: const Icon(Icons.calendar_month),
-              onTap: () async {
-                final picked = await showDatePicker(
-                  context: context,
-                  initialDate: _date,
-                  firstDate: DateTime(1900),
-                  lastDate: DateTime(2300),
-                );
-                if (picked != null && mounted) {
-                  setState(
-                    () => _date = DateTime(
-                      picked.year,
-                      picked.month,
-                      picked.day,
-                      _date.hour,
-                      _date.minute,
-                    ),
-                  );
-                }
-              },
-            ),
             if (_cycle)
               SwitchListTile(
                 contentPadding: EdgeInsets.zero,
                 title: const Text('全天'),
-                subtitle: const Text('全天事项在当日 00:00 提醒'),
                 value: _allDay,
                 onChanged: (v) => setState(() => _allDay = v),
               ),
-            if (!_cycle || !_allDay)
-              ListTile(
-                contentPadding: EdgeInsets.zero,
-                title: const Text('时间'),
-                subtitle: Text(DateFormat('HH:mm').format(_date)),
-                trailing: const Icon(Icons.schedule),
-                onTap: () async {
-                  final picked = await showDateTimeSheet(
-                    context,
-                    initialDate: _date,
-                    mode: CupertinoDatePickerMode.time,
-                  );
-                  if (picked != null && mounted) {
-                    setState(
-                      () => _date = DateTime(
-                        _date.year,
-                        _date.month,
-                        _date.day,
-                        picked.hour,
-                        picked.minute,
-                      ),
-                    );
-                  }
-                },
+            ListTile(
+              contentPadding: EdgeInsets.zero,
+              title: Text(
+                DateFormat(
+                  _cycle && _allDay ? 'yyyy-MM-dd' : 'yyyy-MM-dd HH:mm',
+                ).format(_date),
               ),
+              trailing: const Icon(Icons.calendar_today_outlined, size: 20),
+              onTap: () async {
+                final picked = await showDateTimeSheet(
+                  context,
+                  initialDate: _date,
+                  dateOnly: _cycle && _allDay,
+                );
+                if (picked != null && mounted) setState(() => _date = picked);
+              },
+            ),
             if (_error != null)
               Text(_error!, style: const TextStyle(color: AppColors.danger)),
           ],

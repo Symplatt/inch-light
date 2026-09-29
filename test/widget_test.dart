@@ -10,6 +10,7 @@ import 'package:inch_light/screens/main_screen.dart';
 import 'package:inch_light/utils/schedule.dart';
 import 'package:inch_light/utils/deadline.dart';
 import 'package:inch_light/constants/app_colors.dart';
+import 'package:inch_light/widgets/date_time_sheet.dart';
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
@@ -19,22 +20,35 @@ void main() {
   });
   tearDown(() => debugDefaultTargetPlatformOverride = null);
 
-  test('Upgrade preserves task type IDs and removes retired stored data', () async {
-    SharedPreferences.setMockInitialValues({
-      'timer_tasks': '[]',
-      'daily_tasks': jsonEncode([{'id': 'daily', 'title': '打卡', 'type': 1}]),
-      'normal_tasks': jsonEncode([{'id': 'normal', 'title': '事项', 'type': 2}]),
-    });
-    final provider = AppProvider();
-    await provider.ready;
-    addTearDown(provider.dispose);
-    expect(provider.dailyTasks.single.type, TaskType.daily);
-    expect(provider.normalTasks.single.type, TaskType.normal);
-    expect(provider.dailyTasks.single.toJson()['type'], 1);
-    expect(provider.normalTasks.single.toJson()['type'], 2);
-    expect((await SharedPreferences.getInstance()).containsKey('timer_tasks'), isFalse);
-    expect(jsonDecode(provider.exportData()).containsKey('timer_tasks'), isFalse);
-  });
+  test(
+    'Upgrade preserves task type IDs and removes retired stored data',
+    () async {
+      SharedPreferences.setMockInitialValues({
+        'timer_tasks': '[]',
+        'daily_tasks': jsonEncode([
+          {'id': 'daily', 'title': '打卡', 'type': 1},
+        ]),
+        'normal_tasks': jsonEncode([
+          {'id': 'normal', 'title': '事项', 'type': 2},
+        ]),
+      });
+      final provider = AppProvider();
+      await provider.ready;
+      addTearDown(provider.dispose);
+      expect(provider.dailyTasks.single.type, TaskType.daily);
+      expect(provider.normalTasks.single.type, TaskType.normal);
+      expect(provider.dailyTasks.single.toJson()['type'], 1);
+      expect(provider.normalTasks.single.toJson()['type'], 2);
+      expect(
+        (await SharedPreferences.getInstance()).containsKey('timer_tasks'),
+        isFalse,
+      );
+      expect(
+        jsonDecode(provider.exportData()).containsKey('timer_tasks'),
+        isFalse,
+      );
+    },
+  );
 
   test(
     'Deadline urgency changes exactly at 24 hours and preserves overdue red',
@@ -110,12 +124,9 @@ void main() {
       );
       expect(provider.normalTasks.single.isPinned, isTrue);
       expect(provider.normalTasks.single.isBottom, isFalse);
-      final captured = DateTime(2026, 9, 28, 12, 1);
-      provider.addJournalEntry('# 标题\n**正文**', captured);
       provider.addCountdown('纪念日', DateTime(2030));
       final exported = provider.exportData();
       expect(await provider.importData(exported), isTrue);
-      expect(provider.journalEntries.single.createdAt, captured);
       expect(provider.countdowns.single.deadline, DateTime(2030));
       expect(
         await provider.importData('{"normal_tasks": [], "cycle_tasks": [42]}'),
@@ -150,7 +161,6 @@ void main() {
         isTrue,
       );
       expect(provider.normalTasks.map((t) => t.id), ['recent', 'unfinished']);
-      expect(provider.journalEntries.single.createdAt, captured);
     },
   );
 
@@ -180,46 +190,105 @@ void main() {
     },
   );
 
+  testWidgets('Only todo and calendar remain; calendar saves a countdown', (
+    tester,
+  ) async {
+    final provider = AppProvider();
+    await tester.runAsync(() => provider.ready);
+    await tester.pumpWidget(
+      ChangeNotifierProvider.value(
+        value: provider,
+        child: const MaterialApp(home: MainScreen()),
+      ),
+    );
+    await tester.pumpAndSettle();
+    expect(find.text('待办清单'), findsOneWidget);
+    expect(find.text('记录'), findsNothing);
+    expect(find.text('专注'), findsNothing);
+    await tester.tap(find.text('时历').last);
+    await tester.pumpAndSettle();
+    await tester.tap(find.byType(FloatingActionButton));
+    await tester.pumpAndSettle();
+    await tester.enterText(find.byType(TextField), '下次旅行');
+    await tester.tap(find.text('确定'));
+    await tester.pumpAndSettle();
+    expect(provider.countdowns.single.title, '下次旅行');
+    expect(find.text('下次旅行'), findsOneWidget);
+    await tester.pumpWidget(const SizedBox());
+    provider.dispose();
+    debugDefaultTargetPlatformOverride = null;
+  });
+
+  testWidgets('Task action title truncates and actions remain accessible', (
+    tester,
+  ) async {
+    final provider = AppProvider();
+    await tester.runAsync(() => provider.ready);
+    final title = '很长的任务名称' * 12;
+    provider.addNormalTask(title);
+    await tester.pumpWidget(
+      ChangeNotifierProvider.value(
+        value: provider,
+        child: const MaterialApp(home: MainScreen()),
+      ),
+    );
+    await tester.pumpAndSettle();
+    await tester.longPress(find.text(title));
+    await tester.pumpAndSettle();
+    final heading = tester.widget<Text>(
+      find.descendant(of: find.byType(Dialog), matching: find.text(title)),
+    );
+    expect(heading.maxLines, 1);
+    expect(heading.overflow, TextOverflow.ellipsis);
+    expect(find.text('事项操作'), findsNothing);
+    expect(tester.takeException(), isNull);
+    await tester.pumpWidget(const SizedBox());
+    provider.dispose();
+    debugDefaultTargetPlatformOverride = null;
+  });
   testWidgets(
-    'Todo is home, record captures opening time and Markdown renders',
+    'Shared picker uses calendar and numeric time; cancellation discards selection',
     (tester) async {
-      final provider = AppProvider();
-      await tester.runAsync(() => provider.ready);
+      DateTime? result;
       await tester.pumpWidget(
-        ChangeNotifierProvider.value(
-          value: provider,
-          child: const MaterialApp(home: MainScreen()),
+        MaterialApp(
+          home: Builder(
+            builder: (context) => Scaffold(
+              body: TextButton(
+                onPressed: () async {
+                  result = await showDateTimeSheet(
+                    context,
+                    initialDate: DateTime(2027, 4, 5, 9, 30),
+                  );
+                },
+                child: const Text('pick'),
+              ),
+            ),
+          ),
         ),
       );
+      await tester.tap(find.text('pick'));
       await tester.pumpAndSettle();
-      expect(find.text('待办清单'), findsOneWidget);
-      await tester.tap(find.text('记录').last);
+      expect(find.byType(DatePickerDialog), findsOneWidget);
+      await tester.tap(find.text('OK'));
       await tester.pumpAndSettle();
-      await tester.tap(find.byType(FloatingActionButton));
-      await tester.pumpAndSettle();
-      final stamp = tester
-          .widgetList<Text>(find.byType(Text))
-          .map((t) => t.data)
-          .whereType<String>()
-          .firstWhere((t) => RegExp(r'^\d{4}-\d{2}-\d{2} \d{2}:').hasMatch(t));
-      await tester.enterText(
-        find.byType(TextField),
-        '# 一级\n## 二级\n### 三级\n**加粗**',
-      );
-      await tester.pump(const Duration(seconds: 2));
-      await tester.tap(find.text('确定'));
-      await tester.pumpAndSettle();
-      expect(provider.journalEntries.length, 1);
+      expect(find.byType(TimePickerDialog), findsOneWidget);
       expect(
-        provider.journalEntries.single.createdAt
-            .toIso8601String()
-            .substring(0, 19)
-            .replaceFirst('T', ' '),
-        stamp,
+        tester
+            .widget<TimePickerDialog>(find.byType(TimePickerDialog))
+            .initialEntryMode,
+        TimePickerEntryMode.inputOnly,
       );
-      expect(find.byType(TextField), findsNothing);
-      await tester.pumpWidget(const SizedBox());
-      provider.dispose();
+      await tester.tap(find.text('Cancel'));
+      await tester.pumpAndSettle();
+      expect(result, isNull);
+      await tester.tap(find.text('pick'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('OK'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('OK'));
+      await tester.pumpAndSettle();
+      expect(result, DateTime(2027, 4, 5, 9, 30));
       debugDefaultTargetPlatformOverride = null;
     },
   );

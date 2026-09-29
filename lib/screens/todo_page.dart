@@ -36,14 +36,7 @@ class _TodoPageState extends State<TodoPage> {
             backgroundColor: AppColors.bg,
             elevation: 0,
             centerTitle: false,
-            title: Text(
-              _showCompleted ? '已完成清单' : '待办清单',
-              style: const TextStyle(
-                color: AppColors.textDark,
-                fontWeight: FontWeight.w400,
-                fontSize: 24,
-              ),
-            ),
+            title: Text(_showCompleted ? '已完成清单' : '待办清单'),
             actions: [
               IconButton(
                 icon: Icon(
@@ -188,8 +181,6 @@ class _TodoPageState extends State<TodoPage> {
         child: Column(
           children: const [
             Icon(Icons.inbox_outlined, size: 60, color: Color(0xFFE0E0E0)),
-            SizedBox(height: 10),
-            Text("空空如也", style: TextStyle(color: AppColors.textGrey)),
           ],
         ),
       ),
@@ -494,7 +485,6 @@ class _TodoPageState extends State<TodoPage> {
     showTaskActionDialog(
       context,
       title: collection.title,
-      caption: '合集操作',
       actions: [
         TaskAction(
           label: '一键完成所有事项',
@@ -611,7 +601,7 @@ class _TodoPageState extends State<TodoPage> {
                   const SizedBox(height: 16),
                   GestureDetector(
                     onTap: () async {
-                      await _showCupertinoDatePicker(
+                      await _showDateTimePicker(
                         context,
                         selectedDeadline ??
                             DateUtils.dateOnly(
@@ -784,7 +774,7 @@ class _TodoPageState extends State<TodoPage> {
                   const SizedBox(height: 16),
                   GestureDetector(
                     onTap: () async {
-                      await _showCupertinoDatePicker(
+                      await _showDateTimePicker(
                         context,
                         selectedDeadline ??
                             DateUtils.dateOnly(
@@ -814,7 +804,7 @@ class _TodoPageState extends State<TodoPage> {
                           const SizedBox(width: 8),
                           Text(
                             selectedDeadline == null
-                                ? "设置截止时间 (默认23:59)"
+                                ? "设置截止时间"
                                 : DateFormat(
                                     'yyyy-MM-dd HH:mm',
                                   ).format(selectedDeadline!),
@@ -880,7 +870,7 @@ class _TodoPageState extends State<TodoPage> {
     );
   }
 
-  Future<void> _showCupertinoDatePicker(
+  Future<void> _showDateTimePicker(
     BuildContext context,
     DateTime initialTime,
     Function(DateTime) onConfirm,

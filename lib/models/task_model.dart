@@ -136,27 +136,6 @@ class CycleTask {
   }
 }
 
-class JournalEntry {
-  final String id;
-  final String content;
-  final DateTime createdAt;
-  JournalEntry({
-    required this.id,
-    required this.content,
-    required this.createdAt,
-  });
-  Map<String, dynamic> toJson() => {
-    'id': id,
-    'content': content,
-    'createdAt': createdAt.toIso8601String(),
-  };
-  factory JournalEntry.fromJson(Map<String, dynamic> json) => JournalEntry(
-    id: json['id'],
-    content: json['content'],
-    createdAt: DateTime.parse(json['createdAt']),
-  );
-}
-
 class CalendarCountdown {
   final String id;
   final String title;

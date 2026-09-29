@@ -1,49 +1,27 @@
-import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
-import '../constants/app_colors.dart';
 
 Future<DateTime?> showDateTimeSheet(
   BuildContext context, {
   required DateTime initialDate,
-  CupertinoDatePickerMode mode = CupertinoDatePickerMode.dateAndTime,
-}) {
-  var selected = initialDate;
-  return showModalBottomSheet<DateTime>(
+  bool dateOnly = false,
+}) async {
+  final date = await showDatePicker(
     context: context,
-    backgroundColor: AppColors.surface,
-    shape: const RoundedRectangleBorder(
-      borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
-    ),
-    builder: (ctx) => SafeArea(
-      top: false,
-      child: SizedBox(
-        height: 300,
-        child: Column(
-          children: [
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                TextButton(
-                  onPressed: () => Navigator.pop(ctx),
-                  child: const Text('取消'),
-                ),
-                TextButton(
-                  onPressed: () => Navigator.pop(ctx, selected),
-                  child: const Text('确定'),
-                ),
-              ],
-            ),
-            Expanded(
-              child: CupertinoDatePicker(
-                mode: mode,
-                initialDateTime: initialDate,
-                use24hFormat: true,
-                onDateTimeChanged: (value) => selected = value,
-              ),
-            ),
-          ],
-        ),
-      ),
+    initialDate: initialDate,
+    firstDate: DateTime(1900),
+    lastDate: DateTime(2300, 12, 31),
+  );
+  if (date == null || !context.mounted) return null;
+  if (dateOnly) return date;
+  final time = await showTimePicker(
+    context: context,
+    initialTime: TimeOfDay.fromDateTime(initialDate),
+    initialEntryMode: TimePickerEntryMode.inputOnly,
+    builder: (context, child) => MediaQuery(
+      data: MediaQuery.of(context).copyWith(alwaysUse24HourFormat: true),
+      child: child!,
     ),
   );
+  if (time == null) return null;
+  return DateTime(date.year, date.month, date.day, time.hour, time.minute);
 }

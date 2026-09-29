@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
-// import 'package:google_fonts/google_fonts.dart';
 import 'package:provider/provider.dart';
 import 'package:permission_handler/permission_handler.dart';
 
@@ -69,19 +68,32 @@ class _MyAppState extends State<MyApp> {
         textTheme: const TextTheme(
           bodyLarge: TextStyle(fontWeight: FontWeight.w400, height: 1.5),
           bodyMedium: TextStyle(fontWeight: FontWeight.w400, height: 1.5),
-          titleLarge: TextStyle(fontWeight: FontWeight.w500),
+          titleLarge: TextStyle(fontWeight: FontWeight.w400),
           titleMedium: TextStyle(fontWeight: FontWeight.w400),
           titleSmall: TextStyle(fontWeight: FontWeight.w400),
           labelLarge: TextStyle(fontWeight: FontWeight.w400),
           labelMedium: TextStyle(fontWeight: FontWeight.w400),
           labelSmall: TextStyle(fontWeight: FontWeight.w400),
         ),
+        appBarTheme: const AppBarTheme(
+          backgroundColor: AppColors.bg,
+          foregroundColor: AppColors.textDark,
+          surfaceTintColor: Colors.transparent,
+          elevation: 0,
+          scrolledUnderElevation: 0,
+          centerTitle: false,
+          titleTextStyle: TextStyle(
+            fontSize: 22,
+            fontWeight: FontWeight.w400,
+            color: AppColors.textDark,
+          ),
+        ),
         dialogTheme: const DialogThemeData(
           backgroundColor: AppColors.surface,
           surfaceTintColor: Colors.transparent,
           titleTextStyle: TextStyle(
             fontSize: 18,
-            fontWeight: FontWeight.w500,
+            fontWeight: FontWeight.w400,
             color: AppColors.textDark,
           ),
         ),

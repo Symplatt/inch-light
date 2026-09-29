@@ -12,7 +12,7 @@ class SectionHeader extends StatelessWidget {
         title,
         style: TextStyle(
           fontSize: 14,
-          fontWeight: FontWeight.w500,
+          fontWeight: FontWeight.w400,
           color: Colors.grey[400],
         ),
       ),
@@ -49,7 +49,7 @@ class FilterChipWidget extends StatelessWidget {
           text,
           style: TextStyle(
             color: selected ? Colors.white : Colors.grey[600],
-            fontWeight: FontWeight.w500,
+            fontWeight: FontWeight.w400,
             fontSize: 13,
           ),
         ),

@@ -7,7 +7,6 @@ import '../constants/app_colors.dart';
 
 import 'todo_page.dart';
 import 'cycle_page.dart';
-import 'journal_page.dart';
 
 // 全局通用的设置弹窗
 void showGlobalSettingsDialog(BuildContext context, AppProvider provider) {
@@ -23,7 +22,6 @@ void showGlobalSettingsDialog(BuildContext context, AppProvider provider) {
           ListTile(
             leading: const Icon(Icons.upload_file, color: AppColors.primary),
             title: const Text("导出数据"),
-            subtitle: const Text("复制全部数据到剪贴板"),
             onTap: () {
               final json = provider.exportData();
               Clipboard.setData(ClipboardData(text: json));
@@ -37,7 +35,6 @@ void showGlobalSettingsDialog(BuildContext context, AppProvider provider) {
           ListTile(
             leading: const Icon(Icons.download, color: AppColors.danger),
             title: const Text("导入数据"),
-            subtitle: const Text("警告：将覆盖当前所有数据"),
             onTap: () async {
               final data = await Clipboard.getData(Clipboard.kTextPlain);
               if (data?.text != null) {
@@ -132,7 +129,7 @@ class _MainScreenState extends State<MainScreen> {
       body: PageView(
         controller: _pageController,
         physics: const NeverScrollableScrollPhysics(),
-        children: const [TodoPage(), JournalPage(), CyclePage()],
+        children: const [TodoPage(), CyclePage()],
       ),
       bottomNavigationBar: BottomNavigationBar(
         currentIndex: _currentIndex,
@@ -140,7 +137,7 @@ class _MainScreenState extends State<MainScreen> {
         backgroundColor: AppColors.surface,
         selectedItemColor: AppColors.primary,
         unselectedItemColor: AppColors.textGrey,
-        selectedLabelStyle: const TextStyle(fontWeight: FontWeight.w500),
+        selectedLabelStyle: const TextStyle(fontWeight: FontWeight.w400),
         elevation: 2,
         items: const [
           BottomNavigationBarItem(
@@ -148,7 +145,6 @@ class _MainScreenState extends State<MainScreen> {
             activeIcon: Icon(Icons.check_circle),
             label: '待办',
           ),
-          BottomNavigationBarItem(icon: Icon(Icons.edit_note), label: '记录'),
           BottomNavigationBarItem(
             icon: Icon(Icons.calendar_month_outlined),
             label: '时历',

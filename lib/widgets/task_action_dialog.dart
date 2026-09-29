@@ -18,16 +18,15 @@ Future<void> showTaskActionDialog(
   BuildContext context, {
   required String title,
   required List<TaskAction> actions,
-  String caption = '事项操作',
 }) => showDialog<void>(
   context: context,
   barrierColor: Colors.black.withValues(alpha: 0.22),
   builder: (dialogContext) => Dialog(
     backgroundColor: AppColors.surface,
     surfaceTintColor: Colors.transparent,
-    elevation: 4,
+    elevation: 0,
     insetPadding: const EdgeInsets.symmetric(horizontal: 24, vertical: 32),
-    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
+    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
     child: ConstrainedBox(
       constraints: const BoxConstraints(maxWidth: 360),
       child: SingleChildScrollView(
@@ -37,7 +36,7 @@ Future<void> showTaskActionDialog(
             mainAxisSize: MainAxisSize.min,
             children: [
               Padding(
-                padding: const EdgeInsets.only(left: 12, bottom: 12),
+                padding: const EdgeInsets.only(left: 12, top: 4, bottom: 12),
                 child: Row(
                   children: [
                     Expanded(
@@ -45,23 +44,14 @@ Future<void> showTaskActionDialog(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           Text(
-                            caption,
-                            style: const TextStyle(
-                              fontSize: 12,
-                              color: AppColors.textGrey,
-                              fontWeight: FontWeight.w400,
-                            ),
-                          ),
-                          const SizedBox(height: 6),
-                          Text(
                             title,
                             maxLines: 1,
                             softWrap: false,
                             overflow: TextOverflow.ellipsis,
                             style: const TextStyle(
-                              fontSize: 17,
+                              fontSize: 16,
                               color: AppColors.textDark,
-                              fontWeight: FontWeight.w500,
+                              fontWeight: FontWeight.w400,
                             ),
                           ),
                         ],

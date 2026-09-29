@@ -15,9 +15,7 @@ class AppProvider with ChangeNotifier, WidgetsBindingObserver {
   final List<CycleTask> _cycleTasks = [];
   List<TaskCollection> _collections = [];
 
-  final List<JournalEntry> _journalEntries = [];
   final List<CalendarCountdown> _countdowns = [];
-  List<JournalEntry> get journalEntries => List.unmodifiable(_journalEntries);
   List<CalendarCountdown> get countdowns => List.unmodifiable(_countdowns);
   Timer? _maintenanceTimer;
   bool _disposed = false;
@@ -154,11 +152,6 @@ class AppProvider with ChangeNotifier, WidgetsBindingObserver {
     safeLoad('normal_tasks', _normalTasks, (json) => TaskItem.fromJson(json));
     safeLoad('cycle_tasks', _cycleTasks, (json) => CycleTask.fromJson(json));
     safeLoad(
-      'journal_entries',
-      _journalEntries,
-      (json) => JournalEntry.fromJson(json),
-    );
-    safeLoad(
       'calendar_countdowns',
       _countdowns,
       (json) => CalendarCountdown.fromJson(json),
@@ -184,7 +177,6 @@ class AppProvider with ChangeNotifier, WidgetsBindingObserver {
     await prefs.setString('normal_tasks', encode(_normalTasks));
     await prefs.setString('cycle_tasks', encode(_cycleTasks));
     await prefs.setString('collections_data', encode(_collections));
-    await prefs.setString('journal_entries', encode(_journalEntries));
     await prefs.setString('calendar_countdowns', encode(_countdowns));
   }
 
@@ -219,7 +211,6 @@ class AppProvider with ChangeNotifier, WidgetsBindingObserver {
 
   String exportData() {
     final data = {
-      'journal_entries': _journalEntries.map((e) => e.toJson()).toList(),
       'calendar_countdowns': _countdowns.map((e) => e.toJson()).toList(),
       'daily_tasks': _dailyTasks.map((e) => e.toJson()).toList(),
       'normal_tasks': _normalTasks.map((e) => e.toJson()).toList(),
@@ -247,7 +238,6 @@ class AppProvider with ChangeNotifier, WidgetsBindingObserver {
         'normal_tasks',
         'cycle_tasks',
         'collections',
-        'journal_entries',
         'calendar_countdowns',
       ].any(data.containsKey)) {
         return false;
@@ -259,11 +249,6 @@ class AppProvider with ChangeNotifier, WidgetsBindingObserver {
         'collections',
         TaskCollection.fromJson,
         _collections,
-      );
-      final entries = parse(
-        'journal_entries',
-        JournalEntry.fromJson,
-        _journalEntries,
       );
       final countdowns = parse(
         'calendar_countdowns',
@@ -280,9 +265,6 @@ class AppProvider with ChangeNotifier, WidgetsBindingObserver {
         ..clear()
         ..addAll(cycles);
       _collections = collections;
-      _journalEntries
-        ..clear()
-        ..addAll(entries);
       _countdowns
         ..clear()
         ..addAll(countdowns);
@@ -470,19 +452,6 @@ class AppProvider with ChangeNotifier, WidgetsBindingObserver {
   void setTaskPosition(TaskItem task, int position) {
     task.isPinned = position < 0;
     task.isBottom = position > 0;
-    _saveData();
-    notifyListeners();
-  }
-
-  void addJournalEntry(String content, DateTime capturedAt) {
-    if (content.trim().isEmpty) return;
-    _journalEntries.add(
-      JournalEntry(
-        id: const Uuid().v4(),
-        content: content.trim(),
-        createdAt: capturedAt,
-      ),
-    );
     _saveData();
     notifyListeners();
   }
