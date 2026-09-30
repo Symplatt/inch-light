@@ -62,9 +62,12 @@ class _CyclePageState extends State<CyclePage> {
                     ).format(task.deadline),
                     deadline: task.deadline,
                     now: now,
-                    onDelete: () => _confirmDelete(
-                      context,
-                      () => provider.removeCountdown(task),
+                    id: task.id,
+                    onDelete: () => provider.removeCountdown(task),
+                    onEdit: () => showDialog(
+                      context: context,
+                      builder: (_) =>
+                          _CalendarEditor(provider: provider, countdown: task),
                     ),
                   ),
               ],
@@ -84,9 +87,12 @@ class _CyclePageState extends State<CyclePage> {
                         '${_frequencyLabels[task.frequency.index]} · ${task.allDay ? '全天' : DateFormat('HH:mm').format(task.time)} · 下次 ${DateFormat('yyyy.MM.dd').format(task.nextRunTime)}',
                     deadline: task.nextRunTime,
                     now: now,
-                    onDelete: () => _confirmDelete(
-                      context,
-                      () => provider.removeCycleTask(task),
+                    id: task.id,
+                    onDelete: () => provider.removeCycleTask(task),
+                    onEdit: () => showDialog(
+                      context: context,
+                      builder: (_) =>
+                          _CalendarEditor(provider: provider, cycle: task),
                     ),
                   ),
               ],
@@ -124,7 +130,7 @@ class _CyclePageState extends State<CyclePage> {
           children: [
             Text(
               title,
-              style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
+              style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w400),
             ),
             const SizedBox(width: 8),
             Text(
@@ -140,58 +146,65 @@ class _CyclePageState extends State<CyclePage> {
   );
 
   Widget _card({
+    required String id,
     required String title,
     required String subtitle,
     required DateTime deadline,
     required DateTime now,
     required VoidCallback onDelete,
-  }) => Container(
-    margin: const EdgeInsets.only(bottom: 8),
-    padding: const EdgeInsets.fromLTRB(16, 10, 8, 14),
-    decoration: BoxDecoration(
+    required VoidCallback onEdit,
+  }) => Dismissible(
+    key: ValueKey(id),
+    direction: DismissDirection.horizontal,
+    onDismissed: (_) => onDelete(),
+    background: _deleteBackground(Alignment.centerLeft),
+    secondaryBackground: _deleteBackground(Alignment.centerRight),
+    child: Card(
+      margin: const EdgeInsets.only(bottom: 8),
       color: AppColors.surface,
-      borderRadius: BorderRadius.circular(16),
-      border: Border.all(color: AppColors.divider),
-    ),
-    child: Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Row(
-          children: [
-            Expanded(
-              child: Text(
+      elevation: 0,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+      child: InkWell(
+        onLongPress: onEdit,
+        borderRadius: BorderRadius.circular(16),
+        child: Padding(
+          padding: const EdgeInsets.all(16),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Text(
                 title,
-                maxLines: 2,
-                overflow: TextOverflow.ellipsis,
                 style: const TextStyle(
-                  fontSize: 17,
-                  fontWeight: FontWeight.w600,
-                  color: AppColors.textDark,
+                  fontSize: 16,
+                  fontWeight: FontWeight.w400,
                 ),
               ),
-            ),
-            IconButton(
-              tooltip: '删除$title',
-              onPressed: onDelete,
-              icon: const Icon(
-                Icons.close_rounded,
-                size: 18,
-                color: AppColors.textGrey,
+              const SizedBox(height: 8),
+              Align(
+                alignment: Alignment.centerRight,
+                child: _countdown(deadline, now),
               ),
-            ),
-          ],
+              const SizedBox(height: 8),
+              Text(
+                subtitle,
+                style: const TextStyle(fontSize: 12, color: AppColors.textGrey),
+              ),
+            ],
+          ),
         ),
-        Padding(
-          padding: const EdgeInsets.only(right: 8),
-          child: _countdown(deadline, now),
-        ),
-        const SizedBox(height: 6),
-        Text(
-          subtitle,
-          style: const TextStyle(fontSize: 12, color: AppColors.textGrey),
-        ),
-      ],
+      ),
     ),
+  );
+
+  Widget _deleteBackground(Alignment alignment) => Container(
+    margin: const EdgeInsets.only(bottom: 8),
+    padding: const EdgeInsets.symmetric(horizontal: 20),
+    alignment: alignment,
+    decoration: BoxDecoration(
+      color: AppColors.danger,
+      borderRadius: BorderRadius.circular(16),
+    ),
+    child: const Icon(Icons.delete_outline, color: Colors.white),
   );
 
   Widget _empty(IconData icon) => Padding(
@@ -203,7 +216,7 @@ class _CyclePageState extends State<CyclePage> {
     if (!deadline.isAfter(now)) {
       return const Text(
         '已到时间',
-        style: TextStyle(fontSize: 20, fontWeight: FontWeight.w600),
+        style: TextStyle(fontSize: 20, fontWeight: FontWeight.w400),
       );
     }
     final parts = countdownParts(deadline, now);
@@ -221,7 +234,7 @@ class _CyclePageState extends State<CyclePage> {
               style: const TextStyle(
                 fontSize: 28,
                 height: 1.15,
-                fontWeight: FontWeight.w600,
+                fontWeight: FontWeight.w400,
                 color: AppColors.primary,
               ),
             ),
@@ -241,32 +254,13 @@ class _CyclePageState extends State<CyclePage> {
       ),
     );
   }
-
-  void _confirmDelete(BuildContext context, VoidCallback onDelete) =>
-      showDialog(
-        context: context,
-        builder: (ctx) => AlertDialog(
-          title: const Text('删除此事项？'),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(ctx),
-              child: const Text('取消'),
-            ),
-            TextButton(
-              onPressed: () {
-                onDelete();
-                Navigator.pop(ctx);
-              },
-              child: const Text('删除'),
-            ),
-          ],
-        ),
-      );
 }
 
 class _CalendarEditor extends StatefulWidget {
   final AppProvider provider;
-  const _CalendarEditor({required this.provider});
+  final CalendarCountdown? countdown;
+  final CycleTask? cycle;
+  const _CalendarEditor({required this.provider, this.countdown, this.cycle});
   @override
   State<_CalendarEditor> createState() => _CalendarEditorState();
 }
@@ -278,6 +272,25 @@ class _CalendarEditorState extends State<_CalendarEditor> {
   CycleFrequency _frequency = CycleFrequency.weekly;
   DateTime _date = DateTime.now().add(const Duration(days: 1));
   String? _error;
+  bool get _editing => widget.countdown != null || widget.cycle != null;
+
+  @override
+  void initState() {
+    super.initState();
+    final cycle = widget.cycle;
+    final countdown = widget.countdown;
+    if (cycle != null) {
+      _cycle = true;
+      _title.text = cycle.title;
+      _allDay = cycle.allDay;
+      _frequency = cycle.frequency;
+      _date = cycle.time;
+    } else if (countdown != null) {
+      _title.text = countdown.title;
+      _date = countdown.deadline;
+    }
+  }
+
   @override
   void dispose() {
     _title.dispose();
@@ -286,7 +299,12 @@ class _CalendarEditorState extends State<_CalendarEditor> {
 
   @override
   Widget build(BuildContext context) => AlertDialog(
-    title: const Text('新建时历'),
+    title: Text(_editing ? '编辑事项' : '新建时历'),
+    titleTextStyle: const TextStyle(
+      fontSize: 20,
+      color: AppColors.textDark,
+      fontWeight: FontWeight.w400,
+    ),
     content: SizedBox(
       width: 460,
       child: SingleChildScrollView(
@@ -299,7 +317,9 @@ class _CalendarEditorState extends State<_CalendarEditor> {
                 ButtonSegment(value: true, label: Text('周期')),
               ],
               selected: {_cycle},
-              onSelectionChanged: (v) => setState(() => _cycle = v.first),
+              onSelectionChanged: _editing
+                  ? null
+                  : (v) => setState(() => _cycle = v.first),
             ),
             const SizedBox(height: 16),
             TextField(
@@ -360,7 +380,9 @@ class _CalendarEditorState extends State<_CalendarEditor> {
     ],
   );
   void _save() {
-    final date = _cycle && _allDay
+    final date = !_cycle && _date == widget.countdown?.deadline
+        ? _date
+        : _cycle && _allDay
         ? DateTime(_date.year, _date.month, _date.day)
         : DateTime(
             _date.year,
@@ -370,13 +392,29 @@ class _CalendarEditorState extends State<_CalendarEditor> {
             _date.minute,
           );
     if (_title.text.trim().isEmpty ||
-        (!_cycle && !date.isAfter(DateTime.now()))) {
+        (!_cycle &&
+            !date.isAfter(DateTime.now()) &&
+            date != widget.countdown?.deadline)) {
       setState(
         () => _error = _title.text.trim().isEmpty ? '请输入事项名称' : '请选择未来的时间',
       );
       return;
     }
-    if (_cycle) {
+    if (widget.cycle != null) {
+      widget.provider.updateCycleTask(
+        widget.cycle!,
+        _title.text.trim(),
+        _frequency,
+        date,
+        allDay: _allDay,
+      );
+    } else if (widget.countdown != null) {
+      widget.provider.updateCountdown(
+        widget.countdown!,
+        _title.text.trim(),
+        date,
+      );
+    } else if (_cycle) {
       widget.provider.addCycleTask(
         _title.text.trim(),
         _frequency,

@@ -14,9 +14,9 @@ class AppColors {
   static const Color textGrey = Color(0xFF60636A);
 
   // 功能色
-  static const Color success = Color(0xFF84978A);
+  static const Color success = Color(0xFF409B6B);
   static const Color warning = Color(0xFFE6A23C);
-  static const Color danger = Color(0xFFB28E91);
+  static const Color danger = Color(0xFFD45D66);
 
   static const Color divider = Color(0xFFEBEDF1);
 

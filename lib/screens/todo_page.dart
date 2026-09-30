@@ -95,10 +95,10 @@ class _TodoPageState extends State<TodoPage> {
                 const SizedBox(height: 20),
               ],
 
-              // --- 2. 任务合集 ---
+              // --- 2. 事项合集 ---
               if (collections.isNotEmpty) ...[
                 _buildSectionHeader(
-                  "任务合集",
+                  "事项合集",
                   // 删除合集和其中所有状态的事项
                   onClear: () => provider.clearCollections(),
                 ),
@@ -117,10 +117,10 @@ class _TodoPageState extends State<TodoPage> {
                 const SizedBox(height: 20),
               ],
 
-              // --- 3. 散落任务 ---
+              // --- 3. 散落事项 ---
               _buildSectionHeader(
-                "零散任务",
-                // 清空当前视图下的所有散落任务
+                "零散事项",
+                // 清空当前视图下的所有散落事项
                 onClear: () =>
                     provider.clearLooseTasks(isCompleted: _showCompleted),
               ),
@@ -217,47 +217,57 @@ class _TodoPageState extends State<TodoPage> {
             borderRadius: BorderRadius.circular(16),
             boxShadow: AppColors.shadow,
           ),
-          child: Theme(
-            data: Theme.of(context).copyWith(dividerColor: Colors.transparent),
-            child: ExpansionTile(
-              initiallyExpanded: collection.isExpanded,
-              onExpansionChanged: (_) =>
-                  provider.toggleCollectionExpand(collection.id),
-              tilePadding: const EdgeInsets.symmetric(
-                horizontal: 16,
-                vertical: 4,
-              ),
-              subtitle: nearest == null
-                  ? null
-                  : Text(
-                      DateFormat('yyyy-MM-dd HH:mm').format(nearest),
-                      style: TextStyle(
-                        color: deadlineColor(nearest),
-                        fontSize: 12,
+          child: Material(
+            color: AppColors.surface,
+            borderRadius: BorderRadius.circular(16),
+            child: Theme(
+              data: Theme.of(
+                context,
+              ).copyWith(dividerColor: Colors.transparent),
+              child: ExpansionTile(
+                initiallyExpanded: collection.isExpanded,
+                onExpansionChanged: (_) =>
+                    provider.toggleCollectionExpand(collection.id),
+                tilePadding: const EdgeInsets.symmetric(
+                  horizontal: 16,
+                  vertical: 4,
+                ),
+                subtitle: nearest == null
+                    ? null
+                    : Text(
+                        DateFormat('yyyy-MM-dd HH:mm').format(nearest),
+                        style: TextStyle(
+                          color: deadlineColor(nearest),
+                          fontSize: 12,
+                        ),
                       ),
-                    ),
-              title: Text(
-                collection.title,
-                style: const TextStyle(
-                  fontWeight: FontWeight.w400,
-                  fontSize: 16,
+                title: Text(
+                  collection.title,
+                  style: const TextStyle(
+                    fontWeight: FontWeight.w400,
+                    fontSize: 16,
+                  ),
                 ),
-              ),
-              trailing: IconButton(
-                icon: const Icon(Icons.add, size: 24, color: AppColors.primary),
-                onPressed: () =>
-                    _showAddTaskDialog(context, collectionId: collection.id),
-              ),
-              children: [
-                const Divider(
-                  height: 1,
-                  thickness: 0.5,
-                  color: Color(0xFFEEEEEE),
-                  indent: 16,
-                  endIndent: 16,
+                trailing: IconButton(
+                  icon: const Icon(
+                    Icons.add,
+                    size: 24,
+                    color: AppColors.primary,
+                  ),
+                  onPressed: () =>
+                      _showAddTaskDialog(context, collectionId: collection.id),
                 ),
-                ...tasks.map((t) => _buildTaskItem(context, t, provider)),
-              ],
+                children: [
+                  const Divider(
+                    height: 1,
+                    thickness: 0.5,
+                    color: Color(0xFFEEEEEE),
+                    indent: 16,
+                    endIndent: 16,
+                  ),
+                  ...tasks.map((t) => _buildTaskItem(context, t, provider)),
+                ],
+              ),
             ),
           ),
         ),
@@ -360,7 +370,7 @@ class _TodoPageState extends State<TodoPage> {
           boxShadow: AppColors.shadow,
         ),
         child: InkWell(
-          onLongPress: () => _showTaskActions(context, task, provider),
+          onLongPress: () => _showEditTaskDialog(context, task),
           borderRadius: BorderRadius.circular(16),
           child: ListTile(
             contentPadding: const EdgeInsets.symmetric(
@@ -501,40 +511,6 @@ class _TodoPageState extends State<TodoPage> {
     );
   }
 
-  void _showTaskActions(
-    BuildContext context,
-    TaskItem task,
-    AppProvider provider,
-  ) {
-    showTaskActionDialog(
-      context,
-      title: task.title,
-      actions: [
-        TaskAction(
-          label: '置顶',
-          icon: Icons.vertical_align_top_rounded,
-          onTap: () => provider.setTaskPosition(task, -1),
-        ),
-        TaskAction(
-          label: '置底',
-          icon: Icons.vertical_align_bottom_rounded,
-          onTap: () => provider.setTaskPosition(task, 1),
-        ),
-        if (task.isPinned || task.isBottom)
-          TaskAction(
-            label: '恢复默认排序',
-            icon: Icons.sort_rounded,
-            onTap: () => provider.setTaskPosition(task, 0),
-          ),
-        TaskAction(
-          label: '编辑事项',
-          icon: Icons.edit_outlined,
-          onTap: () => _showEditTaskDialog(context, task),
-        ),
-      ],
-    );
-  }
-
   void _showEditTaskDialog(BuildContext context, TaskItem task) {
     final titleController = TextEditingController(text: task.title);
     final tagController = TextEditingController(text: task.tags.join(" "));
@@ -558,35 +534,49 @@ class _TodoPageState extends State<TodoPage> {
               color: Colors.white,
               borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
             ),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                const Text(
-                  "编辑任务",
-                  style: TextStyle(fontSize: 20, fontWeight: FontWeight.w400),
-                ),
-                const SizedBox(height: 20),
-                TextField(
-                  controller: titleController,
-                  autofocus: true,
-                  decoration: InputDecoration(
-                    hintText: "任务内容",
-                    filled: true,
-                    fillColor: AppColors.bg,
-                    border: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(12),
-                      borderSide: BorderSide.none,
-                    ),
+            child: SingleChildScrollView(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Row(
+                    crossAxisAlignment: CrossAxisAlignment.center,
+                    children: [
+                      const Expanded(
+                        child: Text(
+                          '编辑事项',
+                          style: TextStyle(
+                            fontSize: 20,
+                            fontWeight: FontWeight.w400,
+                          ),
+                        ),
+                      ),
+                      if (task.type != TaskType.daily)
+                        for (final position in [-1, 1])
+                          TextButton(
+                            onPressed: () => setState(() {
+                              final active = position < 0
+                                  ? task.isPinned
+                                  : task.isBottom;
+                              context.read<AppProvider>().setTaskPosition(
+                                task,
+                                active ? 0 : position,
+                              );
+                            }),
+                            child: Text(
+                              position < 0
+                                  ? (task.isPinned ? '取消置顶' : '置顶')
+                                  : (task.isBottom ? '取消置底' : '置底'),
+                            ),
+                          ),
+                    ],
                   ),
-                ),
-
-                if (task.type != TaskType.daily) ...[
-                  const SizedBox(height: 16),
+                  const SizedBox(height: 20),
                   TextField(
-                    controller: tagController,
+                    controller: titleController,
+                    autofocus: true,
                     decoration: InputDecoration(
-                      hintText: "标签 (空格分隔)",
-                      prefixIcon: const Icon(Icons.tag, size: 18),
+                      hintText: "事项内容",
                       filled: true,
                       fillColor: AppColors.bg,
                       border: OutlineInputBorder(
@@ -594,109 +584,128 @@ class _TodoPageState extends State<TodoPage> {
                         borderSide: BorderSide.none,
                       ),
                     ),
-                    onChanged: (v) {
-                      tags = v.split(' ').where((e) => e.isNotEmpty).toList();
-                    },
                   ),
-                  const SizedBox(height: 16),
-                  TextButton.icon(
-                    icon: const Icon(Icons.today_outlined, size: 18),
-                    label: const Text("今日截止"),
-                    onPressed: () => setState(() {
-                      final now = DateTime.now();
-                      selectedDeadline = DateTime(
-                        now.year,
-                        now.month,
-                        now.day,
-                        23,
-                        59,
-                      );
-                    }),
-                  ),
-                  GestureDetector(
-                    onTap: () async {
-                      await _showDateTimePicker(
-                        context,
-                        selectedDeadline ??
-                            DateUtils.dateOnly(
-                              DateTime.now(),
-                            ).add(const Duration(hours: 23, minutes: 59)),
-                        (dateTime) {
-                          setState(() => selectedDeadline = dateTime);
-                        },
-                      );
-                    },
-                    child: Container(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 12,
-                        vertical: 12,
+
+                  if (task.type != TaskType.daily) ...[
+                    const SizedBox(height: 16),
+                    TextField(
+                      controller: tagController,
+                      decoration: InputDecoration(
+                        hintText: "标签 (空格分隔)",
+                        prefixIcon: const Icon(Icons.tag, size: 18),
+                        filled: true,
+                        fillColor: AppColors.bg,
+                        border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(12),
+                          borderSide: BorderSide.none,
+                        ),
                       ),
-                      decoration: BoxDecoration(
-                        color: AppColors.bg,
-                        borderRadius: BorderRadius.circular(12),
-                      ),
-                      child: Row(
-                        children: [
-                          const Icon(
-                            Icons.calendar_today,
-                            size: 18,
-                            color: AppColors.textGrey,
-                          ),
-                          const SizedBox(width: 8),
-                          Text(
-                            selectedDeadline == null
-                                ? "设置截止时间"
-                                : DateFormat(
-                                    'yyyy-MM-dd HH:mm',
-                                  ).format(selectedDeadline!),
-                            style: TextStyle(
-                              color: selectedDeadline == null
-                                  ? AppColors.textGrey
-                                  : AppColors.primary,
-                              fontWeight: FontWeight.w400,
+                      onChanged: (v) {
+                        tags = v.split(' ').where((e) => e.isNotEmpty).toList();
+                      },
+                    ),
+                    const SizedBox(height: 16),
+                    GestureDetector(
+                      onTap: () async {
+                        await _showDateTimePicker(
+                          context,
+                          selectedDeadline ??
+                              DateUtils.dateOnly(
+                                DateTime.now(),
+                              ).add(const Duration(hours: 23, minutes: 59)),
+                          (dateTime) {
+                            setState(() => selectedDeadline = dateTime);
+                          },
+                        );
+                      },
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 12,
+                          vertical: 12,
+                        ),
+                        decoration: BoxDecoration(
+                          color: AppColors.bg,
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                        child: Row(
+                          children: [
+                            const Icon(
+                              Icons.calendar_today,
+                              size: 18,
+                              color: AppColors.textGrey,
                             ),
-                          ),
+                            const SizedBox(width: 8),
+                            Text(
+                              selectedDeadline == null
+                                  ? "设置截止时间"
+                                  : DateFormat(
+                                      'yyyy-MM-dd HH:mm',
+                                    ).format(selectedDeadline!),
+                              style: TextStyle(
+                                color: selectedDeadline == null
+                                    ? AppColors.textGrey
+                                    : AppColors.primary,
+                                fontWeight: FontWeight.w400,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                    Align(
+                      alignment: Alignment.centerLeft,
+                      child: Wrap(
+                        spacing: 8,
+                        children: [
+                          for (final offset in [0, 1])
+                            TextButton.icon(
+                              icon: const Icon(Icons.today_outlined, size: 18),
+                              label: Text(offset == 0 ? '今日截止' : '明日截止'),
+                              onPressed: () => setState(() {
+                                selectedDeadline = endOfDay(offset);
+                              }),
+                            ),
                         ],
+                      ),
+                    ),
+                  ],
+                  const SizedBox(height: 24),
+                  SizedBox(
+                    width: double.infinity,
+                    height: 50,
+                    child: ElevatedButton(
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: AppColors.primary,
+                        foregroundColor: Colors.white,
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                      ),
+                      onPressed: () {
+                        if (titleController.text.isNotEmpty) {
+                          Provider.of<AppProvider>(
+                            context,
+                            listen: false,
+                          ).updateTask(
+                            task,
+                            titleController.text,
+                            newDeadline: selectedDeadline,
+                            newTags: tags,
+                          );
+                          Navigator.pop(context);
+                        }
+                      },
+                      child: const Text(
+                        "保存修改",
+                        style: TextStyle(
+                          fontSize: 16,
+                          fontWeight: FontWeight.w400,
+                        ),
                       ),
                     ),
                   ),
                 ],
-                const SizedBox(height: 24),
-                SizedBox(
-                  width: double.infinity,
-                  height: 50,
-                  child: ElevatedButton(
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: AppColors.primary,
-                      foregroundColor: Colors.white,
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(12),
-                      ),
-                    ),
-                    onPressed: () {
-                      if (titleController.text.isNotEmpty) {
-                        Provider.of<AppProvider>(
-                          context,
-                          listen: false,
-                        ).updateTask(
-                          task,
-                          titleController.text,
-                          newDeadline: selectedDeadline,
-                          newTags: tags,
-                        );
-                        Navigator.pop(context);
-                      }
-                    },
-                    child: const Text(
-                      "保存修改",
-                      style: TextStyle(
-                        fontSize: 16,
-                        fontWeight: FontWeight.w400,
-                      ),
-                    ),
-                  ),
-                ),
-              ],
+              ),
             ),
           );
         },
@@ -728,52 +737,38 @@ class _TodoPageState extends State<TodoPage> {
               color: Colors.white,
               borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
             ),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                const Text(
-                  "新建",
-                  style: TextStyle(fontSize: 20, fontWeight: FontWeight.w400),
-                ),
-                const SizedBox(height: 20),
-                if (collectionId == null)
-                  Row(
-                    children: [
-                      ChoiceChip(
-                        label: const Text("普通任务"),
-                        selected: !isDaily,
-                        onSelected: (v) => setState(() => isDaily = false),
-                      ),
-                      const SizedBox(width: 10),
-                      ChoiceChip(
-                        label: const Text("每日打卡"),
-                        selected: isDaily,
-                        onSelected: (v) => setState(() => isDaily = true),
-                      ),
-                    ],
+            child: SingleChildScrollView(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text(
+                    "新建",
+                    style: TextStyle(fontSize: 20, fontWeight: FontWeight.w400),
                   ),
-                const SizedBox(height: 16),
-                TextField(
-                  controller: titleController,
-                  autofocus: true,
-                  decoration: InputDecoration(
-                    hintText: "准备做什么？",
-                    filled: true,
-                    fillColor: AppColors.bg,
-                    border: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(12),
-                      borderSide: BorderSide.none,
+                  const SizedBox(height: 20),
+                  if (collectionId == null)
+                    Row(
+                      children: [
+                        ChoiceChip(
+                          label: const Text("普通事项"),
+                          selected: !isDaily,
+                          onSelected: (v) => setState(() => isDaily = false),
+                        ),
+                        const SizedBox(width: 10),
+                        ChoiceChip(
+                          label: const Text("每日打卡"),
+                          selected: isDaily,
+                          onSelected: (v) => setState(() => isDaily = true),
+                        ),
+                      ],
                     ),
-                  ),
-                ),
-                if (!isDaily) ...[
                   const SizedBox(height: 16),
                   TextField(
-                    controller: tagController,
+                    controller: titleController,
+                    autofocus: true,
                     decoration: InputDecoration(
-                      hintText: "添加标签 (空格分隔)",
-                      prefixIcon: const Icon(Icons.tag, size: 18),
+                      hintText: "准备做什么？",
                       filled: true,
                       fillColor: AppColors.bg,
                       border: OutlineInputBorder(
@@ -781,116 +776,134 @@ class _TodoPageState extends State<TodoPage> {
                         borderSide: BorderSide.none,
                       ),
                     ),
-                    onChanged: (v) {
-                      tags = v.split(' ').where((e) => e.isNotEmpty).toList();
-                    },
                   ),
-                  const SizedBox(height: 16),
-                  TextButton.icon(
-                    icon: const Icon(Icons.today_outlined, size: 18),
-                    label: const Text("今日截止"),
-                    onPressed: () => setState(() {
-                      final now = DateTime.now();
-                      selectedDeadline = DateTime(
-                        now.year,
-                        now.month,
-                        now.day,
-                        23,
-                        59,
-                      );
-                    }),
-                  ),
-                  GestureDetector(
-                    onTap: () async {
-                      await _showDateTimePicker(
-                        context,
-                        selectedDeadline ??
-                            DateUtils.dateOnly(
-                              DateTime.now(),
-                            ).add(const Duration(hours: 23, minutes: 59)),
-                        (dateTime) {
-                          setState(() => selectedDeadline = dateTime);
-                        },
-                      );
-                    },
-                    child: Container(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 12,
-                        vertical: 12,
+                  if (!isDaily) ...[
+                    const SizedBox(height: 16),
+                    TextField(
+                      controller: tagController,
+                      decoration: InputDecoration(
+                        hintText: "添加标签 (空格分隔)",
+                        prefixIcon: const Icon(Icons.tag, size: 18),
+                        filled: true,
+                        fillColor: AppColors.bg,
+                        border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(12),
+                          borderSide: BorderSide.none,
+                        ),
                       ),
-                      decoration: BoxDecoration(
-                        color: AppColors.bg,
-                        borderRadius: BorderRadius.circular(12),
-                      ),
-                      child: Row(
-                        children: [
-                          const Icon(
-                            Icons.calendar_today,
-                            size: 18,
-                            color: AppColors.textGrey,
-                          ),
-                          const SizedBox(width: 8),
-                          Text(
-                            selectedDeadline == null
-                                ? "设置截止时间"
-                                : DateFormat(
-                                    'yyyy-MM-dd HH:mm',
-                                  ).format(selectedDeadline!),
-                            style: TextStyle(
-                              color: selectedDeadline == null
-                                  ? AppColors.textGrey
-                                  : AppColors.primary,
-                              fontWeight: FontWeight.w400,
+                      onChanged: (v) {
+                        tags = v.split(' ').where((e) => e.isNotEmpty).toList();
+                      },
+                    ),
+                    const SizedBox(height: 16),
+                    GestureDetector(
+                      onTap: () async {
+                        await _showDateTimePicker(
+                          context,
+                          selectedDeadline ??
+                              DateUtils.dateOnly(
+                                DateTime.now(),
+                              ).add(const Duration(hours: 23, minutes: 59)),
+                          (dateTime) {
+                            setState(() => selectedDeadline = dateTime);
+                          },
+                        );
+                      },
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 12,
+                          vertical: 12,
+                        ),
+                        decoration: BoxDecoration(
+                          color: AppColors.bg,
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                        child: Row(
+                          children: [
+                            const Icon(
+                              Icons.calendar_today,
+                              size: 18,
+                              color: AppColors.textGrey,
                             ),
-                          ),
+                            const SizedBox(width: 8),
+                            Text(
+                              selectedDeadline == null
+                                  ? "设置截止时间"
+                                  : DateFormat(
+                                      'yyyy-MM-dd HH:mm',
+                                    ).format(selectedDeadline!),
+                              style: TextStyle(
+                                color: selectedDeadline == null
+                                    ? AppColors.textGrey
+                                    : AppColors.primary,
+                                fontWeight: FontWeight.w400,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                    Align(
+                      alignment: Alignment.centerLeft,
+                      child: Wrap(
+                        spacing: 8,
+                        children: [
+                          for (final offset in [0, 1])
+                            TextButton.icon(
+                              icon: const Icon(Icons.today_outlined, size: 18),
+                              label: Text(offset == 0 ? '今日截止' : '明日截止'),
+                              onPressed: () => setState(() {
+                                selectedDeadline = endOfDay(offset);
+                              }),
+                            ),
                         ],
+                      ),
+                    ),
+                  ],
+                  const SizedBox(height: 24),
+                  SizedBox(
+                    width: double.infinity,
+                    height: 50,
+                    child: ElevatedButton(
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: AppColors.primary,
+                        foregroundColor: Colors.white,
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                      ),
+                      onPressed: () {
+                        if (titleController.text.isNotEmpty) {
+                          if (isDaily) {
+                            Provider.of<AppProvider>(
+                              context,
+                              listen: false,
+                            ).addDailyTask(titleController.text);
+                          } else {
+                            Provider.of<AppProvider>(
+                              context,
+                              listen: false,
+                            ).addNormalTask(
+                              titleController.text,
+                              deadline: selectedDeadline,
+                              collectionId: collectionId,
+                              tags: tags,
+                            );
+                          }
+                          Navigator.pop(context);
+                        }
+                      },
+                      child: const Text(
+                        "完成",
+                        style: TextStyle(
+                          fontSize: 16,
+                          fontWeight: FontWeight.w400,
+                        ),
                       ),
                     ),
                   ),
                 ],
-                const SizedBox(height: 24),
-                SizedBox(
-                  width: double.infinity,
-                  height: 50,
-                  child: ElevatedButton(
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: AppColors.primary,
-                      foregroundColor: Colors.white,
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(12),
-                      ),
-                    ),
-                    onPressed: () {
-                      if (titleController.text.isNotEmpty) {
-                        if (isDaily) {
-                          Provider.of<AppProvider>(
-                            context,
-                            listen: false,
-                          ).addDailyTask(titleController.text);
-                        } else {
-                          Provider.of<AppProvider>(
-                            context,
-                            listen: false,
-                          ).addNormalTask(
-                            titleController.text,
-                            deadline: selectedDeadline,
-                            collectionId: collectionId,
-                            tags: tags,
-                          );
-                        }
-                        Navigator.pop(context);
-                      }
-                    },
-                    child: const Text(
-                      "完成",
-                      style: TextStyle(
-                        fontSize: 16,
-                        fontWeight: FontWeight.w400,
-                      ),
-                    ),
-                  ),
-                ),
-              ],
+              ),
             ),
           );
         },

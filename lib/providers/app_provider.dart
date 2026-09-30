@@ -32,7 +32,7 @@ class AppProvider with ChangeNotifier, WidgetsBindingObserver {
     return _dailyTasks.where((t) => t.isCompleted == isCompleted).toList();
   }
 
-  // 根据完成状态过滤合集中的任务
+  // 根据完成状态过滤合集中的事项
   List<TaskItem> getTasksInCollection(
     String collectionId, {
     required bool isCompleted,
@@ -59,7 +59,7 @@ class AppProvider with ChangeNotifier, WidgetsBindingObserver {
     return filtered;
   }
 
-  // 根据完成状态过滤散落任务
+  // 根据完成状态过滤散落事项
   List<TaskItem> getLooseTasks({required bool isCompleted}) {
     List<TaskItem> tasks = _normalTasks
         .where((t) => t.collectionId == null && t.isCompleted == isCompleted)
@@ -284,7 +284,7 @@ class AppProvider with ChangeNotifier, WidgetsBindingObserver {
     notifyListeners();
   }
 
-  // 清空散落任务 (根据状态)
+  // 清空散落事项 (根据状态)
   void clearLooseTasks({required bool isCompleted}) {
     // 注意：只删除 loose tasks (collectionId == null)，且符合状态的
     _normalTasks.removeWhere(
@@ -370,6 +370,38 @@ class AppProvider with ChangeNotifier, WidgetsBindingObserver {
         nextRunTime: nextOccurrence(time, frequency, DateTime.now()),
         allDay: allDay,
       ),
+    );
+    _saveData();
+    notifyListeners();
+  }
+
+  void updateCycleTask(
+    CycleTask task,
+    String title,
+    CycleFrequency frequency,
+    DateTime time, {
+    required bool allDay,
+  }) {
+    task.title = title;
+    task.frequency = frequency;
+    task.time = time;
+    task.allDay = allDay;
+    task.nextRunTime = nextOccurrence(time, frequency, DateTime.now());
+    _saveData();
+    notifyListeners();
+  }
+
+  void updateCountdown(
+    CalendarCountdown task,
+    String title,
+    DateTime deadline,
+  ) {
+    final index = _countdowns.indexWhere((item) => item.id == task.id);
+    if (index == -1) return;
+    _countdowns[index] = CalendarCountdown(
+      id: task.id,
+      title: title,
+      deadline: deadline,
     );
     _saveData();
     notifyListeners();

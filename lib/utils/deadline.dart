@@ -9,3 +9,8 @@ Color deadlineColor(DateTime? deadline, {DateTime? now}) {
       ? const Color(0xFFC9A000)
       : AppColors.success;
 }
+
+DateTime endOfDay(int daysFromToday, {DateTime? now}) {
+  final today = now ?? DateTime.now();
+  return DateTime(today.year, today.month, today.day + daysFromToday, 23, 59);
+}

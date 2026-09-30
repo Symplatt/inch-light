@@ -219,33 +219,36 @@ void main() {
     debugDefaultTargetPlatformOverride = null;
   });
 
-  testWidgets('Task action title truncates and actions remain accessible', (
-    tester,
-  ) async {
-    final provider = AppProvider();
-    await tester.runAsync(() => provider.ready);
-    final title = '很长的任务名称' * 12;
-    provider.addNormalTask(title);
-    await tester.pumpWidget(
-      ChangeNotifierProvider.value(
-        value: provider,
-        child: const MaterialApp(home: MainScreen()),
-      ),
-    );
-    await tester.pumpAndSettle();
-    await tester.longPress(find.text(title));
-    await tester.pumpAndSettle();
-    final heading = tester.widget<Text>(
-      find.descendant(of: find.byType(Dialog), matching: find.text(title)),
-    );
-    expect(heading.maxLines, 1);
-    expect(heading.overflow, TextOverflow.ellipsis);
-    expect(find.text('事项操作'), findsNothing);
-    expect(tester.takeException(), isNull);
-    await tester.pumpWidget(const SizedBox());
-    provider.dispose();
-    debugDefaultTargetPlatformOverride = null;
-  });
+  testWidgets(
+    'Long item title stays editable and position actions remain accessible',
+    (tester) async {
+      final provider = AppProvider();
+      await tester.runAsync(() => provider.ready);
+      final title = '很长的事项名称' * 12;
+      provider.addNormalTask(title);
+      await tester.pumpWidget(
+        ChangeNotifierProvider.value(
+          value: provider,
+          child: const MaterialApp(home: MainScreen()),
+        ),
+      );
+      await tester.pumpAndSettle();
+      await tester.longPress(find.text(title));
+      await tester.pumpAndSettle();
+      expect(find.text('编辑事项'), findsOneWidget);
+      expect(
+        tester.widget<TextField>(find.byType(TextField).first).controller!.text,
+        title,
+      );
+      expect(find.text('置顶'), findsOneWidget);
+      expect(find.text('置底'), findsOneWidget);
+      expect(find.text('事项操作'), findsNothing);
+      expect(tester.takeException(), isNull);
+      await tester.pumpWidget(const SizedBox());
+      provider.dispose();
+      debugDefaultTargetPlatformOverride = null;
+    },
+  );
   testWidgets(
     'Shared picker uses calendar and numeric time; cancellation discards selection',
     (tester) async {

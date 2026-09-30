@@ -46,3 +46,5 @@ app.*.map.json
 
 # Generated source snapshots
 repomix-output.*
+
+/android/.kotlin/

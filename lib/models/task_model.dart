@@ -33,7 +33,7 @@ class TaskItem {
   String title;
   TaskType type;
 
-  // 任务专用属性
+  // 事项专用属性
   bool isCompleted;
   DateTime? deadline;
   List<String> tags;
