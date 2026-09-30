@@ -71,7 +71,7 @@ class _CyclePageState extends State<CyclePage> {
                     ),
                   ),
               ],
-              const SizedBox(height: 12),
+              const SizedBox(height: 24),
               _header(
                 '周期',
                 cycles.length,
@@ -163,32 +163,43 @@ class _CyclePageState extends State<CyclePage> {
       margin: const EdgeInsets.only(bottom: 8),
       color: AppColors.surface,
       elevation: 0,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(16),
+        side: const BorderSide(color: AppColors.divider),
+      ),
       child: InkWell(
         onLongPress: onEdit,
         borderRadius: BorderRadius.circular(16),
         child: Padding(
-          padding: const EdgeInsets.all(16),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 20),
+          child: Row(
             children: [
-              Text(
-                title,
-                style: const TextStyle(
-                  fontSize: 16,
-                  fontWeight: FontWeight.w400,
+              Expanded(
+                flex: 3,
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Text(
+                      title,
+                      style: const TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.w400,
+                      ),
+                    ),
+                    const SizedBox(height: 14),
+                    Text(
+                      subtitle,
+                      style: const TextStyle(
+                        fontSize: 12,
+                        color: AppColors.textGrey,
+                      ),
+                    ),
+                  ],
                 ),
               ),
-              const SizedBox(height: 8),
-              Align(
-                alignment: Alignment.centerRight,
-                child: _countdown(deadline, now),
-              ),
-              const SizedBox(height: 8),
-              Text(
-                subtitle,
-                style: const TextStyle(fontSize: 12, color: AppColors.textGrey),
-              ),
+              const SizedBox(width: 12),
+              Expanded(flex: 2, child: _countdown(deadline, now)),
             ],
           ),
         ),
@@ -220,38 +231,47 @@ class _CyclePageState extends State<CyclePage> {
       );
     }
     final parts = countdownParts(deadline, now);
-    return FittedBox(
-      fit: BoxFit.scaleDown,
-      alignment: Alignment.centerLeft,
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        crossAxisAlignment: CrossAxisAlignment.end,
-        children: [
-          for (var i = 0; i < parts.length; i++) ...[
-            if (i > 0) const SizedBox(width: 14),
-            Text(
-              '${parts[i].value}',
-              style: const TextStyle(
-                fontSize: 28,
-                height: 1.15,
-                fontWeight: FontWeight.w400,
-                color: AppColors.primary,
+    return Row(
+      children: [
+        for (var i = 0; i < parts.length; i++) ...[
+          if (i > 0)
+            const SizedBox(
+              height: 32,
+              child: VerticalDivider(
+                width: 1,
+                thickness: 0.5,
+                color: Color(0xFFDADDE3),
               ),
             ),
-            Padding(
-              padding: const EdgeInsets.only(left: 4, bottom: 2),
-              child: Text(
-                parts[i].unit,
-                style: const TextStyle(
-                  fontSize: 12,
-                  height: 1.2,
-                  color: AppColors.textGrey,
+          Expanded(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                FittedBox(
+                  fit: BoxFit.scaleDown,
+                  child: Text(
+                    '${parts[i].value}',
+                    style: const TextStyle(
+                      fontSize: 30,
+                      height: 1.2,
+                      fontWeight: FontWeight.w400,
+                      color: AppColors.primary,
+                    ),
+                  ),
                 ),
-              ),
+                const SizedBox(height: 6),
+                Text(
+                  parts[i].unit,
+                  style: const TextStyle(
+                    fontSize: 12,
+                    color: AppColors.textGrey,
+                  ),
+                ),
+              ],
             ),
-          ],
+          ),
         ],
-      ),
+      ],
     );
   }
 }

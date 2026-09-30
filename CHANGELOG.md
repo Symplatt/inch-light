@@ -5,6 +5,15 @@
 
 ## [Unreleased]
 
+## [2.1.1] - 2026-09-30
+
+### Changed
+
+- 事项合集使用一张完整卡片，内部事项移除独立阴影、圆角和卡片间距，改用浅灰细分隔线。
+- 时历卡片按参考布局调整为左侧名称与日期、右侧三列倒计时；数字在上、单位在下，列间以浅灰竖线分隔。
+- 保留长按编辑、滑动删除和实时倒计时；达到 24 小时显示年月日，不足 24 小时显示时分秒。
+
+
 ## [2.1.0] - 2026-09-30
 
 ### Added
@@ -120,9 +129,11 @@
 ### Changed
 - 上导航栏美化，加入艺术字，更改底色为主题色。
 
-[Unreleased]: https://github.com/Symplatt/inch-light/compare/v2.1.0...HEAD
+[Unreleased]: https://github.com/Symplatt/inch-light/compare/v2.1.1...HEAD
 [2.0.1]: https://github.com/Symplatt/inch-light/releases/tag/v2.0.1
 
 [2.0.2]: https://github.com/Symplatt/inch-light/compare/v2.0.1...v2.0.2
 
 [2.1.0]: https://github.com/Symplatt/inch-light/compare/v2.0.2...v2.1.0
+
+[2.1.1]: https://github.com/Symplatt/inch-light/compare/v2.1.0...v2.1.1

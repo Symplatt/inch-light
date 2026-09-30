@@ -218,6 +218,7 @@ class _TodoPageState extends State<TodoPage> {
             boxShadow: AppColors.shadow,
           ),
           child: Material(
+            clipBehavior: Clip.antiAlias,
             color: AppColors.surface,
             borderRadius: BorderRadius.circular(16),
             child: Theme(
@@ -265,7 +266,22 @@ class _TodoPageState extends State<TodoPage> {
                     indent: 16,
                     endIndent: 16,
                   ),
-                  ...tasks.map((t) => _buildTaskItem(context, t, provider)),
+                  for (var i = 0; i < tasks.length; i++) ...[
+                    if (i > 0)
+                      const Divider(
+                        height: 1,
+                        thickness: 0.5,
+                        color: AppColors.divider,
+                        indent: 16,
+                        endIndent: 16,
+                      ),
+                    _buildTaskItem(
+                      context,
+                      tasks[i],
+                      provider,
+                      inCollection: true,
+                    ),
+                  ],
                 ],
               ),
             ),
@@ -344,8 +360,9 @@ class _TodoPageState extends State<TodoPage> {
   Widget _buildTaskItem(
     BuildContext context,
     TaskItem task,
-    AppProvider provider,
-  ) {
+    AppProvider provider, {
+    bool inCollection = false,
+  }) {
     final dateColor = deadlineColor(task.deadline);
 
     return Dismissible(
@@ -353,25 +370,25 @@ class _TodoPageState extends State<TodoPage> {
       direction: DismissDirection.endToStart,
       onDismissed: (_) => provider.removeTask(task),
       background: Container(
-        margin: const EdgeInsets.only(bottom: 12),
+        margin: EdgeInsets.only(bottom: inCollection ? 0 : 12),
         padding: const EdgeInsets.only(right: 20),
         alignment: Alignment.centerRight,
         decoration: BoxDecoration(
           color: AppColors.danger,
-          borderRadius: BorderRadius.circular(16),
+          borderRadius: BorderRadius.circular(inCollection ? 0 : 16),
         ),
         child: const Icon(Icons.delete_outline, color: Colors.white),
       ),
       child: Container(
-        margin: const EdgeInsets.only(bottom: 12),
+        margin: EdgeInsets.only(bottom: inCollection ? 0 : 12),
         decoration: BoxDecoration(
           color: AppColors.surface,
-          borderRadius: BorderRadius.circular(16),
-          boxShadow: AppColors.shadow,
+          borderRadius: BorderRadius.circular(inCollection ? 0 : 16),
+          boxShadow: inCollection ? null : AppColors.shadow,
         ),
         child: InkWell(
           onLongPress: () => _showEditTaskDialog(context, task),
-          borderRadius: BorderRadius.circular(16),
+          borderRadius: BorderRadius.circular(inCollection ? 0 : 16),
           child: ListTile(
             contentPadding: const EdgeInsets.symmetric(
               horizontal: 16,
