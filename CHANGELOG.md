@@ -5,6 +5,14 @@
 
 ## [Unreleased]
 
+## [2.1.2] - 2026-09-30
+
+### Changed
+
+- 加宽时历卡片的倒计时区域，增加年月日／时分秒三列与分隔线之间的留白。
+- 倒计时数字字号由 30 调整为 29，改善两位数显示时的紧凑感。
+
+
 ## [2.1.1] - 2026-09-30
 
 ### Changed
@@ -129,7 +137,7 @@
 ### Changed
 - 上导航栏美化，加入艺术字，更改底色为主题色。
 
-[Unreleased]: https://github.com/Symplatt/inch-light/compare/v2.1.1...HEAD
+[Unreleased]: https://github.com/Symplatt/inch-light/compare/v2.1.2...HEAD
 [2.0.1]: https://github.com/Symplatt/inch-light/releases/tag/v2.0.1
 
 [2.0.2]: https://github.com/Symplatt/inch-light/compare/v2.0.1...v2.0.2
@@ -137,3 +145,5 @@
 [2.1.0]: https://github.com/Symplatt/inch-light/compare/v2.0.2...v2.1.0
 
 [2.1.1]: https://github.com/Symplatt/inch-light/compare/v2.1.0...v2.1.1
+
+[2.1.2]: https://github.com/Symplatt/inch-light/compare/v2.1.1...v2.1.2

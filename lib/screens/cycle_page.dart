@@ -175,7 +175,7 @@ class _CyclePageState extends State<CyclePage> {
           child: Row(
             children: [
               Expanded(
-                flex: 3,
+                flex: 1,
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   mainAxisSize: MainAxisSize.min,
@@ -199,7 +199,7 @@ class _CyclePageState extends State<CyclePage> {
                 ),
               ),
               const SizedBox(width: 12),
-              Expanded(flex: 2, child: _countdown(deadline, now)),
+              Expanded(child: _countdown(deadline, now)),
             ],
           ),
         ),
@@ -238,7 +238,7 @@ class _CyclePageState extends State<CyclePage> {
             const SizedBox(
               height: 32,
               child: VerticalDivider(
-                width: 1,
+                width: 12,
                 thickness: 0.5,
                 color: Color(0xFFDADDE3),
               ),
@@ -252,7 +252,7 @@ class _CyclePageState extends State<CyclePage> {
                   child: Text(
                     '${parts[i].value}',
                     style: const TextStyle(
-                      fontSize: 30,
+                      fontSize: 29,
                       height: 1.2,
                       fontWeight: FontWeight.w400,
                       color: AppColors.primary,
