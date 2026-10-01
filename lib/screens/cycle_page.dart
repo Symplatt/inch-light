@@ -85,7 +85,9 @@ class _CyclePageState extends State<CyclePage> {
                   _card(
                     title: task.title,
                     subtitle:
-                        '${_frequencyLabels[task.frequency.index]} · ${task.allDay ? '全天' : DateFormat('HH:mm').format(task.time)} · 下次 ${DateFormat('yyyy.MM.dd').format(task.nextRunTime)}',
+                        '${_frequencyLabels[task.frequency.index]} · ${task.allDay ? '全天' : DateFormat('HH:mm').format(task.time)}',
+                    nextRun:
+                        '下次 ${DateFormat('yyyy.MM.dd').format(task.nextRunTime)}',
                     deadline: task.nextRunTime,
                     now: now,
                     id: task.id,
@@ -150,6 +152,7 @@ class _CyclePageState extends State<CyclePage> {
     required String id,
     required String title,
     required String subtitle,
+    String? nextRun,
     required DateTime deadline,
     required DateTime now,
     required VoidCallback onDelete,
@@ -196,6 +199,16 @@ class _CyclePageState extends State<CyclePage> {
                         color: AppColors.textGrey,
                       ),
                     ),
+                    if (nextRun != null) ...[
+                      const SizedBox(height: 4),
+                      Text(
+                        nextRun,
+                        style: const TextStyle(
+                          fontSize: 12,
+                          color: AppColors.textGrey,
+                        ),
+                      ),
+                    ],
                   ],
                 ),
               ),
