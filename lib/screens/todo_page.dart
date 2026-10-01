@@ -132,30 +132,11 @@ class _TodoPageState extends State<TodoPage> {
           floatingActionButton: FloatingActionButton(
             backgroundColor: AppColors.primary,
             tooltip: '新建',
-            onPressed: () => _showCreateActions(context),
+            onPressed: () => _showAddTaskDialog(context),
             child: const Icon(Icons.add, color: Colors.white),
           ),
         );
       },
-    );
-  }
-
-  void _showCreateActions(BuildContext context) {
-    showTaskActionDialog(
-      context,
-      title: '新建',
-      actions: [
-        TaskAction(
-          label: '新建事项',
-          icon: Icons.add_task_outlined,
-          onTap: () => _showAddTaskDialog(context),
-        ),
-        TaskAction(
-          label: '新建合集',
-          icon: Icons.create_new_folder_outlined,
-          onTap: () => _showCollectionNameDialog(context),
-        ),
-      ],
     );
   }
 
@@ -531,7 +512,7 @@ class _TodoPageState extends State<TodoPage> {
           label: '修改合集名称',
           icon: Icons.drive_file_rename_outline,
           onTap: () =>
-              _showCollectionNameDialog(context, collection: collection),
+              _showRenameCollectionDialog(context, collection: collection),
         ),
         TaskAction(
           label: '一键完成所有事项',
@@ -754,6 +735,7 @@ class _TodoPageState extends State<TodoPage> {
     final titleController = TextEditingController();
     final tagController = TextEditingController();
     bool isDaily = false;
+    bool isCollection = false;
     DateTime? selectedDeadline;
     List<String> tags = [];
 
@@ -788,15 +770,42 @@ class _TodoPageState extends State<TodoPage> {
                     Row(
                       children: [
                         ChoiceChip(
+                          padding: const EdgeInsets.symmetric(horizontal: 4),
+                          labelPadding: const EdgeInsets.symmetric(
+                            horizontal: 4,
+                          ),
                           label: const Text("普通事项"),
-                          selected: !isDaily,
-                          onSelected: (v) => setState(() => isDaily = false),
+                          selected: !isDaily && !isCollection,
+                          onSelected: (v) => setState(() {
+                            isDaily = false;
+                            isCollection = false;
+                          }),
                         ),
                         const SizedBox(width: 10),
                         ChoiceChip(
+                          padding: const EdgeInsets.symmetric(horizontal: 4),
+                          labelPadding: const EdgeInsets.symmetric(
+                            horizontal: 4,
+                          ),
                           label: const Text("每日打卡"),
                           selected: isDaily,
-                          onSelected: (v) => setState(() => isDaily = true),
+                          onSelected: (v) => setState(() {
+                            isDaily = true;
+                            isCollection = false;
+                          }),
+                        ),
+                        const SizedBox(width: 10),
+                        ChoiceChip(
+                          padding: const EdgeInsets.symmetric(horizontal: 4),
+                          labelPadding: const EdgeInsets.symmetric(
+                            horizontal: 4,
+                          ),
+                          label: const Text('合集'),
+                          selected: isCollection,
+                          onSelected: (v) => setState(() {
+                            isDaily = false;
+                            isCollection = true;
+                          }),
                         ),
                       ],
                     ),
@@ -805,7 +814,7 @@ class _TodoPageState extends State<TodoPage> {
                     controller: titleController,
                     autofocus: true,
                     decoration: InputDecoration(
-                      hintText: "准备做什么？",
+                      hintText: isCollection ? '合集名称' : '准备做什么？',
                       filled: true,
                       fillColor: AppColors.bg,
                       border: OutlineInputBorder(
@@ -814,7 +823,7 @@ class _TodoPageState extends State<TodoPage> {
                       ),
                     ),
                   ),
-                  if (!isDaily) ...[
+                  if (!isDaily && !isCollection) ...[
                     const SizedBox(height: 16),
                     TextField(
                       controller: tagController,
@@ -910,18 +919,21 @@ class _TodoPageState extends State<TodoPage> {
                         ),
                       ),
                       onPressed: () {
-                        if (titleController.text.isNotEmpty) {
-                          if (isDaily) {
+                        final title = titleController.text.trim();
+                        if (title.isNotEmpty) {
+                          if (isCollection) {
+                            context.read<AppProvider>().addCollection(title);
+                          } else if (isDaily) {
                             Provider.of<AppProvider>(
                               context,
                               listen: false,
-                            ).addDailyTask(titleController.text);
+                            ).addDailyTask(title);
                           } else {
                             Provider.of<AppProvider>(
                               context,
                               listen: false,
                             ).addNormalTask(
-                              titleController.text,
+                              title,
                               deadline: selectedDeadline,
                               collectionId: collectionId,
                               tags: tags,
@@ -957,15 +969,15 @@ class _TodoPageState extends State<TodoPage> {
     if (selected != null && mounted) onConfirm(selected);
   }
 
-  void _showCollectionNameDialog(
+  void _showRenameCollectionDialog(
     BuildContext context, {
-    TaskCollection? collection,
+    required TaskCollection collection,
   }) {
-    final controller = TextEditingController(text: collection?.title ?? '');
+    final controller = TextEditingController(text: collection.title);
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
-        title: Text(collection == null ? '新建合集' : '修改合集名称'),
+        title: const Text('修改合集名称'),
         content: TextField(
           controller: controller,
           autofocus: true,
@@ -981,15 +993,11 @@ class _TodoPageState extends State<TodoPage> {
               final title = controller.text.trim();
               if (title.isNotEmpty) {
                 final provider = context.read<AppProvider>();
-                if (collection == null) {
-                  provider.addCollection(title);
-                } else {
-                  provider.renameCollection(collection.id, title);
-                }
+                provider.renameCollection(collection.id, title);
                 Navigator.pop(context);
               }
             },
-            child: Text(collection == null ? '创建' : '保存'),
+            child: const Text('保存'),
           ),
         ],
       ),

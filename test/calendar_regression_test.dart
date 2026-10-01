@@ -11,9 +11,13 @@ import 'package:inch_light/utils/deadline.dart';
 void main() {
   setUp(() => SharedPreferences.setMockInitialValues({}));
 
-  testWidgets('Create menu and rename collection retain contained items', (
+  testWidgets('Inline collection creation and rename retain contained items', (
     tester,
   ) async {
+    tester.view.physicalSize = const Size(320, 850);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
     final provider = AppProvider();
     await tester.runAsync(() => provider.ready);
     await tester.pumpWidget(
@@ -24,11 +28,24 @@ void main() {
     expect(find.byTooltip('导入 / 导出数据'), findsOneWidget);
     await tester.tap(find.byType(FloatingActionButton));
     await tester.pumpAndSettle();
-    expect(find.text('新建事项'), findsOneWidget);
-    await tester.tap(find.text('新建合集'));
+    expect(find.text('普通事项'), findsOneWidget);
+    expect(find.text('每日打卡'), findsOneWidget);
+    expect(find.text('新建事项'), findsNothing);
+    expect(find.byType(Dialog), findsNothing);
+    expect(
+      tester.getTopLeft(find.text('合集')).dy,
+      tester.getTopLeft(find.text('普通事项')).dy,
+    );
+    expect(
+      tester.getTopLeft(find.text('合集')).dx,
+      greaterThan(tester.getTopLeft(find.text('每日打卡')).dx),
+    );
+    await tester.tap(find.text('合集'));
     await tester.pumpAndSettle();
+    expect(find.byType(TextField), findsOneWidget);
+    expect(find.text('今日截止'), findsNothing);
     await tester.enterText(find.byType(TextField), '原名称');
-    await tester.tap(find.text('创建'));
+    await tester.tap(find.text('完成'));
     await tester.pumpAndSettle();
     final id = provider.collections.single.id;
     provider.addNormalTask('合集内事项', collectionId: id);
@@ -59,8 +76,6 @@ void main() {
       restored.dispose();
     });
     await tester.tap(find.byType(FloatingActionButton));
-    await tester.pumpAndSettle();
-    await tester.tap(find.text('新建事项'));
     await tester.pumpAndSettle();
     expect(find.text('普通事项'), findsOneWidget);
     expect(find.byType(TextField), findsNWidgets(2));
@@ -248,8 +263,6 @@ void main() {
     );
     await tester.pumpAndSettle();
     await tester.tap(find.byType(FloatingActionButton));
-    await tester.pumpAndSettle();
-    await tester.tap(find.text('新建事项'));
     await tester.pumpAndSettle();
     await tester.enterText(find.byType(TextField).first, '今天完成');
     await tester.tap(find.text('今日截止'));
