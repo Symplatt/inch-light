@@ -7,6 +7,17 @@ import '../constants/app_colors.dart';
 import 'todo_page.dart';
 import 'cycle_page.dart';
 
+void _showDataMessage(BuildContext context, String message) {
+  ScaffoldMessenger.of(context)
+    ..clearSnackBars()
+    ..showSnackBar(
+      SnackBar(
+        content: Text(message),
+        duration: const Duration(milliseconds: 1500),
+      ),
+    );
+}
+
 // 全局通用的设置弹窗
 void showGlobalSettingsDialog(BuildContext context, AppProvider provider) {
   showDialog(
@@ -27,9 +38,7 @@ void showGlobalSettingsDialog(BuildContext context, AppProvider provider) {
             onTap: () {
               final json = provider.exportData();
               Clipboard.setData(ClipboardData(text: json));
-              ScaffoldMessenger.of(
-                context,
-              ).showSnackBar(const SnackBar(content: Text("数据已复制")));
+              _showDataMessage(context, '数据已复制');
               Navigator.pop(ctx);
             },
           ),
@@ -61,10 +70,9 @@ void showGlobalSettingsDialog(BuildContext context, AppProvider provider) {
                               data!.text!,
                             );
                             if (context.mounted) {
-                              ScaffoldMessenger.of(context).showSnackBar(
-                                SnackBar(
-                                  content: Text(success ? "导入成功" : "数据格式错误"),
-                                ),
+                              _showDataMessage(
+                                context,
+                                success ? '导入成功' : '数据格式错误',
                               );
                             }
                             if (ctx.mounted) Navigator.pop(ctx);
@@ -80,9 +88,7 @@ void showGlobalSettingsDialog(BuildContext context, AppProvider provider) {
                 }
               } else {
                 if (context.mounted) {
-                  ScaffoldMessenger.of(
-                    context,
-                  ).showSnackBar(const SnackBar(content: Text("剪贴板为空")));
+                  _showDataMessage(context, '剪贴板为空');
                 }
               }
             },

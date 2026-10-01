@@ -85,7 +85,7 @@ class _CyclePageState extends State<CyclePage> {
                   _card(
                     title: task.title,
                     subtitle:
-                        '${_frequencyLabels[task.frequency.index]} · ${task.allDay ? '全天' : DateFormat('HH:mm').format(task.time)}',
+                        '${_frequencyLabels[task.frequency.index]} ${task.allDay ? '全天' : DateFormat('HH:mm').format(task.time)}',
                     nextRun:
                         '下次 ${DateFormat('yyyy.MM.dd').format(task.nextRunTime)}',
                     deadline: task.nextRunTime,
