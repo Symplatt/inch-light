@@ -267,6 +267,14 @@ class AppProvider with ChangeNotifier, WidgetsBindingObserver {
     notifyListeners();
   }
 
+  void renameCollection(String id, String title) {
+    final index = _collections.indexWhere((item) => item.id == id);
+    if (index == -1 || title.trim().isEmpty) return;
+    _collections[index].title = title.trim();
+    _saveData();
+    notifyListeners();
+  }
+
   // --- 批量删除功能 (需求2) ---
 
   // 清空日常打卡 (根据状态)
@@ -394,14 +402,16 @@ class AppProvider with ChangeNotifier, WidgetsBindingObserver {
   void updateCountdown(
     CalendarCountdown task,
     String title,
-    DateTime deadline,
-  ) {
+    DateTime deadline, {
+    bool? allDay,
+  }) {
     final index = _countdowns.indexWhere((item) => item.id == task.id);
     if (index == -1) return;
     _countdowns[index] = CalendarCountdown(
       id: task.id,
       title: title,
       deadline: deadline,
+      allDay: allDay ?? task.allDay,
     );
     _saveData();
     notifyListeners();
@@ -453,12 +463,13 @@ class AppProvider with ChangeNotifier, WidgetsBindingObserver {
     notifyListeners();
   }
 
-  void addCountdown(String title, DateTime deadline) {
+  void addCountdown(String title, DateTime deadline, {bool allDay = false}) {
     _countdowns.add(
       CalendarCountdown(
         id: const Uuid().v4(),
         title: title,
         deadline: deadline,
+        allDay: allDay,
       ),
     );
     _saveData();

@@ -136,20 +136,24 @@ class CalendarCountdown {
   final String id;
   final String title;
   final DateTime deadline;
+  final bool allDay;
   CalendarCountdown({
     required this.id,
     required this.title,
     required this.deadline,
+    this.allDay = false,
   });
   Map<String, dynamic> toJson() => {
     'id': id,
     'title': title,
     'deadline': deadline.toIso8601String(),
+    'allDay': allDay,
   };
   factory CalendarCountdown.fromJson(Map<String, dynamic> json) =>
       CalendarCountdown(
         id: json['id'],
         title: json['title'],
         deadline: DateTime.parse(json['deadline']),
+        allDay: json['allDay'] ?? false,
       );
 }

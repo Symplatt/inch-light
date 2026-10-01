@@ -34,7 +34,8 @@ class _CyclePageState extends State<CyclePage> {
         title: const Text('时历'),
         actions: [
           IconButton(
-            icon: const Icon(Icons.settings_outlined),
+            icon: const Icon(Icons.import_export_rounded),
+            tooltip: '导入 / 导出数据',
             onPressed: () => showGlobalSettingsDialog(context, provider),
           ),
         ],
@@ -57,9 +58,9 @@ class _CyclePageState extends State<CyclePage> {
                 for (final task in countdowns)
                   _card(
                     title: task.title,
-                    subtitle: DateFormat(
-                      'yyyy.MM.dd  HH:mm',
-                    ).format(task.deadline),
+                    subtitle: task.allDay
+                        ? '${DateFormat('yyyy.MM.dd').format(task.deadline)} · 全天'
+                        : DateFormat('yyyy.MM.dd  HH:mm').format(task.deadline),
                     deadline: task.deadline,
                     now: now,
                     id: task.id,
@@ -308,6 +309,7 @@ class _CalendarEditorState extends State<_CalendarEditor> {
     } else if (countdown != null) {
       _title.text = countdown.title;
       _date = countdown.deadline;
+      _allDay = countdown.allDay;
     }
   }
 
@@ -361,18 +363,17 @@ class _CalendarEditorState extends State<_CalendarEditor> {
                     .toList(),
                 onChanged: (v) => setState(() => _frequency = v!),
               ),
-            if (_cycle)
-              SwitchListTile(
-                contentPadding: EdgeInsets.zero,
-                title: const Text('全天'),
-                value: _allDay,
-                onChanged: (v) => setState(() => _allDay = v),
-              ),
+            SwitchListTile(
+              contentPadding: EdgeInsets.zero,
+              title: const Text('全天'),
+              value: _allDay,
+              onChanged: (v) => setState(() => _allDay = v),
+            ),
             ListTile(
               contentPadding: EdgeInsets.zero,
               title: Text(
                 DateFormat(
-                  _cycle && _allDay ? 'yyyy-MM-dd' : 'yyyy-MM-dd HH:mm',
+                  _allDay ? 'yyyy-MM-dd' : 'yyyy-MM-dd HH:mm',
                 ).format(_date),
               ),
               trailing: const Icon(Icons.calendar_today_outlined, size: 20),
@@ -380,7 +381,7 @@ class _CalendarEditorState extends State<_CalendarEditor> {
                 final picked = await showDateTimeSheet(
                   context,
                   initialDate: _date,
-                  dateOnly: _cycle && _allDay,
+                  dateOnly: _allDay,
                 );
                 if (picked != null && mounted) setState(() => _date = picked);
               },
@@ -400,10 +401,10 @@ class _CalendarEditorState extends State<_CalendarEditor> {
     ],
   );
   void _save() {
-    final date = !_cycle && _date == widget.countdown?.deadline
-        ? _date
-        : _cycle && _allDay
+    final date = _allDay
         ? DateTime(_date.year, _date.month, _date.day)
+        : !_cycle && _date == widget.countdown?.deadline
+        ? _date
         : DateTime(
             _date.year,
             _date.month,
@@ -411,10 +412,12 @@ class _CalendarEditorState extends State<_CalendarEditor> {
             _date.hour,
             _date.minute,
           );
+    final now = DateTime.now();
+    final invalidDate = _allDay
+        ? date.isBefore(DateTime(now.year, now.month, now.day))
+        : !date.isAfter(now);
     if (_title.text.trim().isEmpty ||
-        (!_cycle &&
-            !date.isAfter(DateTime.now()) &&
-            date != widget.countdown?.deadline)) {
+        (!_cycle && invalidDate && date != widget.countdown?.deadline)) {
       setState(
         () => _error = _title.text.trim().isEmpty ? '请输入事项名称' : '请选择未来的时间',
       );
@@ -433,6 +436,7 @@ class _CalendarEditorState extends State<_CalendarEditor> {
         widget.countdown!,
         _title.text.trim(),
         date,
+        allDay: _allDay,
       );
     } else if (_cycle) {
       widget.provider.addCycleTask(
@@ -442,7 +446,7 @@ class _CalendarEditorState extends State<_CalendarEditor> {
         allDay: _allDay,
       );
     } else {
-      widget.provider.addCountdown(_title.text.trim(), date);
+      widget.provider.addCountdown(_title.text.trim(), date, allDay: _allDay);
     }
     Navigator.pop(context);
   }

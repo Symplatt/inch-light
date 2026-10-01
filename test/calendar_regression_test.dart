@@ -11,6 +11,81 @@ import 'package:inch_light/utils/deadline.dart';
 void main() {
   setUp(() => SharedPreferences.setMockInitialValues({}));
 
+  testWidgets('Create menu and rename collection retain contained items', (
+    tester,
+  ) async {
+    final provider = AppProvider();
+    await tester.runAsync(() => provider.ready);
+    await tester.pumpWidget(
+      ChangeNotifierProvider.value(value: provider, child: const MyApp()),
+    );
+    await tester.pumpAndSettle();
+    expect(find.byIcon(Icons.create_new_folder_outlined), findsNothing);
+    expect(find.byTooltip('导入 / 导出数据'), findsOneWidget);
+    await tester.tap(find.byType(FloatingActionButton));
+    await tester.pumpAndSettle();
+    expect(find.text('新建事项'), findsOneWidget);
+    await tester.tap(find.text('新建合集'));
+    await tester.pumpAndSettle();
+    await tester.enterText(find.byType(TextField), '原名称');
+    await tester.tap(find.text('创建'));
+    await tester.pumpAndSettle();
+    final id = provider.collections.single.id;
+    provider.addNormalTask('合集内事项', collectionId: id);
+    await tester.pumpAndSettle();
+    await tester.longPress(find.text('原名称'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('修改合集名称'));
+    await tester.pumpAndSettle();
+    expect(
+      tester.widget<TextField>(find.byType(TextField)).controller!.text,
+      '原名称',
+    );
+    await tester.enterText(find.byType(TextField), '   ');
+    await tester.tap(find.text('保存'));
+    await tester.pumpAndSettle();
+    expect(provider.collections.single.title, '原名称');
+    await tester.enterText(find.byType(TextField), ' 新名称 ');
+    await tester.tap(find.text('保存'));
+    await tester.pumpAndSettle();
+    expect(provider.collections.single.id, id);
+    expect(provider.collections.single.title, '新名称');
+    expect(provider.normalTasks.single.collectionId, id);
+    await tester.runAsync(() async {
+      await Future<void>.delayed(const Duration(milliseconds: 50));
+      final restored = AppProvider();
+      await restored.ready;
+      expect(restored.collections.single.title, '新名称');
+      restored.dispose();
+    });
+    await tester.tap(find.byType(FloatingActionButton));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('新建事项'));
+    await tester.pumpAndSettle();
+    expect(find.text('普通事项'), findsOneWidget);
+    expect(find.byType(TextField), findsNWidgets(2));
+    expect(tester.takeException(), isNull);
+    await tester.pumpWidget(const SizedBox());
+    provider.dispose();
+  });
+
+  test('All-day countdown round trip and legacy default', () async {
+    final provider = AppProvider();
+    await provider.ready;
+    provider.addCountdown('全天', DateTime(2030, 1, 1), allDay: true);
+    final backup = provider.exportData();
+    expect(await provider.importData(backup), isTrue);
+    expect(provider.countdowns.single.allDay, isTrue);
+    expect(
+      CalendarCountdown.fromJson({
+        'id': 'old',
+        'title': '旧数据',
+        'deadline': '2030-01-01T12:00:00.000',
+      }).allDay,
+      isFalse,
+    );
+    provider.dispose();
+  });
   test('Tomorrow deadline crosses month and year boundaries', () {
     expect(
       endOfDay(1, now: DateTime(2026, 12, 31)),
@@ -46,10 +121,14 @@ void main() {
       await tester.pumpAndSettle();
       expect(find.text('编辑事项'), findsOneWidget);
       await tester.enterText(find.byType(TextField).first, '旅行改期');
+      await tester.tap(find.byType(SwitchListTile));
       await tester.tap(find.text('确定'));
       await tester.pumpAndSettle();
       expect(provider.countdowns.single.id, countdownId);
       expect(provider.countdowns.single.title, '旅行改期');
+      expect(provider.countdowns.single.allDay, isTrue);
+      expect(provider.countdowns.single.deadline.hour, 0);
+      expect(find.textContaining('· 全天'), findsWidgets);
       await tester.longPress(find.text('整理'));
       await tester.pumpAndSettle();
       await tester.enterText(find.byType(TextField).first, '每月收纳');
@@ -64,6 +143,7 @@ void main() {
         final restored = AppProvider();
         await restored.ready;
         expect(restored.countdowns.single.title, '旅行改期');
+        expect(restored.countdowns.single.allDay, isTrue);
         expect(restored.cycleTasks.single.title, '每月收纳');
         expect(restored.cycleTasks.single.allDay, isTrue);
         restored.dispose();
@@ -168,6 +248,8 @@ void main() {
     );
     await tester.pumpAndSettle();
     await tester.tap(find.byType(FloatingActionButton));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('新建事项'));
     await tester.pumpAndSettle();
     await tester.enterText(find.byType(TextField).first, '今天完成');
     await tester.tap(find.text('今日截止'));

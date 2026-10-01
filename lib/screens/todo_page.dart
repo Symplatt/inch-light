@@ -54,16 +54,10 @@ class _TodoPageState extends State<TodoPage> {
               ),
               IconButton(
                 icon: const Icon(
-                  Icons.create_new_folder_outlined,
+                  Icons.import_export_rounded,
                   color: AppColors.textDark,
                 ),
-                onPressed: () => _showAddCollectionDialog(context),
-              ),
-              IconButton(
-                icon: const Icon(
-                  Icons.settings_outlined,
-                  color: AppColors.textDark,
-                ),
+                tooltip: '导入 / 导出数据',
                 onPressed: () => showGlobalSettingsDialog(context, provider),
               ),
             ],
@@ -137,11 +131,31 @@ class _TodoPageState extends State<TodoPage> {
           ),
           floatingActionButton: FloatingActionButton(
             backgroundColor: AppColors.primary,
-            onPressed: () => _showAddTaskDialog(context),
+            tooltip: '新建',
+            onPressed: () => _showCreateActions(context),
             child: const Icon(Icons.add, color: Colors.white),
           ),
         );
       },
+    );
+  }
+
+  void _showCreateActions(BuildContext context) {
+    showTaskActionDialog(
+      context,
+      title: '新建',
+      actions: [
+        TaskAction(
+          label: '新建事项',
+          icon: Icons.add_task_outlined,
+          onTap: () => _showAddTaskDialog(context),
+        ),
+        TaskAction(
+          label: '新建合集',
+          icon: Icons.create_new_folder_outlined,
+          onTap: () => _showCollectionNameDialog(context),
+        ),
+      ],
     );
   }
 
@@ -513,6 +527,12 @@ class _TodoPageState extends State<TodoPage> {
       context,
       title: collection.title,
       actions: [
+        TaskAction(
+          label: '修改合集名称',
+          icon: Icons.drive_file_rename_outline,
+          onTap: () =>
+              _showCollectionNameDialog(context, collection: collection),
+        ),
         TaskAction(
           label: '一键完成所有事项',
           icon: Icons.done_all_rounded,
@@ -937,14 +957,18 @@ class _TodoPageState extends State<TodoPage> {
     if (selected != null && mounted) onConfirm(selected);
   }
 
-  void _showAddCollectionDialog(BuildContext context) {
-    final controller = TextEditingController();
+  void _showCollectionNameDialog(
+    BuildContext context, {
+    TaskCollection? collection,
+  }) {
+    final controller = TextEditingController(text: collection?.title ?? '');
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
-        title: const Text("新建合集"),
+        title: Text(collection == null ? '新建合集' : '修改合集名称'),
         content: TextField(
           controller: controller,
+          autofocus: true,
           decoration: const InputDecoration(hintText: "合集名称"),
         ),
         actions: [
@@ -954,15 +978,18 @@ class _TodoPageState extends State<TodoPage> {
           ),
           TextButton(
             onPressed: () {
-              if (controller.text.isNotEmpty) {
-                Provider.of<AppProvider>(
-                  context,
-                  listen: false,
-                ).addCollection(controller.text);
+              final title = controller.text.trim();
+              if (title.isNotEmpty) {
+                final provider = context.read<AppProvider>();
+                if (collection == null) {
+                  provider.addCollection(title);
+                } else {
+                  provider.renameCollection(collection.id, title);
+                }
                 Navigator.pop(context);
               }
             },
-            child: const Text("创建"),
+            child: Text(collection == null ? '创建' : '保存'),
           ),
         ],
       ),

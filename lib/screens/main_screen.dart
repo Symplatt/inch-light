@@ -19,7 +19,10 @@ void showGlobalSettingsDialog(BuildContext context, AppProvider provider) {
         mainAxisSize: MainAxisSize.min,
         children: [
           ListTile(
-            leading: const Icon(Icons.upload_file, color: AppColors.primary),
+            leading: const Icon(
+              Icons.copy_all_outlined,
+              color: AppColors.primary,
+            ),
             title: const Text("导出数据"),
             onTap: () {
               final json = provider.exportData();
@@ -32,7 +35,10 @@ void showGlobalSettingsDialog(BuildContext context, AppProvider provider) {
           ),
           const Divider(),
           ListTile(
-            leading: const Icon(Icons.download, color: AppColors.danger),
+            leading: const Icon(
+              Icons.content_paste_go_outlined,
+              color: AppColors.danger,
+            ),
             title: const Text("导入数据"),
             onTap: () async {
               final data = await Clipboard.getData(Clipboard.kTextPlain);
