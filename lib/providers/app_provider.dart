@@ -145,6 +145,8 @@ class AppProvider with ChangeNotifier, WidgetsBindingObserver {
     }
 
     await prefs.remove('timer_tasks');
+    // Discard only the withdrawn backup build's cache; keep the live data.
+    await prefs.remove('local_backup_snapshot');
     safeLoad('daily_tasks', _dailyTasks, (json) => TaskItem.fromJson(json));
     safeLoad('normal_tasks', _normalTasks, (json) => TaskItem.fromJson(json));
     safeLoad('cycle_tasks', _cycleTasks, (json) => CycleTask.fromJson(json));

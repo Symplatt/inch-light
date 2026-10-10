@@ -30,12 +30,7 @@ class _TodoPageState extends State<TodoPage> {
         final looseTasks = provider.getLooseTasks(isCompleted: _showCompleted);
 
         final looseSection = <Widget>[
-          _buildSectionHeader(
-            "零散事项",
-            // 清空当前视图下的所有零散事项
-            onClear: () =>
-                provider.clearLooseTasks(isCompleted: _showCompleted),
-          ),
+          _buildSectionHeader("零散事项"),
           if (looseTasks.isEmpty && collections.isEmpty && dailyTasks.isEmpty)
             _buildEmptyState(),
           ...looseTasks.map((task) => _buildTaskItem(context, task, provider)),
@@ -44,11 +39,7 @@ class _TodoPageState extends State<TodoPage> {
         ];
         final collectionSection = <Widget>[
           if (collections.isNotEmpty) ...[
-            _buildSectionHeader(
-              "事项合集",
-              // 删除合集和其中所有状态的事项
-              onClear: () => provider.clearCollections(),
-            ),
+            _buildSectionHeader("事项合集"),
             ...collections.map((collection) {
               final tasks = provider.getTasksInCollection(
                 collection.id,
@@ -133,8 +124,7 @@ class _TodoPageState extends State<TodoPage> {
     );
   }
 
-  // 需求2：修改 Header 增加删除按钮
-  Widget _buildSectionHeader(String title, {required VoidCallback onClear}) {
+  Widget _buildSectionHeader(String title, {VoidCallback? onClear}) {
     return Padding(
       padding: const EdgeInsets.only(bottom: 12, left: 4, right: 4),
       child: Row(
@@ -148,15 +138,16 @@ class _TodoPageState extends State<TodoPage> {
               color: AppColors.textDark,
             ),
           ),
-          IconButton(
-            icon: const Icon(
-              Icons.delete_sweep,
-              color: AppColors.textGrey,
-              size: 20,
+          if (onClear != null)
+            IconButton(
+              icon: const Icon(
+                Icons.delete_sweep,
+                color: AppColors.textGrey,
+                size: 20,
+              ),
+              onPressed: onClear,
+              tooltip: "清空此项",
             ),
-            onPressed: onClear,
-            tooltip: "清空此项",
-          ),
         ],
       ),
     );
