@@ -1,103 +1,9 @@
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 
-import '../providers/app_provider.dart';
 import '../constants/app_colors.dart';
-
 import 'todo_page.dart';
 import 'cycle_page.dart';
-
-void _showDataMessage(BuildContext context, String message) {
-  ScaffoldMessenger.of(context)
-    ..clearSnackBars()
-    ..showSnackBar(
-      SnackBar(
-        content: Text(message),
-        duration: const Duration(milliseconds: 1500),
-      ),
-    );
-}
-
-// 全局通用的设置弹窗
-void showGlobalSettingsDialog(BuildContext context, AppProvider provider) {
-  showDialog(
-    context: context,
-    builder: (ctx) => AlertDialog(
-      title: const Center(child: Text("数据设置")),
-      backgroundColor: Colors.white,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-      content: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          ListTile(
-            leading: const Icon(
-              Icons.copy_all_outlined,
-              color: AppColors.primary,
-            ),
-            title: const Text("导出数据"),
-            onTap: () {
-              final json = provider.exportData();
-              Clipboard.setData(ClipboardData(text: json));
-              _showDataMessage(context, '数据已复制');
-              Navigator.pop(ctx);
-            },
-          ),
-          const Divider(),
-          ListTile(
-            leading: const Icon(
-              Icons.content_paste_go_outlined,
-              color: AppColors.danger,
-            ),
-            title: const Text("导入数据"),
-            onTap: () async {
-              final data = await Clipboard.getData(Clipboard.kTextPlain);
-              if (data?.text != null) {
-                if (ctx.mounted) {
-                  showDialog(
-                    context: ctx,
-                    builder: (subCtx) => AlertDialog(
-                      title: const Text("确认覆盖？"),
-                      content: const Text("此操作不可撤销，当前所有数据将被删除。"),
-                      actions: [
-                        TextButton(
-                          onPressed: () => Navigator.pop(subCtx),
-                          child: const Text("取消"),
-                        ),
-                        TextButton(
-                          onPressed: () async {
-                            Navigator.pop(subCtx);
-                            bool success = await provider.importData(
-                              data!.text!,
-                            );
-                            if (context.mounted) {
-                              _showDataMessage(
-                                context,
-                                success ? '导入成功' : '数据格式错误',
-                              );
-                            }
-                            if (ctx.mounted) Navigator.pop(ctx);
-                          },
-                          child: const Text(
-                            "确认导入",
-                            style: TextStyle(color: AppColors.danger),
-                          ),
-                        ),
-                      ],
-                    ),
-                  );
-                }
-              } else {
-                if (context.mounted) {
-                  _showDataMessage(context, '剪贴板为空');
-                }
-              }
-            },
-          ),
-        ],
-      ),
-    ),
-  );
-}
+import 'settings_page.dart';
 
 class MainScreen extends StatefulWidget {
   const MainScreen({super.key});
@@ -139,7 +45,7 @@ class _MainScreenState extends State<MainScreen> {
       body: PageView(
         controller: _pageController,
         physics: const NeverScrollableScrollPhysics(),
-        children: const [TodoPage(), CyclePage()],
+        children: const [TodoPage(), CyclePage(), SettingsPage()],
       ),
       bottomNavigationBar: BottomNavigationBar(
         currentIndex: _currentIndex,
@@ -158,6 +64,11 @@ class _MainScreenState extends State<MainScreen> {
           BottomNavigationBarItem(
             icon: Icon(Icons.calendar_month_outlined),
             label: '时历',
+          ),
+          BottomNavigationBarItem(
+            icon: Icon(Icons.settings_outlined),
+            activeIcon: Icon(Icons.settings),
+            label: '设置',
           ),
         ],
       ),

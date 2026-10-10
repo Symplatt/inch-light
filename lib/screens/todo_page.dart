@@ -7,7 +7,6 @@ import 'package:intl/intl.dart';
 import '../providers/app_provider.dart';
 import '../models/task_model.dart';
 import '../constants/app_colors.dart';
-import 'main_screen.dart';
 import '../utils/deadline.dart';
 
 class TodoPage extends StatefulWidget {
@@ -30,6 +29,37 @@ class _TodoPageState extends State<TodoPage> {
         final dailyTasks = provider.getDailyTasks(isCompleted: _showCompleted);
         final looseTasks = provider.getLooseTasks(isCompleted: _showCompleted);
 
+        final looseSection = <Widget>[
+          _buildSectionHeader(
+            "零散事项",
+            // 清空当前视图下的所有零散事项
+            onClear: () =>
+                provider.clearLooseTasks(isCompleted: _showCompleted),
+          ),
+          if (looseTasks.isEmpty && collections.isEmpty && dailyTasks.isEmpty)
+            _buildEmptyState(),
+          ...looseTasks.map((task) => _buildTaskItem(context, task, provider)),
+
+          const SizedBox(height: 20),
+        ];
+        final collectionSection = <Widget>[
+          if (collections.isNotEmpty) ...[
+            _buildSectionHeader(
+              "事项合集",
+              // 删除合集和其中所有状态的事项
+              onClear: () => provider.clearCollections(),
+            ),
+            ...collections.map((collection) {
+              final tasks = provider.getTasksInCollection(
+                collection.id,
+                isCompleted: _showCompleted,
+              );
+              return _buildCollectionCard(context, collection, tasks, provider);
+            }),
+            const SizedBox(height: 20),
+          ],
+        ];
+
         return Scaffold(
           backgroundColor: AppColors.bg,
           appBar: AppBar(
@@ -51,14 +81,6 @@ class _TodoPageState extends State<TodoPage> {
                     _showCompleted = !_showCompleted;
                   });
                 },
-              ),
-              IconButton(
-                icon: const Icon(
-                  Icons.import_export_rounded,
-                  color: AppColors.textDark,
-                ),
-                tooltip: '导入 / 导出数据',
-                onPressed: () => showGlobalSettingsDialog(context, provider),
               ),
             ],
           ),
@@ -89,42 +111,13 @@ class _TodoPageState extends State<TodoPage> {
                 const SizedBox(height: 20),
               ],
 
-              // --- 2. 事项合集 ---
-              if (collections.isNotEmpty) ...[
-                _buildSectionHeader(
-                  "事项合集",
-                  // 删除合集和其中所有状态的事项
-                  onClear: () => provider.clearCollections(),
-                ),
-                ...collections.map((collection) {
-                  final tasks = provider.getTasksInCollection(
-                    collection.id,
-                    isCompleted: _showCompleted,
-                  );
-                  return _buildCollectionCard(
-                    context,
-                    collection,
-                    tasks,
-                    provider,
-                  );
-                }),
-                const SizedBox(height: 20),
+              if (provider.looseTasksFirst) ...[
+                ...looseSection,
+                ...collectionSection,
+              ] else ...[
+                ...collectionSection,
+                ...looseSection,
               ],
-
-              // --- 3. 散落事项 ---
-              _buildSectionHeader(
-                "零散事项",
-                // 清空当前视图下的所有散落事项
-                onClear: () =>
-                    provider.clearLooseTasks(isCompleted: _showCompleted),
-              ),
-              if (looseTasks.isEmpty &&
-                  collections.isEmpty &&
-                  dailyTasks.isEmpty)
-                _buildEmptyState(),
-              ...looseTasks.map(
-                (task) => _buildTaskItem(context, task, provider),
-              ),
 
               const SizedBox(height: 80),
             ],
@@ -593,6 +586,10 @@ class _TodoPageState extends State<TodoPage> {
                   TextField(
                     controller: titleController,
                     autofocus: true,
+                    keyboardType: TextInputType.multiline,
+                    textInputAction: TextInputAction.newline,
+                    minLines: 1,
+                    maxLines: 6,
                     decoration: InputDecoration(
                       hintText: "事项内容",
                       filled: true,
@@ -813,6 +810,14 @@ class _TodoPageState extends State<TodoPage> {
                   TextField(
                     controller: titleController,
                     autofocus: true,
+                    keyboardType: isCollection
+                        ? TextInputType.text
+                        : TextInputType.multiline,
+                    textInputAction: isCollection
+                        ? TextInputAction.done
+                        : TextInputAction.newline,
+                    minLines: 1,
+                    maxLines: isCollection ? 1 : 6,
                     decoration: InputDecoration(
                       hintText: isCollection ? '合集名称' : '准备做什么？',
                       filled: true,

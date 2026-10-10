@@ -18,6 +18,18 @@ class AppProvider with ChangeNotifier, WidgetsBindingObserver {
   List<CalendarCountdown> get countdowns => List.unmodifiable(_countdowns);
   Timer? _maintenanceTimer;
   bool _disposed = false;
+  bool _looseTasksFirst = true;
+
+  bool get looseTasksFirst => _looseTasksFirst;
+
+  Future<void> setLooseTasksFirst(bool value) async {
+    await ready;
+    if (_disposed || _looseTasksFirst == value) return;
+    _looseTasksFirst = value;
+    notifyListeners();
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setBool('loose_tasks_first', value);
+  }
 
   late final Future<void> ready;
 
@@ -112,6 +124,7 @@ class AppProvider with ChangeNotifier, WidgetsBindingObserver {
 
   Future<void> _loadData() async {
     final prefs = await SharedPreferences.getInstance();
+    _looseTasksFirst = prefs.getBool('loose_tasks_first') ?? true;
     void safeLoad(
       String key,
       List<dynamic> list,
@@ -496,7 +509,7 @@ class AppProvider with ChangeNotifier, WidgetsBindingObserver {
       (t) =>
           t.isCompleted &&
           t.finishedAt != null &&
-          now.difference(t.finishedAt!) > const Duration(days: 1),
+          now.difference(t.finishedAt!) >= const Duration(days: 7),
     );
     bool changed = before != _normalTasks.length;
     bool cyclesChanged = false;

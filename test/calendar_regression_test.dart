@@ -25,7 +25,7 @@ void main() {
     );
     await tester.pumpAndSettle();
     expect(find.byIcon(Icons.create_new_folder_outlined), findsNothing);
-    expect(find.byTooltip('导入 / 导出数据'), findsOneWidget);
+    expect(find.byTooltip('导入 / 导出数据'), findsNothing);
     await tester.tap(find.byType(FloatingActionButton));
     await tester.pumpAndSettle();
     expect(find.text('普通事项'), findsOneWidget);

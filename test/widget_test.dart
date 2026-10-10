@@ -143,7 +143,7 @@ void main() {
                 'id': 'expired',
                 'isCompleted': true,
                 'finishedAt': DateTime.now()
-                    .subtract(const Duration(hours: 25))
+                    .subtract(const Duration(days: 8))
                     .toIso8601String(),
               },
               {
@@ -151,7 +151,7 @@ void main() {
                 'id': 'recent',
                 'isCompleted': true,
                 'finishedAt': DateTime.now()
-                    .subtract(const Duration(hours: 23))
+                    .subtract(const Duration(days: 6))
                     .toIso8601String(),
               },
               {...oldTask, 'id': 'unfinished'},
@@ -190,34 +190,35 @@ void main() {
     },
   );
 
-  testWidgets('Only todo and calendar remain; calendar saves a countdown', (
-    tester,
-  ) async {
-    final provider = AppProvider();
-    await tester.runAsync(() => provider.ready);
-    await tester.pumpWidget(
-      ChangeNotifierProvider.value(
-        value: provider,
-        child: const MaterialApp(home: MainScreen()),
-      ),
-    );
-    await tester.pumpAndSettle();
-    expect(find.text('待办'), findsNWidgets(2));
-    expect(find.text('记录'), findsNothing);
-    expect(find.text('专注'), findsNothing);
-    await tester.tap(find.text('时历').last);
-    await tester.pumpAndSettle();
-    await tester.tap(find.byType(FloatingActionButton));
-    await tester.pumpAndSettle();
-    await tester.enterText(find.byType(TextField), '下次旅行');
-    await tester.tap(find.text('确定'));
-    await tester.pumpAndSettle();
-    expect(provider.countdowns.single.title, '下次旅行');
-    expect(find.text('下次旅行'), findsOneWidget);
-    await tester.pumpWidget(const SizedBox());
-    provider.dispose();
-    debugDefaultTargetPlatformOverride = null;
-  });
+  testWidgets(
+    'Todo, calendar and settings remain; calendar saves a countdown',
+    (tester) async {
+      final provider = AppProvider();
+      await tester.runAsync(() => provider.ready);
+      await tester.pumpWidget(
+        ChangeNotifierProvider.value(
+          value: provider,
+          child: const MaterialApp(home: MainScreen()),
+        ),
+      );
+      await tester.pumpAndSettle();
+      expect(find.text('待办'), findsNWidgets(2));
+      expect(find.text('记录'), findsNothing);
+      expect(find.text('专注'), findsNothing);
+      await tester.tap(find.text('时历').last);
+      await tester.pumpAndSettle();
+      await tester.tap(find.byType(FloatingActionButton));
+      await tester.pumpAndSettle();
+      await tester.enterText(find.byType(TextField), '下次旅行');
+      await tester.tap(find.text('确定'));
+      await tester.pumpAndSettle();
+      expect(provider.countdowns.single.title, '下次旅行');
+      expect(find.text('下次旅行'), findsOneWidget);
+      await tester.pumpWidget(const SizedBox());
+      provider.dispose();
+      debugDefaultTargetPlatformOverride = null;
+    },
+  );
 
   testWidgets(
     'Long item title stays editable and position actions remain accessible',

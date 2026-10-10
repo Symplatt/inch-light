@@ -6,7 +6,6 @@ import '../models/task_model.dart';
 import '../providers/app_provider.dart';
 import '../utils/countdown.dart';
 import '../widgets/date_time_sheet.dart';
-import 'main_screen.dart';
 
 const _frequencyLabels = ['每天', '每周', '每月', '每年'];
 
@@ -30,16 +29,7 @@ class _CyclePageState extends State<CyclePage> {
     final now = DateTime.now();
     return Scaffold(
       backgroundColor: AppColors.bg,
-      appBar: AppBar(
-        title: const Text('时历'),
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.import_export_rounded),
-            tooltip: '导入 / 导出数据',
-            onPressed: () => showGlobalSettingsDialog(context, provider),
-          ),
-        ],
-      ),
+      appBar: AppBar(title: const Text('时历')),
       body: Center(
         child: ConstrainedBox(
           constraints: const BoxConstraints(maxWidth: 720),
