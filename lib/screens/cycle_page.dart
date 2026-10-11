@@ -6,6 +6,7 @@ import '../models/task_model.dart';
 import '../providers/app_provider.dart';
 import '../utils/countdown.dart';
 import '../widgets/date_time_sheet.dart';
+import '../widgets/section_heading.dart';
 
 const _frequencyLabels = ['每天', '每周', '每月', '每年'];
 
@@ -105,38 +106,13 @@ class _CyclePageState extends State<CyclePage> {
     );
   }
 
-  Widget _header(
-    String title,
-    int count,
-    bool expanded,
-    VoidCallback onTap,
-  ) => Semantics(
-    button: true,
-    expanded: expanded,
-    child: InkWell(
-      key: ValueKey('section-$title'),
-      borderRadius: BorderRadius.circular(12),
-      onTap: onTap,
-      child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 12),
-        child: Row(
-          children: [
-            Text(
-              title,
-              style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w400),
-            ),
-            const SizedBox(width: 8),
-            Text(
-              '$count',
-              style: const TextStyle(fontSize: 13, color: AppColors.textGrey),
-            ),
-            const Spacer(),
-            Icon(expanded ? Icons.expand_less : Icons.expand_more, size: 22),
-          ],
-        ),
-      ),
-    ),
-  );
+  Widget _header(String title, int count, bool expanded, VoidCallback onTap) =>
+      SectionHeading(
+        title: title,
+        count: count,
+        expanded: expanded,
+        onTap: onTap,
+      );
 
   Widget _card({
     required String id,

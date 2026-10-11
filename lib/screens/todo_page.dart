@@ -1,5 +1,6 @@
 import '../widgets/task_action_dialog.dart';
 import '../widgets/date_time_sheet.dart';
+import '../widgets/deadline_label.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:intl/intl.dart';
@@ -24,7 +25,7 @@ class _TodoPageState extends State<TodoPage> {
   Widget build(BuildContext context) {
     return Consumer<AppProvider>(
       builder: (context, provider, child) {
-        final collections = provider.collections;
+        final collections = provider.orderedCollections;
         // 获取排序后、并按完成状态过滤的日常打卡
         final dailyTasks = provider.getDailyTasks(isCompleted: _showCompleted);
         final looseTasks = provider.getLooseTasks(isCompleted: _showCompleted);
@@ -194,7 +195,7 @@ class _TodoPageState extends State<TodoPage> {
           decoration: BoxDecoration(
             color: AppColors.surface,
             borderRadius: BorderRadius.circular(16),
-            boxShadow: AppColors.shadow,
+            border: Border.all(color: AppColors.divider),
           ),
           child: Material(
             clipBehavior: Clip.antiAlias,
@@ -214,12 +215,9 @@ class _TodoPageState extends State<TodoPage> {
                 ),
                 subtitle: nearest == null
                     ? null
-                    : Text(
-                        DateFormat('yyyy-MM-dd HH:mm').format(nearest),
-                        style: TextStyle(
-                          color: deadlineColor(nearest),
-                          fontSize: 12,
-                        ),
+                    : DeadlineLabel(
+                        deadline: nearest,
+                        pattern: 'yyyy-MM-dd HH:mm',
                       ),
                 title: Text(
                   collection.title,
@@ -293,11 +291,7 @@ class _TodoPageState extends State<TodoPage> {
                 ? AppColors.success.withValues(alpha: 0.1)
                 : AppColors.surface,
             borderRadius: BorderRadius.circular(16),
-            border: Border.all(
-              color: task.isCompleted ? AppColors.success : Colors.transparent,
-              width: 1.4,
-            ),
-            boxShadow: AppColors.shadow,
+            border: Border.all(color: AppColors.divider),
           ),
           child: Column(
             mainAxisAlignment: MainAxisAlignment.center,
@@ -363,7 +357,7 @@ class _TodoPageState extends State<TodoPage> {
         decoration: BoxDecoration(
           color: AppColors.surface,
           borderRadius: BorderRadius.circular(inCollection ? 0 : 16),
-          boxShadow: inCollection ? null : AppColors.shadow,
+          border: inCollection ? null : Border.all(color: AppColors.divider),
         ),
         child: InkWell(
           onLongPress: () => _showEditTaskDialog(context, task),
@@ -425,15 +419,8 @@ class _TodoPageState extends State<TodoPage> {
                                 color: dateColor,
                               ),
                               const SizedBox(width: 4),
-                              Text(
-                                DateFormat(
-                                  'MM-dd HH:mm',
-                                ).format(task.deadline!),
-                                style: TextStyle(
-                                  fontSize: 12,
-                                  color: dateColor,
-                                  fontWeight: FontWeight.w400,
-                                ),
+                              Flexible(
+                                child: DeadlineLabel(deadline: task.deadline!),
                               ),
                             ],
                           ),

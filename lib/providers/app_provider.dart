@@ -5,6 +5,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:uuid/uuid.dart';
 
 import '../models/task_model.dart';
+import '../models/journal_entry.dart';
 
 import '../utils/schedule.dart';
 
@@ -13,12 +14,116 @@ class AppProvider with ChangeNotifier, WidgetsBindingObserver {
   final List<TaskItem> _normalTasks = [];
   final List<CycleTask> _cycleTasks = [];
   List<TaskCollection> _collections = [];
+  final List<JournalEntry> _journalEntries = [];
+  final List<JournalCollection> _journalCollections = [];
+  List<JournalCollection> get journalCollections =>
+      List.unmodifiable(_journalCollections);
+
+  Future<void> addJournalCollection(String title) async {
+    await ready;
+    if (title.trim().isEmpty) return;
+    final next = [
+      ..._journalCollections,
+      JournalCollection(id: const Uuid().v4(), title: title.trim()),
+    ];
+    await _persistJournalCollections(next);
+  }
+
+  Future<void> renameJournalCollection(String id, String title) async {
+    await ready;
+    if (title.trim().isEmpty) return;
+    await _persistJournalCollections(
+      _journalCollections
+          .map(
+            (c) =>
+                c.id == id ? JournalCollection(id: id, title: title.trim()) : c,
+          )
+          .toList(),
+    );
+  }
+
+  Future<void> _persistJournalCollections(
+    List<JournalCollection> entries,
+  ) async {
+    final prefs = await SharedPreferences.getInstance();
+    if (!await prefs.setString(
+      'journal_collections',
+      jsonEncode(entries.map((e) => e.toJson()).toList()),
+    )) {
+      throw StateError('合集保存失败');
+    }
+    _journalCollections
+      ..clear()
+      ..addAll(entries);
+    if (!_disposed) notifyListeners();
+  }
+
+  Future<void> _journalWrite = Future.value();
+  List<JournalEntry> get journalEntries => List.unmodifiable(
+    List<JournalEntry>.from(_journalEntries)
+      ..sort((a, b) => b.updatedAt.compareTo(a.updatedAt)),
+  );
+
+  Future<void> saveJournalEntry(JournalEntry entry) async {
+    await ready;
+    final next = List<JournalEntry>.from(_journalEntries);
+    final index = next.indexWhere((item) => item.id == entry.id);
+    if (index < 0) {
+      next.add(entry);
+    } else {
+      next[index] = entry;
+    }
+    await _persistJournal(next);
+  }
+
+  Future<void> removeJournalEntry(String id) async {
+    await ready;
+    await _persistJournal(_journalEntries.where((e) => e.id != id).toList());
+  }
+
+  Future<void> _persistJournal(List<JournalEntry> entries) {
+    // Serialize snapshots so rapid edits cannot overwrite a newer save.
+    final encoded = jsonEncode(entries.map((e) => e.toJson()).toList());
+    _journalEntries
+      ..clear()
+      ..addAll(entries);
+    if (!_disposed) notifyListeners();
+    final write = _journalWrite.then((_) async {
+      final prefs = await SharedPreferences.getInstance();
+      if (!await prefs.setString('journal_entries', encoded)) {
+        throw StateError('记录保存失败');
+      }
+    });
+    _journalWrite = write.catchError((Object _) {});
+    return write;
+  }
 
   final List<CalendarCountdown> _countdowns = [];
   List<CalendarCountdown> get countdowns => List.unmodifiable(_countdowns);
   Timer? _maintenanceTimer;
   bool _disposed = false;
   bool _looseTasksFirst = true;
+  bool _looseNotesFirst = true;
+  String _lastModule = 'todo';
+  bool get looseNotesFirst => _looseNotesFirst;
+  String get lastModule => _lastModule;
+
+  Future<void> setLooseNotesFirst(bool value) async {
+    await ready;
+    if (_disposed || _looseNotesFirst == value) return;
+    _looseNotesFirst = value;
+    notifyListeners();
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setBool('loose_notes_first', value);
+  }
+
+  Future<void> setLastModule(String value) async {
+    if (!['todo', 'journal', 'calendar', 'settings'].contains(value)) return;
+    await ready;
+    _lastModule = value;
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString('last_module', value);
+  }
 
   bool get looseTasksFirst => _looseTasksFirst;
 
@@ -38,6 +143,19 @@ class AppProvider with ChangeNotifier, WidgetsBindingObserver {
   List<TaskItem> get normalTasks => _normalTasks;
   List<CycleTask> get cycleTasks => _cycleTasks;
   List<TaskCollection> get collections => _collections;
+
+  List<TaskCollection> get orderedCollections {
+    // Stable partition: deadline-bearing collections move ahead without
+    // disturbing the user's existing order within either group.
+    final withDeadline = _normalTasks
+        .where((task) => !task.isCompleted && task.deadline != null)
+        .map((task) => task.collectionId)
+        .toSet();
+    return [
+      ..._collections.where((c) => withDeadline.contains(c.id)),
+      ..._collections.where((c) => !withDeadline.contains(c.id)),
+    ];
+  }
 
   // 获取特定状态的日常打卡（用于批量删除）
   List<TaskItem> getDailyTasks({required bool isCompleted}) {
@@ -125,6 +243,11 @@ class AppProvider with ChangeNotifier, WidgetsBindingObserver {
   Future<void> _loadData() async {
     final prefs = await SharedPreferences.getInstance();
     _looseTasksFirst = prefs.getBool('loose_tasks_first') ?? true;
+    _looseNotesFirst = prefs.getBool('loose_notes_first') ?? true;
+    final module = prefs.getString('last_module');
+    _lastModule = ['todo', 'journal', 'calendar', 'settings'].contains(module)
+        ? module!
+        : 'todo';
     void safeLoad(
       String key,
       List<dynamic> list,
@@ -150,6 +273,12 @@ class AppProvider with ChangeNotifier, WidgetsBindingObserver {
     safeLoad('daily_tasks', _dailyTasks, (json) => TaskItem.fromJson(json));
     safeLoad('normal_tasks', _normalTasks, (json) => TaskItem.fromJson(json));
     safeLoad('cycle_tasks', _cycleTasks, (json) => CycleTask.fromJson(json));
+    safeLoad('journal_entries', _journalEntries, JournalEntry.fromJson);
+    safeLoad(
+      'journal_collections',
+      _journalCollections,
+      JournalCollection.fromJson,
+    );
     safeLoad(
       'calendar_countdowns',
       _countdowns,
@@ -202,6 +331,10 @@ class AppProvider with ChangeNotifier, WidgetsBindingObserver {
 
   String exportData() {
     final data = {
+      'journal_entries': _journalEntries.map((e) => e.toJson()).toList(),
+      'journal_collections': _journalCollections
+          .map((e) => e.toJson())
+          .toList(),
       'calendar_countdowns': _countdowns.map((e) => e.toJson()).toList(),
       'daily_tasks': _dailyTasks.map((e) => e.toJson()).toList(),
       'normal_tasks': _normalTasks.map((e) => e.toJson()).toList(),
@@ -230,10 +363,22 @@ class AppProvider with ChangeNotifier, WidgetsBindingObserver {
         'cycle_tasks',
         'collections',
         'calendar_countdowns',
+        'journal_entries',
+        'journal_collections',
       ].any(data.containsKey)) {
         return false;
       }
       final daily = parse('daily_tasks', TaskItem.fromJson, _dailyTasks);
+      final entries = parse(
+        'journal_entries',
+        JournalEntry.fromJson,
+        _journalEntries,
+      );
+      final journalCollections = parse(
+        'journal_collections',
+        JournalCollection.fromJson,
+        _journalCollections,
+      );
       final normal = parse('normal_tasks', TaskItem.fromJson, _normalTasks);
       final cycles = parse('cycle_tasks', CycleTask.fromJson, _cycleTasks);
       final collections = parse(
@@ -261,6 +406,10 @@ class AppProvider with ChangeNotifier, WidgetsBindingObserver {
         ..addAll(countdowns);
       _maintainData();
       await _saveData();
+      if (data.containsKey('journal_entries')) await _persistJournal(entries);
+      if (data.containsKey('journal_collections')) {
+        await _persistJournalCollections(journalCollections);
+      }
       notifyListeners();
       return true;
     } catch (e) {

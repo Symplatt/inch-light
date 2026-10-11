@@ -203,7 +203,7 @@ void main() {
       );
       await tester.pumpAndSettle();
       expect(find.text('待办'), findsNWidgets(2));
-      expect(find.text('记录'), findsNothing);
+      expect(find.text('记录'), findsOneWidget);
       expect(find.text('专注'), findsNothing);
       await tester.tap(find.text('时历').last);
       await tester.pumpAndSettle();

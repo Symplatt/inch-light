@@ -4,6 +4,7 @@ import 'package:provider/provider.dart';
 
 import '../constants/app_colors.dart';
 import '../providers/app_provider.dart';
+import '../widgets/section_heading.dart';
 
 class SettingsPage extends StatelessWidget {
   const SettingsPage({super.key});
@@ -69,10 +70,9 @@ class SettingsPage extends StatelessWidget {
         child: ConstrainedBox(
           constraints: const BoxConstraints(maxWidth: 720),
           child: ListView(
-            padding: const EdgeInsets.all(16),
+            padding: const EdgeInsets.fromLTRB(16, 4, 16, 96),
             children: [
-              const Text('事项顺序', style: TextStyle(fontSize: 16)),
-              const SizedBox(height: 12),
+              const SectionHeading(title: '事项顺序'),
               Card(
                 margin: EdgeInsets.zero,
                 elevation: 0,
@@ -94,8 +94,29 @@ class SettingsPage extends StatelessWidget {
                 ),
               ),
               const SizedBox(height: 24),
-              const Text('数据', style: TextStyle(fontSize: 16)),
-              const SizedBox(height: 12),
+              const SectionHeading(title: '笔记顺序'),
+              Card(
+                margin: EdgeInsets.zero,
+                elevation: 0,
+                color: AppColors.surface,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(16),
+                ),
+                child: RadioGroup<bool>(
+                  groupValue: provider.looseNotesFirst,
+                  onChanged: (value) {
+                    if (value != null) provider.setLooseNotesFirst(value);
+                  },
+                  child: const Column(
+                    children: [
+                      RadioListTile<bool>(value: true, title: Text('零散笔记在上')),
+                      RadioListTile<bool>(value: false, title: Text('笔记合集在上')),
+                    ],
+                  ),
+                ),
+              ),
+              const SizedBox(height: 24),
+              const SectionHeading(title: '数据'),
               Card(
                 margin: EdgeInsets.zero,
                 elevation: 0,
