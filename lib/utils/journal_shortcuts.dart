@@ -29,7 +29,7 @@ bool applyJournalShortcut(quill.QuillController controller) {
   } else if (prefix == '- [x] ' || prefix == '[x] ') {
     attribute = quill.Attribute.checked;
   }
-  if (attribute == null) return false;
+  if (attribute == null) return _inlineShortcut(controller, prefix, start);
   controller.replaceText(
     start,
     prefix.length,
@@ -38,4 +38,57 @@ bool applyJournalShortcut(quill.QuillController controller) {
   );
   controller.formatText(start, 0, attribute);
   return true;
+}
+
+bool _inlineShortcut(
+  quill.QuillController controller,
+  String prefix,
+  int start,
+) {
+  // Longest markers first: **bold** must not be consumed as *italic*.
+  final formats = <(String, List<quill.Attribute>)>[
+    ('***', [quill.Attribute.bold, quill.Attribute.italic]),
+    ('**', [quill.Attribute.bold]),
+    ('__', [quill.Attribute.bold]),
+    ('~~', [quill.Attribute.strikeThrough]),
+    ('==', [const quill.BackgroundAttribute('#FFF2B3')]),
+    ('*', [quill.Attribute.italic]),
+    ('_', [quill.Attribute.italic]),
+    ('`', [quill.Attribute.inlineCode]),
+  ];
+  for (final (marker, attributes) in formats) {
+    if (!prefix.endsWith(marker)) continue;
+    final closing = prefix.length - marker.length;
+    if (closing <= marker.length) continue;
+    final opening = prefix.lastIndexOf(marker, closing - 1);
+    if (opening < 0 || closing <= opening + marker.length) continue;
+    if (opening > 0 &&
+        (prefix[opening - 1] == '\\' || prefix[opening - 1] == marker[0])) {
+      continue;
+    }
+    final content = prefix.substring(opening + marker.length, closing);
+    if (content.trim() != content || content.contains(marker[0])) continue;
+    final at = start + opening;
+    controller.replaceText(
+      start + closing,
+      marker.length,
+      '',
+      TextSelection.collapsed(offset: start + closing),
+    );
+    controller.replaceText(
+      at,
+      marker.length,
+      '',
+      TextSelection.collapsed(offset: at + content.length),
+    );
+    for (final attribute in attributes) {
+      controller.formatText(at, content.length, attribute);
+    }
+    // Do not continue the shortcut's style into the next characters.
+    for (final attribute in attributes) {
+      controller.formatSelection(quill.Attribute.clone(attribute, null));
+    }
+    return true;
+  }
+  return false;
 }

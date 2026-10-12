@@ -70,8 +70,8 @@ void main() {
       await p.saveJournalEntry(note('older', folder: a, day: 20));
       await p.saveJournalEntry(note('newer', folder: b, day: 21));
       expect(p.journalCollections.first.id, b);
-      await p.renameJournalCollection(a, '甲', isPinned: true);
-      expect(p.journalCollections.first.id, a);
+      await p.renameJournalCollection(a, '甲');
+      expect(p.journalCollections.first.id, b);
       await p.saveJournalEntry(
         p.journalEntries.last.copyWith(
           isPinned: true,
@@ -86,7 +86,10 @@ void main() {
       await restored.ready;
       expect(restored.journalEntries.first.titleBold, isTrue);
       expect(restored.journalEntries.first.collectionId, b);
-      expect(restored.journalCollections.first.isPinned, isTrue);
+      expect(
+        restored.journalCollections.first.toJson().containsKey('isPinned'),
+        isFalse,
+      );
       expect(await restored.importData(data), isTrue);
       final legacy = note('legacy').toJson()
         ..remove('isPinned')

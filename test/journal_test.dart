@@ -331,9 +331,7 @@ void main() {
     },
   );
 
-  testWidgets('Send copies Markdown directly without opening a dialog', (
-    tester,
-  ) async {
+  testWidgets('Send offers Markdown and long image export', (tester) async {
     String? copied;
     tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(
       SystemChannels.platform,
@@ -365,6 +363,9 @@ void main() {
     );
     final provider = await mount(tester, JournalEditorPage(entry: entry));
     await tester.tap(find.byTooltip('发送'));
+    await tester.pumpAndSettle();
+    expect(find.text('导出长图'), findsOneWidget);
+    await tester.tap(find.text('复制 Markdown'));
     await tester.pump();
     expect(copied, '# 笔记\n\n==高亮==');
     expect(find.byType(AlertDialog), findsNothing);
@@ -446,7 +447,7 @@ void main() {
       );
       await tester.pump();
       final first = tester.getRect(find.byKey(const ValueKey('format-一级标题')));
-      final seventh = tester.getRect(find.byKey(const ValueKey('format-有序列表')));
+      final seventh = tester.getRect(find.byKey(const ValueKey('format-无序列表')));
       expect(first.left, 0);
       expect(seventh.right, closeTo(390, .01));
       expect(first.width, closeTo(390 / 7, .01));

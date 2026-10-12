@@ -1,3 +1,4 @@
+import '../widgets/position_border.dart';
 import '../widgets/task_action_dialog.dart';
 import '../widgets/date_time_sheet.dart';
 import '../widgets/deadline_label.dart';
@@ -354,11 +355,16 @@ class _TodoPageState extends State<TodoPage> {
       ),
       child: Container(
         margin: EdgeInsets.only(bottom: inCollection ? 0 : 12),
-        decoration: BoxDecoration(
-          color: AppColors.surface,
-          borderRadius: BorderRadius.circular(inCollection ? 0 : 16),
-          border: inCollection ? null : Border.all(color: AppColors.divider),
-        ),
+        decoration: inCollection && !task.isPinned && !task.isBottom
+            ? const BoxDecoration(color: AppColors.surface)
+            : ShapeDecoration(
+                color: AppColors.surface,
+                shape: PositionBorder(
+                  pinned: task.isPinned,
+                  bottom: task.isBottom,
+                  radius: inCollection ? 0 : 16,
+                ),
+              ),
         child: InkWell(
           onLongPress: () => _showEditTaskDialog(context, task),
           borderRadius: BorderRadius.circular(inCollection ? 0 : 16),
@@ -455,19 +461,6 @@ class _TodoPageState extends State<TodoPage> {
                         ),
                     ],
                   ),
-            trailing: task.isPinned
-                ? const Icon(
-                    Icons.vertical_align_top,
-                    size: 16,
-                    color: AppColors.primary,
-                  )
-                : task.isBottom
-                ? const Icon(
-                    Icons.vertical_align_bottom,
-                    size: 16,
-                    color: AppColors.textGrey,
-                  )
-                : null,
           ),
         ),
       ),

@@ -138,10 +138,12 @@ class JournalTable extends StatefulWidget {
     required this.data,
     required this.onChanged,
     this.autofocus = false,
+    this.readOnly = false,
   });
   final JournalTableData data;
   final ValueChanged<JournalTableData> onChanged;
   final bool autofocus;
+  final bool readOnly;
   @override
   State<JournalTable> createState() => _JournalTableState();
 }
@@ -280,6 +282,9 @@ class _JournalTableState extends State<JournalTable> {
                               key: ValueKey(
                                 'table-cell-${_data.rows[r].id}-$c',
                               ),
+                              readOnly: widget.readOnly,
+                              showCursor: !widget.readOnly,
+                              enableInteractiveSelection: !widget.readOnly,
                               controller:
                                   _controllers[_key(_data.rows[r].id, c)],
                               focusNode: _focus[_key(_data.rows[r].id, c)],

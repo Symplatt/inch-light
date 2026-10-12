@@ -13,6 +13,7 @@ class JournalEntry {
     this.collectionId,
     this.isPinned = false,
     this.titleBold = false,
+    this.isBottom = false,
   });
 
   final String id;
@@ -24,9 +25,11 @@ class JournalEntry {
   final String? collectionId;
   final bool isPinned;
   final bool titleBold;
+  final bool isBottom;
 
   JournalEntry copyWith({
     bool? isPinned,
+    bool? isBottom,
     String? collectionId,
     bool move = false,
   }) => JournalEntry(
@@ -37,7 +40,8 @@ class JournalEntry {
     updatedAt: updatedAt,
     tags: tags,
     collectionId: move ? collectionId : this.collectionId,
-    isPinned: isPinned ?? this.isPinned,
+    isPinned: isBottom == true ? false : (isPinned ?? this.isPinned),
+    isBottom: isPinned == true ? false : (isBottom ?? this.isBottom),
     titleBold: titleBold,
   );
 
@@ -74,6 +78,7 @@ class JournalEntry {
     'collectionId': collectionId,
     'isPinned': isPinned,
     'titleBold': titleBold,
+    'isBottom': isBottom,
   };
 
   factory JournalEntry.fromJson(Map<String, dynamic> json) {
@@ -110,6 +115,7 @@ class JournalEntry {
       collectionId: json['collectionId'] as String?,
       isPinned: json['isPinned'] as bool? ?? false,
       titleBold: json['titleBold'] as bool? ?? false,
+      isBottom: json['isBottom'] == true && json['isPinned'] != true,
     );
   }
   static bool _validInsert(dynamic insert) {
@@ -128,18 +134,15 @@ class JournalCollection {
   const JournalCollection({
     required this.id,
     required this.title,
-    this.isPinned = false,
     this.updatedAt,
   });
   final String id;
   final String title;
-  final bool isPinned;
   final DateTime? updatedAt;
 
   Map<String, dynamic> toJson() => {
     'id': id,
     'title': title,
-    'isPinned': isPinned,
     'updatedAt': updatedAt?.toIso8601String(),
   };
 
@@ -147,7 +150,6 @@ class JournalCollection {
       JournalCollection(
         id: json['id'] as String,
         title: json['title'] as String,
-        isPinned: json['isPinned'] as bool? ?? false,
         updatedAt: json['updatedAt'] == null
             ? null
             : DateTime.parse(json['updatedAt'] as String),

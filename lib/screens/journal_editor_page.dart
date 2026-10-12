@@ -14,6 +14,10 @@ import '../widgets/journal_tags.dart';
 import '../providers/app_provider.dart';
 import '../utils/journal_markdown.dart';
 import '../utils/journal_shortcuts.dart';
+import '../utils/journal_controller.dart';
+import '../widgets/journal_body.dart';
+import '../widgets/journal_export_icon.dart';
+import 'journal_image_page.dart';
 import '../models/journal_table.dart';
 import '../widgets/journal_table.dart';
 import '../widgets/journal_format_icon.dart';
@@ -30,7 +34,7 @@ class JournalEditorPage extends StatefulWidget {
 class _JournalEditorPageState extends State<JournalEditorPage>
     with WidgetsBindingObserver {
   late final TextEditingController _title;
-  late final quill.QuillController _editor;
+  late final JournalController _editor;
   late final AppProvider _provider;
   final _titleFocus = FocusNode();
   final _bodyFocus = FocusNode();
@@ -62,7 +66,7 @@ class _JournalEditorPageState extends State<JournalEditorPage>
     _tags = List.from(widget.entry?.tags ?? []);
     _titleBold = widget.entry?.titleBold ?? false;
     _title = TextEditingController(text: widget.entry?.title ?? '');
-    _editor = quill.QuillController(
+    _editor = JournalController(
       config: const quill.QuillControllerConfig(
         // Quill is pinned; plain-text external paste prevents unsupported image
         // embeds from entering records. Recheck this API when upgrading Quill.
@@ -89,20 +93,6 @@ class _JournalEditorPageState extends State<JournalEditorPage>
     if (mounted) setState(() {});
   }
 
-  bool get _onEmbed {
-    var offset = 0;
-    for (final op in _editor.document.toDelta().toJson()) {
-      final insert = op['insert'];
-      if (insert is Map &&
-          _editor.selection.isCollapsed &&
-          _editor.selection.baseOffset == offset) {
-        return true;
-      }
-      offset += insert is String ? insert.length : 1;
-    }
-    return false;
-  }
-
   String _snapshot() => jsonEncode({
     'title': _title.text,
     'document': _editor.document.toDelta().toJson(),
@@ -120,6 +110,7 @@ class _JournalEditorPageState extends State<JournalEditorPage>
     collectionId: widget.entry?.collectionId ?? widget.collectionId,
     isPinned: widget.entry?.isPinned ?? false,
     titleBold: _titleBold,
+    isBottom: widget.entry?.isBottom ?? false,
   );
 
   void _changed() {
@@ -138,8 +129,12 @@ class _JournalEditorPageState extends State<JournalEditorPage>
           _shortcutPending = false;
           if (!mounted || !_bodyFocus.hasFocus || _restoring) return;
           _restoring = true;
-          final changed = applyJournalShortcut(_editor);
-          _restoring = false;
+          var changed = false;
+          try {
+            changed = applyJournalShortcut(_editor);
+          } finally {
+            _restoring = false;
+          }
           if (changed) _changed();
         });
       }
@@ -267,6 +262,38 @@ class _JournalEditorPageState extends State<JournalEditorPage>
         return;
       }
       offset += insert is String ? insert.length : 1;
+    }
+  }
+
+  Future<void> _export() async {
+    final choice = await showModalBottomSheet<String>(
+      context: context,
+      builder: (context) => SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            ListTile(
+              leading: const Icon(Icons.copy_outlined),
+              title: const Text('复制 Markdown'),
+              onTap: () => Navigator.pop(context, 'markdown'),
+            ),
+            ListTile(
+              leading: const Icon(Icons.image_outlined),
+              title: const Text('导出长图'),
+              onTap: () => Navigator.pop(context, 'image'),
+            ),
+          ],
+        ),
+      ),
+    );
+    if (!mounted) return;
+    if (choice == 'markdown') await _copyMarkdown();
+    if (choice == 'image' && mounted) {
+      await Navigator.of(context).push(
+        MaterialPageRoute<void>(
+          builder: (_) => JournalImagePage(entry: _entry()),
+        ),
+      );
     }
   }
 
@@ -401,8 +428,8 @@ class _JournalEditorPageState extends State<JournalEditorPage>
                 : [
                     IconButton(
                       tooltip: '发送',
-                      onPressed: _copyMarkdown,
-                      icon: const Icon(Icons.ios_share_outlined),
+                      onPressed: _export,
+                      icon: const JournalExportIcon(),
                     ),
                     IconButton(
                       tooltip: '标签',
@@ -476,7 +503,8 @@ class _JournalEditorPageState extends State<JournalEditorPage>
                             padding: const EdgeInsets.fromLTRB(24, 8, 24, 32),
                             scrollable: false,
                             minHeight: 180,
-                            showCursor: _bodyFocus.hasFocus && !_onEmbed,
+                            showCursor:
+                                _bodyFocus.hasFocus && !_editor.onEmbedLine,
                             // Pinned Quill APIs; shortcut handlers also process software-keyboard spaces.
                             // ignore: experimental_member_use
                             characterShortcutEvents:
@@ -484,120 +512,22 @@ class _JournalEditorPageState extends State<JournalEditorPage>
                             // ignore: experimental_member_use
                             spaceShortcutEvents:
                                 quill.standardSpaceShorcutEvents,
-                            textSpanBuilder:
-                                (
-                                  context,
-                                  node,
-                                  offset,
-                                  text,
-                                  style,
-                                  recognizer,
-                                ) {
-                                  final line = node is quill.Line
-                                      ? node
-                                      : node.parent;
-                                  final heading =
-                                      line?.style.attributes['header']?.value;
-                                  return TextSpan(
-                                    text: text,
-                                    recognizer: recognizer,
-                                    style: heading != null
-                                        ? style?.copyWith(
-                                            fontWeight: FontWeight.w600,
-                                          )
-                                        : style,
-                                  );
-                                },
+                            textSpanBuilder: journalSpan,
                             // ignore: experimental_member_use
-                            customLeadingBlockBuilder: (node, config) {
-                              final type = config.attribute.value;
-                              if (![
-                                'ordered',
-                                'bullet',
-                                'checked',
-                                'unchecked',
-                              ].contains(type)) {
-                                return null;
-                              }
-                              return SizedBox(
-                                width: 28,
-                                child: Align(
-                                  alignment: Alignment.centerLeft,
-                                  child: type == 'ordered'
-                                      ? Text(
-                                          '${config.getIndexNumberByIndent}.',
-                                          style: _blockStyle(18).style,
-                                        )
-                                      : type == 'bullet'
-                                      ? const Text(
-                                          '•',
-                                          style: TextStyle(
-                                            fontSize: 18,
-                                            height: 1.6,
-                                          ),
-                                        )
-                                      : GestureDetector(
-                                          onTap: () => config.onCheckboxTap(
-                                            !config.value,
-                                          ),
-                                          child: Icon(
-                                            config.value
-                                                ? Icons.check_box_outlined
-                                                : Icons.check_box_outline_blank,
-                                            size: 18,
-                                            color: const Color(0xFF3D3D3D),
-                                          ),
-                                        ),
-                                ),
-                              );
-                            },
+                            customLeadingBlockBuilder: (node, config) =>
+                                journalLeading(context, node, config),
                             onTapOutsideEnabled: false,
                             embedBuilders: [
-                              const _DividerBuilder(),
-                              _TableBuilder(
+                              const JournalDividerBuilder(),
+                              JournalTableBuilder(
                                 onChanged: _updateTable,
                                 autofocusId: _newTableId,
+                                selectedOffset: _editor.selection.isCollapsed
+                                    ? null
+                                    : _editor.pendingTable,
                               ),
                             ],
-                            customStyles: quill.DefaultStyles(
-                              paragraph: _blockStyle(18),
-                              quote: _blockStyle(18).copyWith(
-                                decoration: const BoxDecoration(
-                                  border: Border(
-                                    left: BorderSide(
-                                      color: Color(0xFFCCCCCC),
-                                      width: 2,
-                                    ),
-                                  ),
-                                ),
-                              ),
-                              lists: quill.DefaultListBlockStyle(
-                                _blockStyle(18).style,
-                                const quill.HorizontalSpacing(0, 0),
-                                const quill.VerticalSpacing(0, 8),
-                                const quill.VerticalSpacing(0, 0),
-                                null,
-                                null,
-                                indentWidthBuilder: (_, _, _, _) =>
-                                    const quill.HorizontalSpacing(28, 0),
-                                numberPointWidthBuilder: (_, _) => 28,
-                              ),
-                              h1: _blockStyle(26).copyWith(
-                                style: _blockStyle(
-                                  26,
-                                ).style.copyWith(fontWeight: FontWeight.w600),
-                              ),
-                              h2: _blockStyle(23).copyWith(
-                                style: _blockStyle(
-                                  23,
-                                ).style.copyWith(fontWeight: FontWeight.w600),
-                              ),
-                              h3: _blockStyle(20).copyWith(
-                                style: _blockStyle(
-                                  20,
-                                ).style.copyWith(fontWeight: FontWeight.w600),
-                              ),
-                            ),
+                            customStyles: journalStyles(),
                           ),
                         ),
                       ],
@@ -620,57 +550,6 @@ class _JournalEditorPageState extends State<JournalEditorPage>
           ),
         ),
       ),
-    );
-  }
-
-  quill.DefaultTextBlockStyle _blockStyle(double size) =>
-      quill.DefaultTextBlockStyle(
-        TextStyle(
-          fontSize: size,
-          color: const Color(0xFF3D3D3D),
-          fontWeight: FontWeight.w400,
-          height: 1.6,
-        ),
-        const quill.HorizontalSpacing(0, 0),
-        const quill.VerticalSpacing(0, 8),
-        const quill.VerticalSpacing(0, 0),
-        null,
-      );
-}
-
-class _DividerBuilder extends quill.EmbedBuilder {
-  const _DividerBuilder();
-  @override
-  String get key => 'divider';
-  @override
-  String toPlainText(quill.Embed node) => '';
-  @override
-  Widget build(BuildContext context, quill.EmbedContext embedContext) =>
-      const Padding(
-        padding: EdgeInsets.symmetric(vertical: 16),
-        child: Divider(color: Color(0xFFCCCCCC), height: 1),
-      );
-}
-
-class _TableBuilder extends quill.EmbedBuilder {
-  const _TableBuilder({required this.onChanged, this.autofocusId});
-  final ValueChanged<JournalTableData> onChanged;
-  final String? autofocusId;
-  @override
-  String get key => 'table';
-  @override
-  String toPlainText(quill.Embed node) =>
-      JournalTableData.decode(node.value.data as String).plainText;
-  @override
-  Widget build(BuildContext context, quill.EmbedContext embedContext) {
-    final table = JournalTableData.decode(
-      embedContext.node.value.data as String,
-    );
-    return JournalTable(
-      key: ValueKey(table.id),
-      data: table,
-      onChanged: onChanged,
-      autofocus: autofocusId == table.id,
     );
   }
 }
@@ -825,14 +704,14 @@ class JournalFormatBar extends StatelessWidget {
                   attribute: quill.Attribute.blockQuote,
                 ),
                 button(
-                  '无序列表',
-                  const Icon(Icons.format_list_bulleted),
-                  attribute: quill.Attribute.ul,
-                ),
-                button(
                   '有序列表',
                   const Icon(Icons.format_list_numbered),
                   attribute: quill.Attribute.ol,
+                ),
+                button(
+                  '无序列表',
+                  const Icon(Icons.format_list_bulleted),
+                  attribute: quill.Attribute.ul,
                 ),
                 button(
                   '选框列表',

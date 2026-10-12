@@ -18,7 +18,6 @@ class AppProvider with ChangeNotifier, WidgetsBindingObserver {
   final List<JournalCollection> _journalCollections = [];
   List<JournalCollection> get journalCollections => List.unmodifiable(
     List<JournalCollection>.from(_journalCollections)..sort((a, b) {
-      if (a.isPinned != b.isPinned) return a.isPinned ? -1 : 1;
       DateTime edited(JournalCollection c) => _journalEntries
           .where((e) => e.collectionId == c.id)
           .fold(
@@ -48,11 +47,7 @@ class AppProvider with ChangeNotifier, WidgetsBindingObserver {
     await _persistJournalCollections(next);
   }
 
-  Future<void> renameJournalCollection(
-    String id,
-    String title, {
-    bool? isPinned,
-  }) async {
+  Future<void> renameJournalCollection(String id, String title) async {
     await ready;
     if (title.trim().isEmpty) return;
     await _persistJournalCollections(
@@ -62,12 +57,34 @@ class AppProvider with ChangeNotifier, WidgetsBindingObserver {
                 ? JournalCollection(
                     id: id,
                     title: title.trim(),
-                    isPinned: isPinned ?? c.isPinned,
                     updatedAt: DateTime.now(),
                   )
                 : c,
           )
           .toList(),
+    );
+  }
+
+  Future<void> removeJournalCollection(
+    String id, {
+    bool deleteEntries = false,
+  }) async {
+    await ready;
+    if (!_journalCollections.any((c) => c.id == id)) return;
+    // Save notes before removing the folder so a failed write never strands them.
+    await _persistJournal(
+      deleteEntries
+          ? _journalEntries.where((e) => e.collectionId != id).toList()
+          : _journalEntries
+                .map(
+                  (e) => e.collectionId == id
+                      ? e.copyWith(collectionId: null, move: true)
+                      : e,
+                )
+                .toList(),
+    );
+    await _persistJournalCollections(
+      _journalCollections.where((c) => c.id != id).toList(),
     );
   }
 
@@ -92,6 +109,8 @@ class AppProvider with ChangeNotifier, WidgetsBindingObserver {
     List<JournalEntry>.from(_journalEntries)..sort(
       (a, b) => a.isPinned != b.isPinned
           ? (a.isPinned ? -1 : 1)
+          : a.isBottom != b.isBottom
+          ? (a.isBottom ? 1 : -1)
           : b.updatedAt.compareTo(a.updatedAt),
     ),
   );

@@ -7,6 +7,8 @@ import '../constants/app_colors.dart';
 import '../models/journal_entry.dart';
 import '../providers/app_provider.dart';
 import '../widgets/journal_tags.dart';
+import '../widgets/position_border.dart';
+import '../widgets/journal_export_icon.dart';
 import '../utils/journal_markdown.dart';
 import 'journal_editor_page.dart';
 
@@ -54,31 +56,29 @@ class _JournalPageState extends State<JournalPage> {
   Future<void> _collection([JournalCollection? existing]) async {
     final provider = context.read<AppProvider>();
     final input = TextEditingController(text: existing?.title ?? '');
-    var pinned = existing?.isPinned ?? false;
+    var deleteRequested = false;
     final title = await showDialog<String>(
       context: context,
       builder: (context) => StatefulBuilder(
         builder: (context, update) => AlertDialog(
-          title: Row(
-            children: [
-              Expanded(child: Text(existing == null ? '新建合集' : '修改合集名称')),
-              if (existing != null)
-                IconButton(
-                  tooltip: pinned ? '取消置顶' : '置顶',
-                  onPressed: () => update(() => pinned = !pinned),
-                  icon: Icon(
-                    Icons.vertical_align_top,
-                    color: pinned ? AppColors.primary : AppColors.textGrey,
-                  ),
-                ),
-            ],
-          ),
+          title: Text(existing == null ? '新建合集' : '修改合集名称'),
           content: TextField(
             controller: input,
             autofocus: true,
             decoration: const InputDecoration(hintText: '合集名称'),
           ),
           actions: [
+            if (existing != null)
+              TextButton(
+                onPressed: () {
+                  deleteRequested = true;
+                  Navigator.pop(context, '');
+                },
+                child: const Text(
+                  '删除合集',
+                  style: TextStyle(color: AppColors.danger),
+                ),
+              ),
             TextButton(
               onPressed: () => Navigator.pop(context),
               child: const Text('取消'),
@@ -98,18 +98,58 @@ class _JournalPageState extends State<JournalPage> {
     await Future<void>.delayed(const Duration(milliseconds: 300));
     input.dispose();
     if (title == null) return;
+    if (deleteRequested && existing != null) {
+      await _deleteCollection(existing);
+      return;
+    }
     try {
       if (existing == null) {
         await provider.addJournalCollection(title);
       } else {
-        await provider.renameJournalCollection(
-          existing.id,
-          title,
-          isPinned: pinned,
-        );
+        await provider.renameJournalCollection(existing.id, title);
       }
     } catch (_) {
       _error('合集保存失败，请重试');
+    }
+  }
+
+  Future<void> _deleteCollection(JournalCollection folder) async {
+    final provider = context.read<AppProvider>();
+    final deleteNotes = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: Text('删除“${folder.title}”？'),
+        content: const Text('可以保留笔记并移入默认合集，也可以同时删除其中的笔记。'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('取消'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('保留笔记，删除合集'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(context, true),
+            child: const Text(
+              '删除合集和笔记',
+              style: TextStyle(color: AppColors.danger),
+            ),
+          ),
+        ],
+      ),
+    );
+    if (deleteNotes == null) return;
+    try {
+      await provider.removeJournalCollection(
+        folder.id,
+        deleteEntries: deleteNotes,
+      );
+      if (mounted && _selectedCollection == folder.id) {
+        setState(() => _selectedCollection = null);
+      }
+    } catch (_) {
+      _error('删除失败，请重试');
     }
   }
 
@@ -166,6 +206,11 @@ class _JournalPageState extends State<JournalPage> {
               onTap: () => Navigator.pop(context, 'pin'),
             ),
             ListTile(
+              leading: const Icon(Icons.vertical_align_bottom),
+              title: Text(entry.isBottom ? '取消置底' : '置底'),
+              onTap: () => Navigator.pop(context, 'bottom'),
+            ),
+            ListTile(
               leading: const Icon(Icons.drive_file_move_outline),
               title: const Text('移动到合集'),
               onTap: () => Navigator.pop(context, 'move'),
@@ -188,6 +233,10 @@ class _JournalPageState extends State<JournalPage> {
       if (action == 'pin') {
         await provider.saveJournalEntry(
           entry.copyWith(isPinned: !entry.isPinned),
+        );
+      } else if (action == 'bottom') {
+        await provider.saveJournalEntry(
+          entry.copyWith(isBottom: !entry.isBottom),
         );
       } else {
         final target = await showDialog<String>(
@@ -234,7 +283,7 @@ class _JournalPageState extends State<JournalPage> {
     );
     try {
       await Clipboard.setData(
-        ClipboardData(text: entries.map(journalToMarkdown).join('\n\n---\n\n')),
+        ClipboardData(text: entries.map(journalToMarkdown).join()),
       );
       _error('合集 Markdown 已复制');
     } catch (_) {
@@ -253,11 +302,7 @@ class _JournalPageState extends State<JournalPage> {
       color: _selectedCollection == id ? const Color(0xFFE8EAED) : Colors.white,
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(10),
-        side: BorderSide(
-          color: folder?.isPinned == true
-              ? const Color(0xFFBEC2C8)
-              : AppColors.divider,
-        ),
+        side: BorderSide(color: AppColors.divider),
       ),
       child: InkWell(
         borderRadius: BorderRadius.circular(10),
@@ -281,19 +326,18 @@ class _JournalPageState extends State<JournalPage> {
     ),
   );
 
-  Widget _card({required Widget child, Key? key, bool pinned = false}) =>
-      Material(
-        key: key,
-        color: AppColors.surface,
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(16),
-          side: BorderSide(
-            color: pinned ? const Color(0xFFBEC2C8) : AppColors.divider,
-          ),
-        ),
-        clipBehavior: Clip.antiAlias,
-        child: child,
-      );
+  Widget _card({
+    required Widget child,
+    Key? key,
+    bool pinned = false,
+    bool bottom = false,
+  }) => Material(
+    key: key,
+    color: AppColors.surface,
+    shape: PositionBorder(pinned: pinned, bottom: bottom),
+    clipBehavior: Clip.antiAlias,
+    child: child,
+  );
 
   @override
   Widget build(BuildContext context) {
@@ -335,6 +379,7 @@ class _JournalPageState extends State<JournalPage> {
             child: _card(
               key: ValueKey('note-card-${entry.id}'),
               pinned: entry.isPinned,
+              bottom: entry.isBottom,
               child: ListTile(
                 visualDensity: const VisualDensity(vertical: -2),
                 contentPadding: const EdgeInsets.symmetric(horizontal: 16),
@@ -393,7 +438,7 @@ class _JournalPageState extends State<JournalPage> {
           IconButton(
             tooltip: '发送合集',
             onPressed: _exportCollection,
-            icon: const Icon(Icons.ios_share_outlined),
+            icon: const JournalExportIcon(multiple: true),
           ),
           IconButton(
             tooltip: '新建合集',
@@ -444,16 +489,19 @@ class _JournalPageState extends State<JournalPage> {
               ),
             ),
           ),
-          SingleChildScrollView(
-            key: const ValueKey('collection-tabs'),
-            scrollDirection: Axis.horizontal,
-            padding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
-            child: Row(
-              children: [
-                _collectionTab(null, '默认'),
-                for (final folder in collections)
-                  _collectionTab(folder.id, folder.title, folder: folder),
-              ],
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 16),
+            child: SingleChildScrollView(
+              key: const ValueKey('collection-tabs'),
+              scrollDirection: Axis.horizontal,
+              padding: const EdgeInsets.only(bottom: 12),
+              child: Row(
+                children: [
+                  _collectionTab(null, '默认'),
+                  for (final folder in collections)
+                    _collectionTab(folder.id, folder.title, folder: folder),
+                ],
+              ),
             ),
           ),
           Expanded(
