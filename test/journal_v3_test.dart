@@ -52,6 +52,20 @@ void main() {
       await tester.ensureVisible(find.byKey(const ValueKey('format-表格')));
       await tester.tap(find.byKey(const ValueKey('format-表格')));
       await tester.pumpAndSettle();
+      expect(
+        tester
+            .widget<TextField>(find.byKey(const ValueKey('table-rows')))
+            .controller!
+            .text,
+        '3',
+      );
+      expect(
+        tester
+            .widget<TextField>(find.byKey(const ValueKey('table-columns')))
+            .controller!
+            .text,
+        '2',
+      );
       await tester.enterText(find.byKey(const ValueKey('table-rows')), '2');
       await tester.enterText(find.byKey(const ValueKey('table-columns')), '2');
       await tester.tap(find.text('确定'));
@@ -59,6 +73,22 @@ void main() {
       expect(find.byType(JournalTable), findsOneWidget);
       var table = tester.widget<JournalTable>(find.byType(JournalTable)).data;
       final firstId = table.rows.first.id;
+      final tableEditor = tester.widget<quill.QuillEditor>(
+        find.byType(quill.QuillEditor),
+      );
+      tableEditor.focusNode.requestFocus();
+      tableEditor.controller.updateSelection(
+        const TextSelection.collapsed(offset: 0),
+        quill.ChangeSource.local,
+      );
+      await tester.pump();
+      expect(
+        tester
+            .widget<quill.QuillEditor>(find.byType(quill.QuillEditor))
+            .config
+            .showCursor,
+        isFalse,
+      );
       final secondId = table.rows.last.id;
       Finder cell(String row, int c) =>
           find.byKey(ValueKey('table-cell-$row-$c'));
@@ -194,38 +224,29 @@ void main() {
       await tester.pumpAndSettle();
       await setup;
       final noteCard = find.byKey(const ValueKey('note-card-root'));
-      final folderCard = find.byKey(
-        ValueKey('note-folder-${provider.journalCollections.single.id}'),
-      );
-      expect(
-        tester.getSize(noteCard).height,
-        lessThanOrEqualTo(tester.getSize(folderCard).height),
-      );
       expect(
         tester.widget<Text>(find.text('长标题' * 20)).overflow,
         TextOverflow.ellipsis,
       );
       expect(find.text('不展示的正文'), findsNothing);
       expect(find.text('标签甲'), findsOneWidget);
+      final tagScroll = find.descendant(
+        of: noteCard,
+        matching: find.byType(SingleChildScrollView),
+      );
+      expect(
+        tester.getRect(tagScroll).right,
+        closeTo(tester.getRect(find.text('长标题' * 20)).right, .01),
+      );
       expect(tester.takeException(), isNull);
       final titleStyle = tester.widget<Text>(find.text('长标题' * 20)).style!;
       final tagStyle = tester.widget<Text>(find.text('标签甲')).style!;
-      expect(titleStyle.fontSize, 18);
-      expect(titleStyle.fontWeight, FontWeight.w600);
+      expect(titleStyle.fontSize, 17);
+      expect(titleStyle.fontWeight, FontWeight.w500);
+      expect(titleStyle.color, const Color(0xFF3D3D3D));
       expect(tester.widget<Text>(find.text('合集甲')).style, titleStyle);
       expect(tagStyle.fontSize, 10);
       expect(tagStyle.color, const Color(0xFF767676));
-      expect(
-        tester.getTopLeft(find.text('零散笔记')).dy,
-        lessThan(tester.getTopLeft(find.text('笔记合集')).dy),
-      );
-      final save = provider.setLooseNotesFirst(false);
-      await tester.pumpAndSettle();
-      await save;
-      expect(
-        tester.getTopLeft(find.text('笔记合集')).dy,
-        lessThan(tester.getTopLeft(find.text('零散笔记')).dy),
-      );
       await tester.enterText(
         find.byKey(const ValueKey('record-search')),
         '无结果',

@@ -27,11 +27,33 @@ class DeadlineLabel extends StatelessWidget {
         ),
         children: [
           if (days != null)
-            TextSpan(
-              text: '（剩余 $days 天）',
-              style: const TextStyle(
-                color: Color(0xFF8D9198),
-                fontWeight: FontWeight.w300,
+            WidgetSpan(
+              alignment: PlaceholderAlignment.middle,
+              child: Padding(
+                padding: const EdgeInsets.only(left: 6),
+                child: Semantics(
+                  label: '剩余 $days 天',
+                  excludeSemantics: true,
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      const Icon(
+                        Icons.hourglass_empty,
+                        size: 13,
+                        color: Color(0xFF8D9198),
+                      ),
+                      const SizedBox(width: 3),
+                      Text(
+                        '$days',
+                        style: const TextStyle(
+                          fontSize: 12,
+                          color: Color(0xFF8D9198),
+                          fontWeight: FontWeight.w300,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
               ),
             ),
         ],

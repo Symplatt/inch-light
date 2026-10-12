@@ -80,37 +80,36 @@ void main() {
     expect(greenDeadlineDays(now.add(const Duration(hours: 48)), now: now), 2);
   });
 
-  testWidgets('Deadline suffix stays gray and wraps on narrow screens', (
-    tester,
-  ) async {
-    final now = DateTime(2026, 10, 11, 12);
-    await tester.pumpWidget(
-      MaterialApp(
-        home: Scaffold(
-          body: SizedBox(
-            width: 130,
-            child: DeadlineLabel(
-              deadline: now.add(const Duration(hours: 47)),
-              now: now,
+  testWidgets(
+    'Deadline shows a gray hourglass and whole days on narrow screens',
+    (tester) async {
+      final now = DateTime(2026, 10, 11, 12);
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: SizedBox(
+              width: 130,
+              child: DeadlineLabel(
+                deadline: now.add(const Duration(hours: 47)),
+                now: now,
+              ),
             ),
           ),
         ),
-      ),
-    );
-    final text = tester.widget<Text>(find.byType(Text));
-    final span = text.textSpan! as TextSpan;
-    expect(span.style!.color, AppColors.success);
-    expect((span.children!.single as TextSpan).text, '（剩余 1 天）');
-    expect(
-      (span.children!.single as TextSpan).style!.color,
-      const Color(0xFF8D9198),
-    );
-    expect(
-      (span.children!.single as TextSpan).style!.fontWeight,
-      FontWeight.w300,
-    );
-    expect(span.style!.fontSize, 12);
-    expect((span.children!.single as TextSpan).style!.fontSize, isNull);
-    expect(tester.takeException(), isNull);
-  });
+      );
+      final text = tester.widget<Text>(
+        find.byWidgetPredicate((w) => w is Text && w.textSpan != null),
+      );
+      final span = text.textSpan! as TextSpan;
+      expect(span.style!.color, AppColors.success);
+      expect(find.text('（剩余 1 天）'), findsNothing);
+      expect(find.byIcon(Icons.hourglass_empty), findsOneWidget);
+      final number = tester.widget<Text>(find.text('1'));
+      expect(number.style!.color, const Color(0xFF8D9198));
+      expect(number.style!.fontWeight, FontWeight.w300);
+      expect(number.style!.fontSize, 12);
+      expect(span.style!.fontSize, 12);
+      expect(tester.takeException(), isNull);
+    },
+  );
 }

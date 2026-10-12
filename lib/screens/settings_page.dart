@@ -87,14 +87,14 @@ class SettingsPage extends StatelessWidget {
                   },
                   child: const Column(
                     children: [
-                      RadioListTile<bool>(value: true, title: Text('零散事项在上')),
                       RadioListTile<bool>(value: false, title: Text('事项合集在上')),
+                      RadioListTile<bool>(value: true, title: Text('零散事项在上')),
                     ],
                   ),
                 ),
               ),
               const SizedBox(height: 24),
-              const SectionHeading(title: '笔记顺序'),
+              const SectionHeading(title: '时历顺序'),
               Card(
                 margin: EdgeInsets.zero,
                 elevation: 0,
@@ -103,14 +103,14 @@ class SettingsPage extends StatelessWidget {
                   borderRadius: BorderRadius.circular(16),
                 ),
                 child: RadioGroup<bool>(
-                  groupValue: provider.looseNotesFirst,
+                  groupValue: provider.countdownsFirst,
                   onChanged: (value) {
-                    if (value != null) provider.setLooseNotesFirst(value);
+                    if (value != null) provider.setCountdownsFirst(value);
                   },
                   child: const Column(
                     children: [
-                      RadioListTile<bool>(value: true, title: Text('零散笔记在上')),
-                      RadioListTile<bool>(value: false, title: Text('笔记合集在上')),
+                      RadioListTile<bool>(value: true, title: Text('倒计时在上')),
+                      RadioListTile<bool>(value: false, title: Text('周期在上')),
                     ],
                   ),
                 ),
@@ -139,6 +139,12 @@ class SettingsPage extends StatelessWidget {
                     ),
                   ],
                 ),
+              ),
+              const SizedBox(height: 32),
+              Text(
+                '© ${DateTime.now().year} Symplatt · 版权所有',
+                textAlign: TextAlign.center,
+                style: const TextStyle(fontSize: 12, color: AppColors.textGrey),
               ),
             ],
           ),

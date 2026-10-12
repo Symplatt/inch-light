@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 
-enum JournalFormatSymbol { strike, divider }
+enum JournalFormatSymbol { h1, h2, h3, bold, italic, strike, divider }
 
 class JournalFormatIcon extends StatelessWidget {
   const JournalFormatIcon(this.symbol, {super.key});
@@ -27,19 +27,77 @@ class _FormatPainter extends CustomPainter {
       ..color = color
       ..strokeWidth = 1.8
       ..strokeCap = StrokeCap.round;
-    if (symbol == JournalFormatSymbol.strike) {
-      final text = TextPainter(
-        text: TextSpan(
-          text: 'ab',
-          style: TextStyle(color: color, fontSize: 21, height: 1),
-        ),
-        textDirection: TextDirection.ltr,
-      )..layout();
-      text.paint(
-        canvas,
-        Offset((size.width - text.width) / 2, (size.height - text.height) / 2),
+    // Draw letter icons on the same 24-pixel grid as Material icons. Using
+    // Text widgets here makes their visible baseline depend on the phone font.
+    canvas.scale(size.width / 24, size.height / 24);
+    void line(double x1, double y1, double x2, double y2) =>
+        canvas.drawLine(Offset(x1, y1), Offset(x2, y2), paint);
+    void path(Path value) =>
+        canvas.drawPath(value, paint..style = PaintingStyle.stroke);
+    if ([
+      JournalFormatSymbol.h1,
+      JournalFormatSymbol.h2,
+      JournalFormatSymbol.h3,
+    ].contains(symbol)) {
+      line(2, 4, 2, 20);
+      line(12, 4, 12, 20);
+      line(2, 12, 12, 12);
+      paint.strokeWidth = 1.5;
+      switch (symbol) {
+        case JournalFormatSymbol.h1:
+          line(17, 15, 19, 13);
+          line(19, 13, 19, 20);
+          line(17, 20, 21, 20);
+        case JournalFormatSymbol.h2:
+          path(
+            Path()
+              ..moveTo(16, 14.5)
+              ..cubicTo(16.5, 11.5, 23, 12, 21, 15.5)
+              ..lineTo(16, 20)
+              ..lineTo(22, 20),
+          );
+        case JournalFormatSymbol.h3:
+          path(
+            Path()
+              ..moveTo(16, 13.5)
+              ..cubicTo(23, 10.5, 23, 17, 18, 16.5)
+              ..cubicTo(23, 16, 23, 22, 16, 19.5),
+          );
+        default:
+          break;
+      }
+    } else if (symbol == JournalFormatSymbol.bold) {
+      paint.strokeWidth = 2.7;
+      path(
+        Path()
+          ..moveTo(7, 4)
+          ..lineTo(12, 4)
+          ..cubicTo(19, 4, 19, 12, 12, 12)
+          ..lineTo(7, 12)
+          ..moveTo(12, 12)
+          ..cubicTo(20, 12, 20, 20, 12, 20)
+          ..lineTo(7, 20)
+          ..moveTo(7, 4)
+          ..lineTo(7, 20),
       );
-      canvas.drawLine(const Offset(1, 13), const Offset(23, 13), paint);
+    } else if (symbol == JournalFormatSymbol.italic) {
+      line(10, 4, 19, 4);
+      line(5, 20, 14, 20);
+      line(15, 4, 9, 20);
+    } else if (symbol == JournalFormatSymbol.strike) {
+      path(
+        Path()
+          ..moveTo(9, 10)
+          ..cubicTo(2, 6, 1, 20, 8, 18)
+          ..lineTo(9, 17)
+          ..moveTo(9, 9)
+          ..lineTo(9, 19)
+          ..moveTo(14, 5)
+          ..lineTo(14, 19)
+          ..moveTo(14, 11)
+          ..cubicTo(24, 4, 24, 25, 14, 17),
+      );
+      line(1, 12, 23, 12);
     } else {
       canvas.drawLine(
         const Offset(4, 5),

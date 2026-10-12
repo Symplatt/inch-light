@@ -28,6 +28,59 @@ class _CyclePageState extends State<CyclePage> {
     final cycles = provider.cycleTasks.toList()
       ..sort((a, b) => a.nextRunTime.compareTo(b.nextRunTime));
     final now = DateTime.now();
+    final countdownWidgets = <Widget>[
+      _header(
+        '倒计时',
+        countdowns.length,
+        _countdownsExpanded,
+        () => setState(() => _countdownsExpanded = !_countdownsExpanded),
+      ),
+      if (_countdownsExpanded) ...[
+        if (countdowns.isEmpty) _empty(Icons.hourglass_empty_rounded),
+        for (final task in countdowns)
+          _card(
+            title: task.title,
+            subtitle: task.allDay
+                ? '${DateFormat('yyyy.MM.dd').format(task.deadline)} · 全天'
+                : DateFormat('yyyy.MM.dd  HH:mm').format(task.deadline),
+            deadline: task.deadline,
+            now: now,
+            id: task.id,
+            onDelete: () => provider.removeCountdown(task),
+            onEdit: () => showDialog(
+              context: context,
+              builder: (_) =>
+                  _CalendarEditor(provider: provider, countdown: task),
+            ),
+          ),
+      ],
+    ];
+    final cycleWidgets = <Widget>[
+      _header(
+        '周期',
+        cycles.length,
+        _cyclesExpanded,
+        () => setState(() => _cyclesExpanded = !_cyclesExpanded),
+      ),
+      if (_cyclesExpanded) ...[
+        if (cycles.isEmpty) _empty(Icons.event_repeat_outlined),
+        for (final task in cycles)
+          _card(
+            title: task.title,
+            subtitle:
+                '${_frequencyLabels[task.frequency.index]} ${task.allDay ? '全天' : DateFormat('HH:mm').format(task.time)}',
+            nextRun: '下次 ${DateFormat('yyyy.MM.dd').format(task.nextRunTime)}',
+            deadline: task.nextRunTime,
+            now: now,
+            id: task.id,
+            onDelete: () => provider.removeCycleTask(task),
+            onEdit: () => showDialog(
+              context: context,
+              builder: (_) => _CalendarEditor(provider: provider, cycle: task),
+            ),
+          ),
+      ],
+    ];
     return Scaffold(
       backgroundColor: AppColors.bg,
       appBar: AppBar(title: const Text('时历')),
@@ -36,61 +89,17 @@ class _CyclePageState extends State<CyclePage> {
           constraints: const BoxConstraints(maxWidth: 720),
           child: ListView(
             padding: const EdgeInsets.fromLTRB(16, 4, 16, 96),
-            children: [
-              _header(
-                '倒计时',
-                countdowns.length,
-                _countdownsExpanded,
-                () =>
-                    setState(() => _countdownsExpanded = !_countdownsExpanded),
-              ),
-              if (_countdownsExpanded) ...[
-                if (countdowns.isEmpty) _empty(Icons.hourglass_empty_rounded),
-                for (final task in countdowns)
-                  _card(
-                    title: task.title,
-                    subtitle: task.allDay
-                        ? '${DateFormat('yyyy.MM.dd').format(task.deadline)} · 全天'
-                        : DateFormat('yyyy.MM.dd  HH:mm').format(task.deadline),
-                    deadline: task.deadline,
-                    now: now,
-                    id: task.id,
-                    onDelete: () => provider.removeCountdown(task),
-                    onEdit: () => showDialog(
-                      context: context,
-                      builder: (_) =>
-                          _CalendarEditor(provider: provider, countdown: task),
-                    ),
-                  ),
-              ],
-              const SizedBox(height: 24),
-              _header(
-                '周期',
-                cycles.length,
-                _cyclesExpanded,
-                () => setState(() => _cyclesExpanded = !_cyclesExpanded),
-              ),
-              if (_cyclesExpanded) ...[
-                if (cycles.isEmpty) _empty(Icons.event_repeat_outlined),
-                for (final task in cycles)
-                  _card(
-                    title: task.title,
-                    subtitle:
-                        '${_frequencyLabels[task.frequency.index]} ${task.allDay ? '全天' : DateFormat('HH:mm').format(task.time)}',
-                    nextRun:
-                        '下次 ${DateFormat('yyyy.MM.dd').format(task.nextRunTime)}',
-                    deadline: task.nextRunTime,
-                    now: now,
-                    id: task.id,
-                    onDelete: () => provider.removeCycleTask(task),
-                    onEdit: () => showDialog(
-                      context: context,
-                      builder: (_) =>
-                          _CalendarEditor(provider: provider, cycle: task),
-                    ),
-                  ),
-              ],
-            ],
+            children: provider.countdownsFirst
+                ? [
+                    ...countdownWidgets,
+                    const SizedBox(height: 24),
+                    ...cycleWidgets,
+                  ]
+                : [
+                    ...cycleWidgets,
+                    const SizedBox(height: 24),
+                    ...countdownWidgets,
+                  ],
           ),
         ),
       ),

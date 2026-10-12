@@ -16,27 +16,56 @@ class AppProvider with ChangeNotifier, WidgetsBindingObserver {
   List<TaskCollection> _collections = [];
   final List<JournalEntry> _journalEntries = [];
   final List<JournalCollection> _journalCollections = [];
-  List<JournalCollection> get journalCollections =>
-      List.unmodifiable(_journalCollections);
+  List<JournalCollection> get journalCollections => List.unmodifiable(
+    List<JournalCollection>.from(_journalCollections)..sort((a, b) {
+      if (a.isPinned != b.isPinned) return a.isPinned ? -1 : 1;
+      DateTime edited(JournalCollection c) => _journalEntries
+          .where((e) => e.collectionId == c.id)
+          .fold(
+            c.updatedAt ?? DateTime.fromMillisecondsSinceEpoch(0),
+            (latest, e) => e.updatedAt.isAfter(latest) ? e.updatedAt : latest,
+          );
+      final result = edited(b).compareTo(edited(a));
+      return result != 0
+          ? result
+          : _journalCollections
+                .indexOf(a)
+                .compareTo(_journalCollections.indexOf(b));
+    }),
+  );
 
   Future<void> addJournalCollection(String title) async {
     await ready;
     if (title.trim().isEmpty) return;
     final next = [
       ..._journalCollections,
-      JournalCollection(id: const Uuid().v4(), title: title.trim()),
+      JournalCollection(
+        id: const Uuid().v4(),
+        title: title.trim(),
+        updatedAt: DateTime.now(),
+      ),
     ];
     await _persistJournalCollections(next);
   }
 
-  Future<void> renameJournalCollection(String id, String title) async {
+  Future<void> renameJournalCollection(
+    String id,
+    String title, {
+    bool? isPinned,
+  }) async {
     await ready;
     if (title.trim().isEmpty) return;
     await _persistJournalCollections(
       _journalCollections
           .map(
-            (c) =>
-                c.id == id ? JournalCollection(id: id, title: title.trim()) : c,
+            (c) => c.id == id
+                ? JournalCollection(
+                    id: id,
+                    title: title.trim(),
+                    isPinned: isPinned ?? c.isPinned,
+                    updatedAt: DateTime.now(),
+                  )
+                : c,
           )
           .toList(),
     );
@@ -60,8 +89,11 @@ class AppProvider with ChangeNotifier, WidgetsBindingObserver {
 
   Future<void> _journalWrite = Future.value();
   List<JournalEntry> get journalEntries => List.unmodifiable(
-    List<JournalEntry>.from(_journalEntries)
-      ..sort((a, b) => b.updatedAt.compareTo(a.updatedAt)),
+    List<JournalEntry>.from(_journalEntries)..sort(
+      (a, b) => a.isPinned != b.isPinned
+          ? (a.isPinned ? -1 : 1)
+          : b.updatedAt.compareTo(a.updatedAt),
+    ),
   );
 
   Future<void> saveJournalEntry(JournalEntry entry) async {
@@ -103,18 +135,18 @@ class AppProvider with ChangeNotifier, WidgetsBindingObserver {
   Timer? _maintenanceTimer;
   bool _disposed = false;
   bool _looseTasksFirst = true;
-  bool _looseNotesFirst = true;
+  bool _countdownsFirst = true;
   String _lastModule = 'todo';
-  bool get looseNotesFirst => _looseNotesFirst;
+  bool get countdownsFirst => _countdownsFirst;
   String get lastModule => _lastModule;
 
-  Future<void> setLooseNotesFirst(bool value) async {
+  Future<void> setCountdownsFirst(bool value) async {
     await ready;
-    if (_disposed || _looseNotesFirst == value) return;
-    _looseNotesFirst = value;
+    if (_disposed || _countdownsFirst == value) return;
+    _countdownsFirst = value;
     notifyListeners();
     final prefs = await SharedPreferences.getInstance();
-    await prefs.setBool('loose_notes_first', value);
+    await prefs.setBool('countdowns_first', value);
   }
 
   Future<void> setLastModule(String value) async {
@@ -243,7 +275,7 @@ class AppProvider with ChangeNotifier, WidgetsBindingObserver {
   Future<void> _loadData() async {
     final prefs = await SharedPreferences.getInstance();
     _looseTasksFirst = prefs.getBool('loose_tasks_first') ?? true;
-    _looseNotesFirst = prefs.getBool('loose_notes_first') ?? true;
+    _countdownsFirst = prefs.getBool('countdowns_first') ?? true;
     final module = prefs.getString('last_module');
     _lastModule = ['todo', 'journal', 'calendar', 'settings'].contains(module)
         ? module!

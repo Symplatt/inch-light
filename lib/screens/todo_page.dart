@@ -408,23 +408,6 @@ class _TodoPageState extends State<TodoPage> {
                 : Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      if (task.deadline != null)
-                        Padding(
-                          padding: const EdgeInsets.only(top: 4),
-                          child: Row(
-                            children: [
-                              Icon(
-                                Icons.access_time,
-                                size: 12,
-                                color: dateColor,
-                              ),
-                              const SizedBox(width: 4),
-                              Flexible(
-                                child: DeadlineLabel(deadline: task.deadline!),
-                              ),
-                            ],
-                          ),
-                        ),
                       if (task.tags.isNotEmpty)
                         Padding(
                           padding: const EdgeInsets.only(top: 6),
@@ -453,10 +436,31 @@ class _TodoPageState extends State<TodoPage> {
                                 .toList(),
                           ),
                         ),
+                      if (task.deadline != null)
+                        Padding(
+                          padding: const EdgeInsets.only(top: 4),
+                          child: Row(
+                            children: [
+                              Icon(
+                                Icons.access_time,
+                                size: 12,
+                                color: dateColor,
+                              ),
+                              const SizedBox(width: 4),
+                              Flexible(
+                                child: DeadlineLabel(deadline: task.deadline!),
+                              ),
+                            ],
+                          ),
+                        ),
                     ],
                   ),
             trailing: task.isPinned
-                ? const Icon(Icons.push_pin, size: 16, color: AppColors.primary)
+                ? const Icon(
+                    Icons.vertical_align_top,
+                    size: 16,
+                    color: AppColors.primary,
+                  )
                 : task.isBottom
                 ? const Icon(
                     Icons.vertical_align_bottom,

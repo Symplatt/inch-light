@@ -11,6 +11,8 @@ class JournalEntry {
     required this.updatedAt,
     this.tags = const [],
     this.collectionId,
+    this.isPinned = false,
+    this.titleBold = false,
   });
 
   final String id;
@@ -20,6 +22,24 @@ class JournalEntry {
   final DateTime updatedAt;
   final List<String> tags;
   final String? collectionId;
+  final bool isPinned;
+  final bool titleBold;
+
+  JournalEntry copyWith({
+    bool? isPinned,
+    String? collectionId,
+    bool move = false,
+  }) => JournalEntry(
+    id: id,
+    title: title,
+    document: document,
+    createdAt: createdAt,
+    updatedAt: updatedAt,
+    tags: tags,
+    collectionId: move ? collectionId : this.collectionId,
+    isPinned: isPinned ?? this.isPinned,
+    titleBold: titleBold,
+  );
 
   static List<String> parseTags(String input) => input
       .split(RegExp(r'\s+'))
@@ -52,6 +72,8 @@ class JournalEntry {
     'updatedAt': updatedAt.toIso8601String(),
     'tags': tags,
     'collectionId': collectionId,
+    'isPinned': isPinned,
+    'titleBold': titleBold,
   };
 
   factory JournalEntry.fromJson(Map<String, dynamic> json) {
@@ -86,6 +108,8 @@ class JournalEntry {
           : DateTime.parse(json['updatedAt'] as String),
       tags: parseTags(((json['tags'] as List?) ?? []).cast<String>().join(' ')),
       collectionId: json['collectionId'] as String?,
+      isPinned: json['isPinned'] as bool? ?? false,
+      titleBold: json['titleBold'] as bool? ?? false,
     );
   }
   static bool _validInsert(dynamic insert) {
@@ -101,15 +125,31 @@ class JournalEntry {
 }
 
 class JournalCollection {
-  const JournalCollection({required this.id, required this.title});
+  const JournalCollection({
+    required this.id,
+    required this.title,
+    this.isPinned = false,
+    this.updatedAt,
+  });
   final String id;
   final String title;
+  final bool isPinned;
+  final DateTime? updatedAt;
 
-  Map<String, dynamic> toJson() => {'id': id, 'title': title};
+  Map<String, dynamic> toJson() => {
+    'id': id,
+    'title': title,
+    'isPinned': isPinned,
+    'updatedAt': updatedAt?.toIso8601String(),
+  };
 
   factory JournalCollection.fromJson(Map<String, dynamic> json) =>
       JournalCollection(
         id: json['id'] as String,
         title: json['title'] as String,
+        isPinned: json['isPinned'] as bool? ?? false,
+        updatedAt: json['updatedAt'] == null
+            ? null
+            : DateTime.parse(json['updatedAt'] as String),
       );
 }

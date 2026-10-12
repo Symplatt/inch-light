@@ -450,6 +450,11 @@ void main() {
       expect(first.left, 0);
       expect(seventh.right, closeTo(390, .01));
       expect(first.width, closeTo(390 / 7, .01));
+      tester
+          .widget<quill.QuillEditor>(find.byType(quill.QuillEditor))
+          .focusNode
+          .requestFocus();
+      await tester.pump();
       await tester.tap(find.byKey(const ValueKey('format-加粗')));
       await tester.pump();
       expect(editor.getSelectionStyle().attributes['bold']?.value, true);

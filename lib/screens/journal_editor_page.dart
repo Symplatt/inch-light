@@ -13,6 +13,7 @@ import '../models/journal_entry.dart';
 import '../widgets/journal_tags.dart';
 import '../providers/app_provider.dart';
 import '../utils/journal_markdown.dart';
+import '../utils/journal_shortcuts.dart';
 import '../models/journal_table.dart';
 import '../widgets/journal_table.dart';
 import '../widgets/journal_format_icon.dart';
@@ -34,6 +35,8 @@ class _JournalEditorPageState extends State<JournalEditorPage>
   final _titleFocus = FocusNode();
   final _bodyFocus = FocusNode();
   final _bodyScroll = ScrollController();
+  final _pageScroll = ScrollController();
+  bool _titleBold = false;
   late final String _id;
   late final DateTime _createdAt;
   late DateTime _updatedAt;
@@ -44,6 +47,7 @@ class _JournalEditorPageState extends State<JournalEditorPage>
   String? _saved;
   Timer? _saveTimer;
   bool _restoring = false;
+  bool _shortcutPending = false;
   bool _leaving = false;
   String? _newTableId;
 
@@ -56,6 +60,7 @@ class _JournalEditorPageState extends State<JournalEditorPage>
     _createdAt = widget.entry?.createdAt ?? DateTime.now();
     _updatedAt = widget.entry?.updatedAt ?? _createdAt;
     _tags = List.from(widget.entry?.tags ?? []);
+    _titleBold = widget.entry?.titleBold ?? false;
     _title = TextEditingController(text: widget.entry?.title ?? '');
     _editor = quill.QuillController(
       config: const quill.QuillControllerConfig(
@@ -76,12 +81,33 @@ class _JournalEditorPageState extends State<JournalEditorPage>
     _saved = _current;
     _title.addListener(_changed);
     _editor.addListener(_changed);
+    _titleFocus.addListener(_refreshFocus);
+    _bodyFocus.addListener(_refreshFocus);
+  }
+
+  void _refreshFocus() {
+    if (mounted) setState(() {});
+  }
+
+  bool get _onEmbed {
+    var offset = 0;
+    for (final op in _editor.document.toDelta().toJson()) {
+      final insert = op['insert'];
+      if (insert is Map &&
+          _editor.selection.isCollapsed &&
+          _editor.selection.baseOffset == offset) {
+        return true;
+      }
+      offset += insert is String ? insert.length : 1;
+    }
+    return false;
   }
 
   String _snapshot() => jsonEncode({
     'title': _title.text,
     'document': _editor.document.toDelta().toJson(),
     'tags': _tags,
+    'titleBold': _titleBold,
   });
 
   JournalEntry _entry() => JournalEntry(
@@ -92,6 +118,8 @@ class _JournalEditorPageState extends State<JournalEditorPage>
     updatedAt: _updatedAt,
     tags: List.from(_tags),
     collectionId: widget.entry?.collectionId ?? widget.collectionId,
+    isPinned: widget.entry?.isPinned ?? false,
+    titleBold: _titleBold,
   );
 
   void _changed() {
@@ -104,6 +132,17 @@ class _JournalEditorPageState extends State<JournalEditorPage>
       _current = next;
       _updatedAt = DateTime.now();
       _scheduleSave();
+      if (_bodyFocus.hasFocus && !_shortcutPending) {
+        _shortcutPending = true;
+        scheduleMicrotask(() {
+          _shortcutPending = false;
+          if (!mounted || !_bodyFocus.hasFocus || _restoring) return;
+          _restoring = true;
+          final changed = applyJournalShortcut(_editor);
+          _restoring = false;
+          if (changed) _changed();
+        });
+      }
     }
     // Cursor movements also refresh the active format indicators.
     if (mounted) setState(() {});
@@ -176,6 +215,7 @@ class _JournalEditorPageState extends State<JournalEditorPage>
     );
     oldDocument.close();
     _tags = (data['tags'] as List).cast<String>();
+    _titleBold = data['titleBold'] as bool? ?? false;
     _restoring = false;
     _updatedAt = DateTime.now();
     _scheduleSave();
@@ -314,6 +354,7 @@ class _JournalEditorPageState extends State<JournalEditorPage>
     _titleFocus.dispose();
     _bodyFocus.dispose();
     _bodyScroll.dispose();
+    _pageScroll.dispose();
     super.dispose();
   }
 
@@ -376,78 +417,185 @@ class _JournalEditorPageState extends State<JournalEditorPage>
             child: Column(
               children: [
                 Expanded(
-                  child: LayoutBuilder(
-                    builder: (context, constraints) => Column(
+                  child: SingleChildScrollView(
+                    key: const ValueKey('record-page-scroll'),
+                    controller: _pageScroll,
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
                       children: [
-                        ConstrainedBox(
-                          constraints: BoxConstraints(
-                            maxHeight: constraints.maxHeight * 0.48,
-                          ),
-                          child: SingleChildScrollView(
-                            padding: const EdgeInsets.fromLTRB(24, 16, 24, 20),
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                TextField(
-                                  key: const ValueKey('record-title'),
-                                  controller: _title,
-                                  focusNode: _titleFocus,
-                                  style: const TextStyle(
-                                    fontSize: 28,
-                                    fontWeight: FontWeight.w400,
-                                  ),
-                                  maxLines: null,
-                                  textInputAction: TextInputAction.next,
-                                  onSubmitted: (_) => _bodyFocus.requestFocus(),
-                                  decoration: const InputDecoration(
-                                    hintText: '标题',
-                                    hintStyle: TextStyle(
-                                      color: Color(0xFFCCCCCC),
-                                    ),
-                                    border: InputBorder.none,
-                                    isDense: true,
-                                    contentPadding: EdgeInsets.zero,
-                                  ),
+                        Padding(
+                          padding: const EdgeInsets.fromLTRB(24, 16, 24, 20),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              TextField(
+                                key: const ValueKey('record-title'),
+                                controller: _title,
+                                focusNode: _titleFocus,
+                                style: TextStyle(
+                                  fontSize: 30,
+                                  fontWeight: _titleBold
+                                      ? FontWeight.w600
+                                      : FontWeight.w400,
                                 ),
-                                const SizedBox(height: 22),
-                                Text(
-                                  '${DateFormat('M月d日 HH:mm').format(_updatedAt)}  |  ${_entry().wordCount}字',
-                                  key: const ValueKey('record-metadata'),
-                                  style: const TextStyle(
-                                    fontSize: 14,
-                                    color: Color(0xFF999999),
+                                maxLines: null,
+                                textInputAction: TextInputAction.next,
+                                onSubmitted: (_) => _bodyFocus.requestFocus(),
+                                decoration: const InputDecoration(
+                                  hintText: '标题',
+                                  hintStyle: TextStyle(
+                                    color: Color(0xFFCCCCCC),
                                   ),
+                                  border: InputBorder.none,
+                                  isDense: true,
+                                  contentPadding: EdgeInsets.zero,
                                 ),
-                                if (_tags.isNotEmpty) ...[
-                                  const SizedBox(height: 16),
-                                  JournalTags(tags: _tags),
-                                ],
+                              ),
+                              const SizedBox(height: 22),
+                              Text(
+                                '${DateFormat('M月d日 HH:mm').format(_updatedAt)}  |  ${_entry().wordCount}字',
+                                key: const ValueKey('record-metadata'),
+                                style: const TextStyle(
+                                  fontSize: 14,
+                                  color: Color(0xFF999999),
+                                ),
+                              ),
+                              if (_tags.isNotEmpty) ...[
+                                const SizedBox(height: 16),
+                                JournalTags(tags: _tags),
                               ],
-                            ),
+                            ],
                           ),
                         ),
-                        Expanded(
-                          child: quill.QuillEditor(
-                            controller: _editor,
-                            focusNode: _bodyFocus,
-                            scrollController: _bodyScroll,
-                            config: quill.QuillEditorConfig(
-                              placeholder: '开始书写',
-                              padding: const EdgeInsets.fromLTRB(24, 8, 24, 32),
-                              expands: true,
-                              onTapOutsideEnabled: false,
-                              embedBuilders: [
-                                const _DividerBuilder(),
-                                _TableBuilder(
-                                  onChanged: _updateTable,
-                                  autofocusId: _newTableId,
+                        quill.QuillEditor(
+                          controller: _editor,
+                          focusNode: _bodyFocus,
+                          scrollController: _bodyScroll,
+                          config: quill.QuillEditorConfig(
+                            placeholder: '开始书写',
+                            padding: const EdgeInsets.fromLTRB(24, 8, 24, 32),
+                            scrollable: false,
+                            minHeight: 180,
+                            showCursor: _bodyFocus.hasFocus && !_onEmbed,
+                            // Pinned Quill APIs; shortcut handlers also process software-keyboard spaces.
+                            // ignore: experimental_member_use
+                            characterShortcutEvents:
+                                quill.standardCharactersShortcutEvents,
+                            // ignore: experimental_member_use
+                            spaceShortcutEvents:
+                                quill.standardSpaceShorcutEvents,
+                            textSpanBuilder:
+                                (
+                                  context,
+                                  node,
+                                  offset,
+                                  text,
+                                  style,
+                                  recognizer,
+                                ) {
+                                  final line = node is quill.Line
+                                      ? node
+                                      : node.parent;
+                                  final heading =
+                                      line?.style.attributes['header']?.value;
+                                  return TextSpan(
+                                    text: text,
+                                    recognizer: recognizer,
+                                    style: heading != null
+                                        ? style?.copyWith(
+                                            fontWeight: FontWeight.w600,
+                                          )
+                                        : style,
+                                  );
+                                },
+                            // ignore: experimental_member_use
+                            customLeadingBlockBuilder: (node, config) {
+                              final type = config.attribute.value;
+                              if (![
+                                'ordered',
+                                'bullet',
+                                'checked',
+                                'unchecked',
+                              ].contains(type)) {
+                                return null;
+                              }
+                              return SizedBox(
+                                width: 28,
+                                child: Align(
+                                  alignment: Alignment.centerLeft,
+                                  child: type == 'ordered'
+                                      ? Text(
+                                          '${config.getIndexNumberByIndent}.',
+                                          style: _blockStyle(18).style,
+                                        )
+                                      : type == 'bullet'
+                                      ? const Text(
+                                          '•',
+                                          style: TextStyle(
+                                            fontSize: 18,
+                                            height: 1.6,
+                                          ),
+                                        )
+                                      : GestureDetector(
+                                          onTap: () => config.onCheckboxTap(
+                                            !config.value,
+                                          ),
+                                          child: Icon(
+                                            config.value
+                                                ? Icons.check_box_outlined
+                                                : Icons.check_box_outline_blank,
+                                            size: 18,
+                                            color: const Color(0xFF3D3D3D),
+                                          ),
+                                        ),
                                 ),
-                              ],
-                              customStyles: quill.DefaultStyles(
-                                paragraph: _blockStyle(17),
-                                h1: _blockStyle(26),
-                                h2: _blockStyle(23),
-                                h3: _blockStyle(20),
+                              );
+                            },
+                            onTapOutsideEnabled: false,
+                            embedBuilders: [
+                              const _DividerBuilder(),
+                              _TableBuilder(
+                                onChanged: _updateTable,
+                                autofocusId: _newTableId,
+                              ),
+                            ],
+                            customStyles: quill.DefaultStyles(
+                              paragraph: _blockStyle(18),
+                              quote: _blockStyle(18).copyWith(
+                                decoration: const BoxDecoration(
+                                  border: Border(
+                                    left: BorderSide(
+                                      color: Color(0xFFCCCCCC),
+                                      width: 2,
+                                    ),
+                                  ),
+                                ),
+                              ),
+                              lists: quill.DefaultListBlockStyle(
+                                _blockStyle(18).style,
+                                const quill.HorizontalSpacing(0, 0),
+                                const quill.VerticalSpacing(0, 8),
+                                const quill.VerticalSpacing(0, 0),
+                                null,
+                                null,
+                                indentWidthBuilder: (_, _, _, _) =>
+                                    const quill.HorizontalSpacing(28, 0),
+                                numberPointWidthBuilder: (_, _) => 28,
+                              ),
+                              h1: _blockStyle(26).copyWith(
+                                style: _blockStyle(
+                                  26,
+                                ).style.copyWith(fontWeight: FontWeight.w600),
+                              ),
+                              h2: _blockStyle(23).copyWith(
+                                style: _blockStyle(
+                                  23,
+                                ).style.copyWith(fontWeight: FontWeight.w600),
+                              ),
+                              h3: _blockStyle(20).copyWith(
+                                style: _blockStyle(
+                                  20,
+                                ).style.copyWith(fontWeight: FontWeight.w600),
                               ),
                             ),
                           ),
@@ -461,6 +609,11 @@ class _JournalEditorPageState extends State<JournalEditorPage>
                     controller: _editor,
                     onFormat: () => _bodyFocus.requestFocus(),
                     onTable: _insertTable,
+                    titleBold: _titleFocus.hasFocus ? _titleBold : null,
+                    onTitleBold: () {
+                      _titleBold = !_titleBold;
+                      _changed();
+                    },
                   ),
               ],
             ),
@@ -528,12 +681,19 @@ class JournalFormatBar extends StatelessWidget {
     required this.controller,
     required this.onFormat,
     required this.onTable,
+    this.titleBold,
+    this.onTitleBold,
   });
   final quill.QuillController controller;
   final VoidCallback onFormat;
   final VoidCallback onTable;
+  final bool? titleBold;
+  final VoidCallback? onTitleBold;
 
   bool _active(quill.Attribute attribute) {
+    if (attribute == quill.Attribute.bold && titleBold != null) {
+      return titleBold!;
+    }
     final value = controller
         .getSelectionStyle()
         .attributes[attribute.key]
@@ -611,6 +771,7 @@ class JournalFormatBar extends StatelessWidget {
               tooltip: label,
               onPressed: action ?? () => _format(attribute!),
               style: IconButton.styleFrom(
+                iconSize: 24,
                 backgroundColor: selected
                     ? const Color(0xFFEDEDED)
                     : Colors.transparent,
@@ -639,23 +800,24 @@ class JournalFormatBar extends StatelessWidget {
               children: [
                 button(
                   '一级标题',
-                  const Text('H₁', style: TextStyle(fontSize: 21)),
+                  const JournalFormatIcon(JournalFormatSymbol.h1),
                   attribute: quill.Attribute.h1,
                 ),
                 button(
                   '二级标题',
-                  const Text('H₂', style: TextStyle(fontSize: 21)),
+                  const JournalFormatIcon(JournalFormatSymbol.h2),
                   attribute: quill.Attribute.h2,
                 ),
                 button(
                   '三级标题',
-                  const Text('H₃', style: TextStyle(fontSize: 21)),
+                  const JournalFormatIcon(JournalFormatSymbol.h3),
                   attribute: quill.Attribute.h3,
                 ),
                 button(
                   '加粗',
-                  const Icon(Icons.format_bold),
+                  const JournalFormatIcon(JournalFormatSymbol.bold),
                   attribute: quill.Attribute.bold,
+                  action: titleBold == null ? null : onTitleBold,
                 ),
                 button(
                   '引用',
@@ -679,7 +841,7 @@ class JournalFormatBar extends StatelessWidget {
                 ),
                 button(
                   '倾斜',
-                  const Icon(Icons.format_italic),
+                  const JournalFormatIcon(JournalFormatSymbol.italic),
                   attribute: quill.Attribute.italic,
                 ),
                 button(

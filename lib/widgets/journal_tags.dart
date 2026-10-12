@@ -4,6 +4,21 @@ class JournalTags extends StatelessWidget {
   const JournalTags({super.key, required this.tags, this.compact = false});
   final List<String> tags;
   final bool compact;
+  static double compactHeight(BuildContext context) {
+    final painter = TextPainter(
+      text: TextSpan(
+        text: '日期 00字',
+        style: DefaultTextStyle.of(
+          context,
+        ).style.merge(const TextStyle(fontSize: 12)),
+      ),
+      textDirection: TextDirection.ltr,
+      textScaler: MediaQuery.textScalerOf(context),
+    )..layout();
+    final height = painter.height;
+    painter.dispose();
+    return height;
+  }
 
   @override
   Widget build(BuildContext context) => Wrap(
@@ -12,9 +27,11 @@ class JournalTags extends StatelessWidget {
     children: tags
         .map(
           (tag) => Container(
+            height: compact ? compactHeight(context) : null,
+            alignment: compact ? Alignment.center : null,
             padding: EdgeInsets.symmetric(
               horizontal: compact ? 6 : 10,
-              vertical: compact ? 2 : 5,
+              vertical: compact ? 0 : 5,
             ),
             decoration: BoxDecoration(
               color: Color(compact ? 0xFFF5F5F5 : 0xFFF0F0F0),

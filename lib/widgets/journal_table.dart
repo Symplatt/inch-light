@@ -3,6 +3,60 @@ import 'package:flutter/services.dart';
 import '../constants/app_colors.dart';
 import '../models/journal_table.dart';
 
+List<double> journalTableWidths(
+  JournalTableData data,
+  double available,
+  TextScaler scaler,
+) {
+  final char = scaler.scale(18);
+  final initial = char * 5 + 16;
+  final maximum = char * 10 + 16;
+  final natural = List.generate(data.columns, (c) {
+    var width = char + 16;
+    for (var r = 0; r < data.rows.length; r++) {
+      final painter = TextPainter(
+        text: TextSpan(
+          text: data.rows[r].cells[c],
+          style: TextStyle(
+            fontSize: r == 0 ? 18 : 17,
+            fontWeight: r == 0 ? FontWeight.w600 : FontWeight.w400,
+          ),
+        ),
+        textDirection: TextDirection.ltr,
+        textScaler: scaler,
+      )..layout();
+      if (painter.width + 16 > width) width = painter.width + 16;
+      painter.dispose();
+    }
+    return width;
+  });
+  if (initial * data.columns > available) {
+    return natural.map((w) => w.clamp(initial, maximum)).toList();
+  }
+  final equal = available / data.columns;
+  if (natural.every((w) => w <= equal) || natural.every((w) => w >= equal)) {
+    return List.filled(data.columns, equal);
+  }
+  // Redistribute only the spare width in short columns; total table width stays
+  // fixed on screen. Once every column needs its share, use equal widths again.
+  final spare = natural.fold<double>(
+    0,
+    (sum, w) => sum + (w < equal ? equal - w : 0),
+  );
+  final demand = natural.fold<double>(
+    0,
+    (sum, w) => sum + (w > equal ? w - equal : 0),
+  );
+  final transfer = demand < spare ? demand : spare;
+  return natural
+      .map(
+        (w) => w > equal
+            ? equal + transfer * (w - equal) / demand
+            : equal - transfer * (equal - w) / spare,
+      )
+      .toList();
+}
+
 Future<JournalTableData?> showJournalTableDialog(BuildContext context) =>
     showDialog<JournalTableData>(
       context: context,
@@ -17,7 +71,7 @@ class _TableSizeDialog extends StatefulWidget {
 
 class _TableSizeDialogState extends State<_TableSizeDialog> {
   final _rows = TextEditingController(text: '3');
-  final _columns = TextEditingController(text: '3');
+  final _columns = TextEditingController(text: '2');
   String? _error;
   @override
   void dispose() {
@@ -158,7 +212,7 @@ class _JournalTableState extends State<JournalTable> {
         firstText: value.substring(newline + 1).replaceAll('\n', ' '),
       );
     } else {
-      _data = _data.edit(rowId, column, value);
+      setState(() => _data = _data.edit(rowId, column, value));
       widget.onChanged(_data);
     }
   }
@@ -177,17 +231,22 @@ class _JournalTableState extends State<JournalTable> {
   @override
   Widget build(BuildContext context) => LayoutBuilder(
     builder: (context, constraints) {
-      final cellWidth = (constraints.maxWidth / _data.columns).clamp(
-        110.0,
-        240.0,
+      final widths = journalTableWidths(
+        _data,
+        constraints.maxWidth,
+        MediaQuery.textScalerOf(context),
       );
       return Padding(
         padding: const EdgeInsets.symmetric(vertical: 8),
         child: SingleChildScrollView(
           scrollDirection: Axis.horizontal,
           child: SizedBox(
-            width: cellWidth * _data.columns,
+            width: widths.reduce((a, b) => a + b),
             child: Table(
+              columnWidths: {
+                for (var c = 0; c < widths.length; c++)
+                  c: FixedColumnWidth(widths[c]),
+              },
               defaultVerticalAlignment: TableCellVerticalAlignment.middle,
               border: TableBorder.all(color: const Color(0xFFDADDE1)),
               children: [
@@ -226,6 +285,7 @@ class _JournalTableState extends State<JournalTable> {
                               focusNode: _focus[_key(_data.rows[r].id, c)],
                               autofocus: widget.autofocus && r == 0 && c == 0,
                               textAlign: TextAlign.left,
+                              cursorHeight: r == 0 ? 18 : 17,
                               style: TextStyle(
                                 fontSize: r == 0 ? 18 : 17,
                                 fontWeight: r == 0

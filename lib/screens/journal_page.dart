@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
 
@@ -6,6 +7,7 @@ import '../constants/app_colors.dart';
 import '../models/journal_entry.dart';
 import '../providers/app_provider.dart';
 import '../widgets/journal_tags.dart';
+import '../utils/journal_markdown.dart';
 import 'journal_editor_page.dart';
 
 class JournalPage extends StatefulWidget {
@@ -19,6 +21,13 @@ class JournalPage extends StatefulWidget {
 class _JournalPageState extends State<JournalPage> {
   String _query = '';
   final _search = TextEditingController();
+  String? _selectedCollection;
+
+  @override
+  void initState() {
+    super.initState();
+    _selectedCollection = widget.collectionId;
+  }
 
   @override
   void dispose() {
@@ -35,7 +44,7 @@ class _JournalPageState extends State<JournalPage> {
           value: provider,
           child: JournalEditorPage(
             entry: entry,
-            collectionId: widget.collectionId,
+            collectionId: _selectedCollection,
           ),
         ),
       ),
@@ -45,29 +54,45 @@ class _JournalPageState extends State<JournalPage> {
   Future<void> _collection([JournalCollection? existing]) async {
     final provider = context.read<AppProvider>();
     final input = TextEditingController(text: existing?.title ?? '');
+    var pinned = existing?.isPinned ?? false;
     final title = await showDialog<String>(
       context: context,
-      builder: (context) => AlertDialog(
-        title: Text(existing == null ? '新建合集' : '修改合集名称'),
-        content: TextField(
-          controller: input,
-          autofocus: true,
-          decoration: const InputDecoration(hintText: '合集名称'),
+      builder: (context) => StatefulBuilder(
+        builder: (context, update) => AlertDialog(
+          title: Row(
+            children: [
+              Expanded(child: Text(existing == null ? '新建合集' : '修改合集名称')),
+              if (existing != null)
+                IconButton(
+                  tooltip: pinned ? '取消置顶' : '置顶',
+                  onPressed: () => update(() => pinned = !pinned),
+                  icon: Icon(
+                    Icons.vertical_align_top,
+                    color: pinned ? AppColors.primary : AppColors.textGrey,
+                  ),
+                ),
+            ],
+          ),
+          content: TextField(
+            controller: input,
+            autofocus: true,
+            decoration: const InputDecoration(hintText: '合集名称'),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context),
+              child: const Text('取消'),
+            ),
+            TextButton(
+              onPressed: () {
+                if (input.text.trim().isNotEmpty) {
+                  Navigator.pop(context, input.text.trim());
+                }
+              },
+              child: const Text('确定'),
+            ),
+          ],
         ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text('取消'),
-          ),
-          TextButton(
-            onPressed: () {
-              if (input.text.trim().isNotEmpty) {
-                Navigator.pop(context, input.text.trim());
-              }
-            },
-            child: const Text('确定'),
-          ),
-        ],
       ),
     );
     await Future<void>.delayed(const Duration(milliseconds: 300));
@@ -77,7 +102,11 @@ class _JournalPageState extends State<JournalPage> {
       if (existing == null) {
         await provider.addJournalCollection(title);
       } else {
-        await provider.renameJournalCollection(existing.id, title);
+        await provider.renameJournalCollection(
+          existing.id,
+          title,
+          isPinned: pinned,
+        );
       }
     } catch (_) {
       _error('合集保存失败，请重试');
@@ -123,135 +152,254 @@ class _JournalPageState extends State<JournalPage> {
     }
   }
 
-  Widget _card({required Widget child, Key? key}) => Material(
-    key: key,
-    color: AppColors.surface,
-    shape: RoundedRectangleBorder(
-      borderRadius: BorderRadius.circular(16),
-      side: const BorderSide(color: AppColors.divider),
+  Future<void> _actions(JournalEntry entry) async {
+    final provider = context.read<AppProvider>();
+    final action = await showModalBottomSheet<String>(
+      context: context,
+      builder: (context) => SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            ListTile(
+              leading: const Icon(Icons.vertical_align_top),
+              title: Text(entry.isPinned ? '取消置顶' : '置顶'),
+              onTap: () => Navigator.pop(context, 'pin'),
+            ),
+            ListTile(
+              leading: const Icon(Icons.drive_file_move_outline),
+              title: const Text('移动到合集'),
+              onTap: () => Navigator.pop(context, 'move'),
+            ),
+            ListTile(
+              leading: const Icon(Icons.delete_outline),
+              title: const Text('删除'),
+              onTap: () => Navigator.pop(context, 'delete'),
+            ),
+          ],
+        ),
+      ),
+    );
+    if (!mounted || action == null) return;
+    if (action == 'delete') {
+      await _delete(entry);
+      return;
+    }
+    try {
+      if (action == 'pin') {
+        await provider.saveJournalEntry(
+          entry.copyWith(isPinned: !entry.isPinned),
+        );
+      } else {
+        final target = await showDialog<String>(
+          context: context,
+          builder: (context) => SimpleDialog(
+            title: const Text('移动到合集'),
+            children: [
+              SimpleDialogOption(
+                onPressed: () => Navigator.pop(context, ''),
+                child: const Text('默认'),
+              ),
+              for (final folder in provider.journalCollections)
+                SimpleDialogOption(
+                  onPressed: () => Navigator.pop(context, folder.id),
+                  child: Text(folder.title),
+                ),
+            ],
+          ),
+        );
+        if (target != null) {
+          await provider.saveJournalEntry(
+            entry.copyWith(
+              collectionId: target.isEmpty ? null : target,
+              move: true,
+            ),
+          );
+        }
+      }
+    } catch (_) {
+      _error('记录保存失败，请重试');
+    }
+  }
+
+  bool _inCollection(JournalEntry entry, List<JournalCollection> collections) =>
+      _selectedCollection != null
+      ? entry.collectionId == _selectedCollection
+      : entry.collectionId == null ||
+            !collections.any((c) => c.id == entry.collectionId);
+
+  Future<void> _exportCollection() async {
+    final provider = context.read<AppProvider>();
+    final entries = provider.journalEntries.where(
+      (e) => _inCollection(e, provider.journalCollections),
+    );
+    try {
+      await Clipboard.setData(
+        ClipboardData(text: entries.map(journalToMarkdown).join('\n\n---\n\n')),
+      );
+      _error('合集 Markdown 已复制');
+    } catch (_) {
+      _error('复制失败，请重试');
+    }
+  }
+
+  Widget _collectionTab(
+    String? id,
+    String title, {
+    JournalCollection? folder,
+  }) => Padding(
+    padding: const EdgeInsets.only(right: 8),
+    child: Material(
+      key: ValueKey('note-folder-${id ?? 'default'}'),
+      color: _selectedCollection == id ? const Color(0xFFE8EAED) : Colors.white,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(10),
+        side: BorderSide(
+          color: folder?.isPinned == true
+              ? const Color(0xFFBEC2C8)
+              : AppColors.divider,
+        ),
+      ),
+      child: InkWell(
+        borderRadius: BorderRadius.circular(10),
+        onLongPress: folder == null ? null : () => _collection(folder),
+        onTap: () {
+          FocusScope.of(context).unfocus();
+          setState(() => _selectedCollection = id);
+        },
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 9),
+          child: Text(
+            title,
+            style: const TextStyle(
+              fontSize: 17,
+              fontWeight: FontWeight.w500,
+              color: Color(0xFF3D3D3D),
+            ),
+          ),
+        ),
+      ),
     ),
-    clipBehavior: Clip.antiAlias,
-    child: child,
   );
+
+  Widget _card({required Widget child, Key? key, bool pinned = false}) =>
+      Material(
+        key: key,
+        color: AppColors.surface,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(16),
+          side: BorderSide(
+            color: pinned ? const Color(0xFFBEC2C8) : AppColors.divider,
+          ),
+        ),
+        clipBehavior: Clip.antiAlias,
+        child: child,
+      );
 
   @override
   Widget build(BuildContext context) {
     final provider = context.watch<AppProvider>();
     final collections = provider.journalCollections;
-    final currentCollection = collections
-        .where((c) => c.id == widget.collectionId)
-        .firstOrNull;
     final query = _query.trim().toLowerCase();
     final entries = provider.journalEntries.where((entry) {
-      final inScope = widget.collectionId != null
-          ? entry.collectionId == widget.collectionId
-          : query.isNotEmpty ||
-                entry.collectionId == null ||
-                !collections.any((c) => c.id == entry.collectionId);
+      final inScope =
+          (_selectedCollection == null && query.isNotEmpty) ||
+          _inCollection(entry, collections);
       return inScope &&
           (query.isEmpty ||
               entry.title.toLowerCase().contains(query) ||
               entry.tags.any((tag) => tag.toLowerCase().contains(query)));
     }).toList();
-    final sections = widget.collectionId == null && query.isEmpty;
     final notes = <Widget>[
-      if (sections && entries.isNotEmpty) _heading('零散笔记'),
       for (final entry in entries)
         Padding(
           padding: const EdgeInsets.only(bottom: 8),
-          child: _card(
-            key: ValueKey('note-card-${entry.id}'),
-            child: ListTile(
-              visualDensity: const VisualDensity(vertical: -2),
-              contentPadding: const EdgeInsets.symmetric(horizontal: 16),
-              title: Text(
-                entry.title.isEmpty ? '未命名' : entry.title,
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                style: const TextStyle(
-                  fontSize: 18,
-                  fontWeight: FontWeight.w600,
-                ),
-              ),
-              subtitle: Row(
-                children: [
-                  Flexible(
-                    flex: 3,
-                    child: Text(
-                      '${DateFormat('M月d日 HH:mm').format(entry.updatedAt)}  |  ${entry.wordCount}字',
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: const TextStyle(
-                        fontSize: 12,
-                        color: AppColors.textGrey,
-                      ),
-                    ),
+          child: Dismissible(
+            key: ValueKey('dismiss-note-${entry.id}'),
+            direction: DismissDirection.horizontal,
+            background: Container(
+              color: AppColors.danger.withValues(alpha: .1),
+              alignment: Alignment.centerLeft,
+              padding: const EdgeInsets.symmetric(horizontal: 16),
+              child: const Icon(Icons.delete_outline, color: AppColors.danger),
+            ),
+            secondaryBackground: Container(
+              color: AppColors.danger.withValues(alpha: .1),
+              alignment: Alignment.centerRight,
+              padding: const EdgeInsets.symmetric(horizontal: 16),
+              child: const Icon(Icons.delete_outline, color: AppColors.danger),
+            ),
+            confirmDismiss: (_) async {
+              await _delete(entry);
+              return false;
+            },
+            child: _card(
+              key: ValueKey('note-card-${entry.id}'),
+              pinned: entry.isPinned,
+              child: ListTile(
+                visualDensity: const VisualDensity(vertical: -2),
+                contentPadding: const EdgeInsets.symmetric(horizontal: 16),
+                title: Text(
+                  entry.title.isEmpty ? '未命名' : entry.title,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(
+                    fontSize: 17,
+                    fontWeight: FontWeight.w500,
+                    color: Color(0xFF3D3D3D),
                   ),
-                  if (entry.tags.isNotEmpty) ...[
-                    const SizedBox(width: 8),
-                    Flexible(
-                      flex: 2,
-                      child: SingleChildScrollView(
-                        scrollDirection: Axis.horizontal,
-                        child: JournalTags(tags: entry.tags, compact: true),
+                ),
+                subtitle: LayoutBuilder(
+                  builder: (context, constraints) => Row(
+                    children: [
+                      ConstrainedBox(
+                        constraints: BoxConstraints(
+                          maxWidth:
+                              constraints.maxWidth *
+                              (entry.tags.isEmpty ? 1 : .65),
+                        ),
+                        child: Text(
+                          '${DateFormat('M月d日 HH:mm').format(entry.updatedAt)}  |  ${entry.wordCount}字',
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: const TextStyle(
+                            fontSize: 12,
+                            color: AppColors.textGrey,
+                          ),
+                        ),
                       ),
-                    ),
-                  ],
-                ],
+                      if (entry.tags.isNotEmpty) ...[
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: SingleChildScrollView(
+                            scrollDirection: Axis.horizontal,
+                            child: JournalTags(tags: entry.tags, compact: true),
+                          ),
+                        ),
+                      ],
+                    ],
+                  ),
+                ),
+                onTap: () => _open(entry),
+                onLongPress: () => _actions(entry),
               ),
-              onTap: () => _open(entry),
-              onLongPress: () => _delete(entry),
             ),
           ),
         ),
     ];
-    final folders = <Widget>[
-      if (sections && collections.isNotEmpty) _heading('笔记合集'),
-      if (sections)
-        for (final folder in collections)
-          Padding(
-            padding: const EdgeInsets.only(bottom: 8),
-            child: _card(
-              key: ValueKey('note-folder-${folder.id}'),
-              child: ListTile(
-                leading: const Icon(Icons.folder_outlined),
-                title: Text(
-                  folder.title,
-                  style: const TextStyle(
-                    fontSize: 18,
-                    fontWeight: FontWeight.w600,
-                  ),
-                ),
-                subtitle: Text(
-                  '${provider.journalEntries.where((e) => e.collectionId == folder.id).length} 条记录',
-                ),
-                trailing: const Icon(Icons.chevron_right),
-                onLongPress: () => _collection(folder),
-                onTap: () {
-                  FocusScope.of(context).unfocus();
-                  Navigator.of(context).push(
-                    MaterialPageRoute<void>(
-                      builder: (_) => ChangeNotifierProvider.value(
-                        value: provider,
-                        child: JournalPage(collectionId: folder.id),
-                      ),
-                    ),
-                  );
-                },
-              ),
-            ),
-          ),
-    ];
     return Scaffold(
       appBar: AppBar(
-        title: Text(currentCollection?.title ?? '记录'),
+        title: const Text('记录'),
         actions: [
-          if (widget.collectionId == null)
-            IconButton(
-              tooltip: '新建合集',
-              onPressed: _collection,
-              icon: const Icon(Icons.create_new_folder_outlined),
-            ),
+          IconButton(
+            tooltip: '发送合集',
+            onPressed: _exportCollection,
+            icon: const Icon(Icons.ios_share_outlined),
+          ),
+          IconButton(
+            tooltip: '新建合集',
+            onPressed: _collection,
+            icon: const Icon(Icons.create_new_folder_outlined),
+          ),
         ],
       ),
       floatingActionButton: FloatingActionButton(
@@ -296,8 +444,20 @@ class _JournalPageState extends State<JournalPage> {
               ),
             ),
           ),
+          SingleChildScrollView(
+            key: const ValueKey('collection-tabs'),
+            scrollDirection: Axis.horizontal,
+            padding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
+            child: Row(
+              children: [
+                _collectionTab(null, '默认'),
+                for (final folder in collections)
+                  _collectionTab(folder.id, folder.title, folder: folder),
+              ],
+            ),
+          ),
           Expanded(
-            child: notes.isEmpty && folders.isEmpty
+            child: notes.isEmpty
                 ? Center(
                     child: Text(
                       query.isEmpty ? '暂无记录' : '没有匹配的记录',
@@ -308,21 +468,11 @@ class _JournalPageState extends State<JournalPage> {
                     keyboardDismissBehavior:
                         ScrollViewKeyboardDismissBehavior.onDrag,
                     padding: const EdgeInsets.fromLTRB(16, 0, 16, 96),
-                    children: provider.looseNotesFirst
-                        ? [...notes, ...folders]
-                        : [...folders, ...notes],
+                    children: notes,
                   ),
           ),
         ],
       ),
     );
   }
-
-  Widget _heading(String text) => Padding(
-    padding: const EdgeInsets.fromLTRB(4, 8, 4, 12),
-    child: Text(
-      text,
-      style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w400),
-    ),
-  );
 }
