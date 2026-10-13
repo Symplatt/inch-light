@@ -4,9 +4,11 @@ import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_quill/flutter_quill.dart' as quill;
+import 'package:intl/intl.dart';
 import '../models/journal_entry.dart';
 import '../models/journal_table.dart';
 import '../widgets/journal_body.dart';
+import '../widgets/journal_tags.dart';
 
 class JournalImagePage extends StatefulWidget {
   const JournalImagePage({super.key, required this.entry});
@@ -146,6 +148,19 @@ class _JournalImagePageState extends State<JournalImagePage> {
                             ),
                             const SizedBox(height: 20),
                           ],
+                          Text(
+                            '${DateFormat('M月d日 HH:mm').format(widget.entry.updatedAt)}  |  ${widget.entry.wordCount}字',
+                            key: const ValueKey('image-metadata'),
+                            style: const TextStyle(
+                              fontSize: 14,
+                              color: Color(0xFF999999),
+                            ),
+                          ),
+                          if (widget.entry.tags.isNotEmpty) ...[
+                            const SizedBox(height: 16),
+                            JournalTags(tags: widget.entry.tags),
+                          ],
+                          const SizedBox(height: 20),
                           quill.QuillEditor(
                             controller: _controller,
                             focusNode: _focus,

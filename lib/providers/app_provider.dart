@@ -16,6 +16,51 @@ class AppProvider with ChangeNotifier, WidgetsBindingObserver {
   List<TaskCollection> _collections = [];
   final List<JournalEntry> _journalEntries = [];
   final List<JournalCollection> _journalCollections = [];
+  final Map<String, ({JournalEntry entry, DateTime deletedAt})>
+  _recentlyDeleted = {};
+  final DateTime Function() _journalNow;
+  bool _recoverable(DateTime deletedAt) {
+    final age = _journalNow().difference(deletedAt);
+    return !age.isNegative && age < const Duration(minutes: 1);
+  }
+
+  int get recoverableJournalCount => _recentlyDeleted.values
+      .where((item) => _recoverable(item.deletedAt))
+      .length;
+
+  Future<int> restoreRecentJournalEntries() async {
+    await ready;
+    final restoring = _recentlyDeleted.values
+        .where((item) => _recoverable(item.deletedAt))
+        .toList();
+    final next = List<JournalEntry>.from(_journalEntries);
+    final added = <String>{};
+    for (final item in restoring) {
+      if (next.any((e) => e.id == item.entry.id)) continue;
+      final entry = item.entry;
+      added.add(entry.id);
+      next.add(
+        entry.collectionId == null ||
+                _journalCollections.any((c) => c.id == entry.collectionId)
+            ? entry
+            : entry.copyWith(collectionId: null, move: true),
+      );
+    }
+    // Persist the restored notes before discarding the recovery copies.
+    try {
+      await _persistJournal(next);
+    } catch (_) {
+      _journalEntries.removeWhere((e) => added.contains(e.id));
+      if (!_disposed) notifyListeners();
+      rethrow;
+    }
+    for (final item in restoring) {
+      _recentlyDeleted.remove(item.entry.id);
+    }
+    if (!_disposed) notifyListeners();
+    return restoring.length;
+  }
+
   List<JournalCollection> get journalCollections => List.unmodifiable(
     List<JournalCollection>.from(_journalCollections)..sort((a, b) {
       DateTime edited(JournalCollection c) => _journalEntries
@@ -127,20 +172,47 @@ class AppProvider with ChangeNotifier, WidgetsBindingObserver {
     await _persistJournal(next);
   }
 
-  Future<void> removeJournalEntry(String id) async {
+  Future<void> removeJournalEntry(String id, {bool recoverable = false}) async {
     await ready;
-    await _persistJournal(_journalEntries.where((e) => e.id != id).toList());
+    final matches = _journalEntries.where((e) => e.id == id);
+    if (matches.isEmpty) return;
+    final entry = matches.first;
+    if (recoverable) {
+      _recentlyDeleted[id] = (entry: entry, deletedAt: _journalNow());
+    }
+    try {
+      await _persistJournal(_journalEntries.where((e) => e.id != id).toList());
+    } catch (_) {
+      _recentlyDeleted.remove(id);
+      if (!_journalEntries.any((e) => e.id == id)) _journalEntries.add(entry);
+      if (!_disposed) notifyListeners();
+      rethrow;
+    }
   }
 
   Future<void> _persistJournal(List<JournalEntry> entries) {
     // Serialize snapshots so rapid edits cannot overwrite a newer save.
     final encoded = jsonEncode(entries.map((e) => e.toJson()).toList());
+    final recent = jsonEncode(
+      _recentlyDeleted.values
+          .where((item) => _recoverable(item.deletedAt))
+          .map(
+            (item) => {
+              'entry': item.entry.toJson(),
+              'deletedAt': item.deletedAt.toIso8601String(),
+            },
+          )
+          .toList(),
+    );
     _journalEntries
       ..clear()
       ..addAll(entries);
     if (!_disposed) notifyListeners();
     final write = _journalWrite.then((_) async {
       final prefs = await SharedPreferences.getInstance();
+      if (!await prefs.setString('journal_recently_deleted', recent)) {
+        throw StateError('恢复记录保存失败');
+      }
       if (!await prefs.setString('journal_entries', encoded)) {
         throw StateError('记录保存失败');
       }
@@ -260,7 +332,8 @@ class AppProvider with ChangeNotifier, WidgetsBindingObserver {
     return tasks;
   }
 
-  AppProvider() {
+  AppProvider({DateTime Function()? journalNow})
+    : _journalNow = journalNow ?? DateTime.now {
     ready = _initData();
     WidgetsBinding.instance.addObserver(this);
   }
@@ -325,6 +398,23 @@ class AppProvider with ChangeNotifier, WidgetsBindingObserver {
     safeLoad('normal_tasks', _normalTasks, (json) => TaskItem.fromJson(json));
     safeLoad('cycle_tasks', _cycleTasks, (json) => CycleTask.fromJson(json));
     safeLoad('journal_entries', _journalEntries, JournalEntry.fromJson);
+    try {
+      final recent =
+          jsonDecode(prefs.getString('journal_recently_deleted') ?? '[]')
+              as List;
+      for (final item in recent) {
+        final entry = JournalEntry.fromJson(
+          Map<String, dynamic>.from(item['entry'] as Map),
+        );
+        final deletedAt = DateTime.parse(item['deletedAt'] as String);
+        if (_recoverable(deletedAt) &&
+            !_journalEntries.any((e) => e.id == entry.id)) {
+          _recentlyDeleted[entry.id] = (entry: entry, deletedAt: deletedAt);
+        }
+      }
+    } catch (e) {
+      debugPrint('Error parsing recent journal deletions: $e');
+    }
     safeLoad(
       'journal_collections',
       _journalCollections,
@@ -457,7 +547,10 @@ class AppProvider with ChangeNotifier, WidgetsBindingObserver {
         ..addAll(countdowns);
       _maintainData();
       await _saveData();
-      if (data.containsKey('journal_entries')) await _persistJournal(entries);
+      if (data.containsKey('journal_entries')) {
+        _recentlyDeleted.clear();
+        await _persistJournal(entries);
+      }
       if (data.containsKey('journal_collections')) {
         await _persistJournalCollections(journalCollections);
       }
@@ -700,6 +793,7 @@ class AppProvider with ChangeNotifier, WidgetsBindingObserver {
   DateTime? _lastMaintenanceDay;
   void _maintainData() {
     if (_disposed) return;
+    _recentlyDeleted.removeWhere((_, item) => !_recoverable(item.deletedAt));
     final now = DateTime.now();
     final day = DateTime(now.year, now.month, now.day);
     if (_lastMaintenanceDay != day) {

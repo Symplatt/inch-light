@@ -151,7 +151,7 @@ void main() {
           return null;
         },
       );
-      await t.tap(find.byTooltip('发送合集'));
+      await t.tap(find.byTooltip('批量导出 Markdown'));
       await t.pump();
       expect(copied, contains('# 笔记甲'));
       expect(copied, isNot(contains('笔记乙')));
@@ -161,10 +161,8 @@ void main() {
       );
       await t.drag(
         find.byKey(const ValueKey('dismiss-note-笔记甲')),
-        const Offset(350, 0),
+        const Offset(-350, 0),
       );
-      await t.pumpAndSettle();
-      await t.tap(find.text('删除'));
       await t.pumpAndSettle();
       expect(p.journalEntries.any((e) => e.id == '笔记甲'), isFalse);
       await close(t, p);
@@ -342,8 +340,14 @@ void main() {
       );
       final p = await mount(t, JournalEditorPage(entry: entry));
       final left = t.getTopLeft(find.byKey(const ValueKey('record-title'))).dx;
-      expect(t.getTopLeft(find.text('•')).dx, closeTo(left, .01));
-      expect(t.getTopLeft(find.text('1.')).dx, closeTo(left, .01));
+      expect(
+        t.getTopLeft(find.text('•', findRichText: true)).dx,
+        closeTo(left, .01),
+      );
+      expect(
+        t.getTopLeft(find.text('1.', findRichText: true)).dx,
+        closeTo(left, .01),
+      );
       expect(
         t.getTopLeft(find.byIcon(Icons.check_box_outline_blank)).dx,
         closeTo(left, .01),

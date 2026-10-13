@@ -1,5 +1,6 @@
 import 'package:flutter/services.dart';
 import 'package:flutter_quill/flutter_quill.dart' as quill;
+import 'package:flutter_quill/quill_delta.dart';
 
 /// Select a table on the first backspace and delete it on the next one. Keeping
 /// this in the controller covers both IME replacements and hardware backspace.
@@ -11,6 +12,7 @@ class JournalController extends quill.QuillController {
   }) {
     onReplaceText = _replace;
     onDelete = (position, forward) {
+      if (!forward && clearLeadingEmptyLines()) return;
       if (!forward && position > 0) {
         replaceText(
           position - 1,
@@ -23,6 +25,34 @@ class JournalController extends quill.QuillController {
   }
   int? pendingTable;
   bool _deleting = false;
+
+  /// Only collapse leading blank paragraphs when the caret is inside them.
+  /// Delete a document range so the first nonempty line retains its attributes.
+  bool clearLeadingEmptyLines() {
+    if (_deleting || !selection.isCollapsed) return false;
+    final plain = document.toPlainText();
+    final match = RegExp(r'^(?:[ \t]*\n)+').firstMatch(plain);
+    if (match == null ||
+        match.end >= plain.length ||
+        selection.baseOffset < 0 ||
+        selection.baseOffset >= match.end) {
+      return false;
+    }
+    pendingTable = null;
+    _deleting = true;
+    try {
+      // A raw deletion avoids Quill's ordinary paragraph-merge rule, which
+      // would copy the empty first paragraph's style onto the surviving line.
+      compose(
+        Delta()..delete(match.end),
+        const TextSelection.collapsed(offset: 0),
+        quill.ChangeSource.local,
+      );
+    } finally {
+      _deleting = false;
+    }
+    return true;
+  }
 
   bool get onEmbedLine {
     if (!selection.isCollapsed) return true;
@@ -38,6 +68,13 @@ class JournalController extends quill.QuillController {
 
   bool _replace(int index, int length, Object? data) {
     if (_deleting) return true;
+    if (data == '' &&
+        length > 0 &&
+        selection.isCollapsed &&
+        index < selection.baseOffset &&
+        clearLeadingEmptyLines()) {
+      return false;
+    }
     if (data != '' || length <= 0) {
       pendingTable = null;
       return true;

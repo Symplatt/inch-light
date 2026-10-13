@@ -55,6 +55,8 @@ bool _inlineShortcut(
     ('*', [quill.Attribute.italic]),
     ('_', [quill.Attribute.italic]),
     ('`', [quill.Attribute.inlineCode]),
+    ('^', [quill.Attribute.superscript]),
+    ('~', [quill.Attribute.subscript]),
   ];
   for (final (marker, attributes) in formats) {
     if (!prefix.endsWith(marker)) continue;
@@ -69,6 +71,12 @@ bool _inlineShortcut(
     final content = prefix.substring(opening + marker.length, closing);
     if (content.trim() != content || content.contains(marker[0])) continue;
     final at = start + opening;
+    // Completed code spans stay literal when more Markdown markers are typed.
+    final styles = controller.document.collectStyle(
+      at,
+      content.length + marker.length * 2,
+    );
+    if (styles.attributes['code']?.value == true) continue;
     controller.replaceText(
       start + closing,
       marker.length,

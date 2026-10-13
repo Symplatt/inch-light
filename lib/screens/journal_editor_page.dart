@@ -40,6 +40,9 @@ class _JournalEditorPageState extends State<JournalEditorPage>
   final _bodyFocus = FocusNode();
   final _bodyScroll = ScrollController();
   final _pageScroll = ScrollController();
+  final _renderEditorKey = GlobalKey<quill.EditorState>();
+  final _pageViewportKey = GlobalKey();
+  bool _caretScrollPending = false;
   bool _titleBold = false;
   late final String _id;
   late final DateTime _createdAt;
@@ -91,6 +94,55 @@ class _JournalEditorPageState extends State<JournalEditorPage>
 
   void _refreshFocus() {
     if (mounted) setState(() {});
+    _revealCaret();
+  }
+
+  @override
+  void didChangeMetrics() => _revealCaret();
+
+  void _revealCaret() {
+    if (_caretScrollPending || !mounted || !_bodyFocus.hasFocus) return;
+    _caretScrollPending = true;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _caretScrollPending = false;
+      if (!mounted ||
+          !_bodyFocus.hasFocus ||
+          !_pageScroll.hasClients ||
+          !_editor.selection.isCollapsed) {
+        return;
+      }
+      final editor = _renderEditorKey.currentState?.renderEditor;
+      final viewport = _pageViewportKey.currentContext?.findRenderObject();
+      if (editor == null || viewport is! RenderBox || !viewport.hasSize) return;
+      final caret = editor.getLocalRectForCaret(
+        TextPosition(
+          offset: _editor.selection.extentOffset.clamp(
+            0,
+            _editor.document.length - 1,
+          ),
+        ),
+      );
+      final top = viewport
+          .globalToLocal(editor.localToGlobal(caret.topLeft))
+          .dy;
+      final bottom = viewport
+          .globalToLocal(editor.localToGlobal(caret.bottomRight))
+          .dy;
+      const margin = 16.0;
+      final shift = bottom > viewport.size.height - margin
+          ? bottom - viewport.size.height + margin
+          : top < margin
+          ? top - margin
+          : 0.0;
+      if (shift.abs() < .5) return;
+      // The parent viewport already excludes the keyboard and format bar.
+      // Jump once after layout so repeated returns cannot race scroll animations.
+      final target = (_pageScroll.offset + shift).clamp(
+        0.0,
+        _pageScroll.position.maxScrollExtent,
+      );
+      _pageScroll.jumpTo(target);
+    });
   }
 
   String _snapshot() => jsonEncode({
@@ -141,6 +193,7 @@ class _JournalEditorPageState extends State<JournalEditorPage>
     }
     // Cursor movements also refresh the active format indicators.
     if (mounted) setState(() {});
+    _revealCaret();
   }
 
   void _scheduleSave() {
@@ -406,131 +459,147 @@ class _JournalEditorPageState extends State<JournalEditorPage>
               onPressed: _back,
               icon: const Icon(Icons.arrow_back),
             ),
-            actions: keyboardVisible
-                ? [
-                    IconButton(
-                      tooltip: '撤回',
-                      onPressed: _undo.isEmpty ? null : () => _history(false),
-                      icon: const Icon(Icons.undo),
-                    ),
-                    IconButton(
-                      tooltip: '取消撤回',
-                      onPressed: _redo.isEmpty ? null : () => _history(true),
-                      icon: const Icon(Icons.redo),
-                    ),
-                    IconButton(
-                      tooltip: '确定',
-                      onPressed: _finish,
-                      icon: const Icon(Icons.check),
-                    ),
-                    const SizedBox(width: 8),
-                  ]
-                : [
-                    IconButton(
-                      tooltip: '发送',
-                      onPressed: _export,
-                      icon: const JournalExportIcon(),
-                    ),
-                    IconButton(
-                      tooltip: '标签',
-                      onPressed: _editTags,
-                      icon: const Icon(Icons.sell_outlined),
-                    ),
-                    const SizedBox(width: 8),
-                  ],
+            actions: [
+              if (keyboardVisible) ...[
+                IconButton(
+                  tooltip: '撤回',
+                  onPressed: _undo.isEmpty ? null : () => _history(false),
+                  icon: const JournalActionIcon(JournalActionSymbol.undo),
+                ),
+                IconButton(
+                  tooltip: '取消撤回',
+                  onPressed: _redo.isEmpty ? null : () => _history(true),
+                  icon: const JournalActionIcon(JournalActionSymbol.redo),
+                ),
+              ],
+              IconButton(
+                tooltip: '标签',
+                onPressed: _editTags,
+                icon: const JournalActionIcon(JournalActionSymbol.tags),
+              ),
+              if (keyboardVisible)
+                IconButton(
+                  tooltip: '确定',
+                  onPressed: _finish,
+                  icon: const JournalActionIcon(JournalActionSymbol.done),
+                )
+              else
+                IconButton(
+                  tooltip: '发送',
+                  onPressed: _export,
+                  icon: const JournalExportIcon(),
+                ),
+              const SizedBox(width: 8),
+            ],
           ),
           body: SafeArea(
             top: false,
             child: Column(
               children: [
                 Expanded(
-                  child: SingleChildScrollView(
-                    key: const ValueKey('record-page-scroll'),
-                    controller: _pageScroll,
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.stretch,
-                      children: [
-                        Padding(
-                          padding: const EdgeInsets.fromLTRB(24, 16, 24, 20),
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              TextField(
-                                key: const ValueKey('record-title'),
-                                controller: _title,
-                                focusNode: _titleFocus,
-                                style: TextStyle(
-                                  fontSize: 30,
-                                  fontWeight: _titleBold
-                                      ? FontWeight.w600
-                                      : FontWeight.w400,
-                                ),
-                                maxLines: null,
-                                textInputAction: TextInputAction.next,
-                                onSubmitted: (_) => _bodyFocus.requestFocus(),
-                                decoration: const InputDecoration(
-                                  hintText: '标题',
-                                  hintStyle: TextStyle(
-                                    color: Color(0xFFCCCCCC),
+                  child: SizedBox(
+                    key: _pageViewportKey,
+                    child: SingleChildScrollView(
+                      key: const ValueKey('record-page-scroll'),
+                      controller: _pageScroll,
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
+                        children: [
+                          Padding(
+                            padding: const EdgeInsets.fromLTRB(24, 16, 24, 20),
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                TextField(
+                                  key: const ValueKey('record-title'),
+                                  controller: _title,
+                                  focusNode: _titleFocus,
+                                  style: TextStyle(
+                                    fontSize: 30,
+                                    fontWeight: _titleBold
+                                        ? FontWeight.w600
+                                        : FontWeight.w400,
                                   ),
-                                  border: InputBorder.none,
-                                  isDense: true,
-                                  contentPadding: EdgeInsets.zero,
+                                  maxLines: null,
+                                  textInputAction: TextInputAction.next,
+                                  onSubmitted: (_) => _bodyFocus.requestFocus(),
+                                  decoration: const InputDecoration(
+                                    hintText: '标题',
+                                    hintStyle: TextStyle(
+                                      color: Color(0xFFCCCCCC),
+                                    ),
+                                    border: InputBorder.none,
+                                    isDense: true,
+                                    contentPadding: EdgeInsets.zero,
+                                  ),
                                 ),
-                              ),
-                              const SizedBox(height: 22),
-                              Text(
-                                '${DateFormat('M月d日 HH:mm').format(_updatedAt)}  |  ${_entry().wordCount}字',
-                                key: const ValueKey('record-metadata'),
-                                style: const TextStyle(
-                                  fontSize: 14,
-                                  color: Color(0xFF999999),
+                                const SizedBox(height: 22),
+                                Text(
+                                  '${DateFormat('M月d日 HH:mm').format(_updatedAt)}  |  ${_entry().wordCount}字',
+                                  key: const ValueKey('record-metadata'),
+                                  style: const TextStyle(
+                                    fontSize: 14,
+                                    color: Color(0xFF999999),
+                                  ),
                                 ),
-                              ),
-                              if (_tags.isNotEmpty) ...[
-                                const SizedBox(height: 16),
-                                JournalTags(tags: _tags),
+                                if (_tags.isNotEmpty) ...[
+                                  const SizedBox(height: 16),
+                                  JournalTags(tags: _tags),
+                                ],
                               ],
-                            ],
+                            ),
                           ),
-                        ),
-                        quill.QuillEditor(
-                          controller: _editor,
-                          focusNode: _bodyFocus,
-                          scrollController: _bodyScroll,
-                          config: quill.QuillEditorConfig(
-                            placeholder: '开始书写',
-                            padding: const EdgeInsets.fromLTRB(24, 8, 24, 32),
-                            scrollable: false,
-                            minHeight: 180,
-                            showCursor:
-                                _bodyFocus.hasFocus && !_editor.onEmbedLine,
-                            // Pinned Quill APIs; shortcut handlers also process software-keyboard spaces.
-                            // ignore: experimental_member_use
-                            characterShortcutEvents:
-                                quill.standardCharactersShortcutEvents,
-                            // ignore: experimental_member_use
-                            spaceShortcutEvents:
-                                quill.standardSpaceShorcutEvents,
-                            textSpanBuilder: journalSpan,
-                            // ignore: experimental_member_use
-                            customLeadingBlockBuilder: (node, config) =>
-                                journalLeading(context, node, config),
-                            onTapOutsideEnabled: false,
-                            embedBuilders: [
-                              const JournalDividerBuilder(),
-                              JournalTableBuilder(
-                                onChanged: _updateTable,
-                                autofocusId: _newTableId,
-                                selectedOffset: _editor.selection.isCollapsed
-                                    ? null
-                                    : _editor.pendingTable,
-                              ),
-                            ],
-                            customStyles: journalStyles(),
+                          quill.QuillEditor(
+                            controller: _editor,
+                            focusNode: _bodyFocus,
+                            scrollController: _bodyScroll,
+                            config: quill.QuillEditorConfig(
+                              editorKey: _renderEditorKey,
+                              placeholder: '开始书写',
+                              padding: const EdgeInsets.fromLTRB(24, 8, 24, 32),
+                              scrollable: false,
+                              minHeight: 180,
+                              showCursor:
+                                  _bodyFocus.hasFocus && !_editor.onEmbedLine,
+                              // Pinned Quill APIs; shortcut handlers also process software-keyboard spaces.
+                              // ignore: experimental_member_use
+                              characterShortcutEvents:
+                                  quill.standardCharactersShortcutEvents,
+                              // ignore: experimental_member_use
+                              spaceShortcutEvents:
+                                  quill.standardSpaceShorcutEvents,
+                              textSpanBuilder: journalSpan,
+                              // IMEs may send a key event at offset zero instead of a text replacement.
+                              // ignore: experimental_member_use
+                              onKeyPressed: (event, _) {
+                                if ((event is KeyDownEvent ||
+                                        event is KeyRepeatEvent) &&
+                                    event.logicalKey ==
+                                        LogicalKeyboardKey.backspace &&
+                                    _editor.clearLeadingEmptyLines()) {
+                                  return KeyEventResult.handled;
+                                }
+                                return null;
+                              },
+                              // ignore: experimental_member_use
+                              customLeadingBlockBuilder: (node, config) =>
+                                  journalLeading(context, node, config),
+                              onTapOutsideEnabled: false,
+                              embedBuilders: [
+                                const JournalDividerBuilder(),
+                                JournalTableBuilder(
+                                  onChanged: _updateTable,
+                                  autofocusId: _newTableId,
+                                  selectedOffset: _editor.selection.isCollapsed
+                                      ? null
+                                      : _editor.pendingTable,
+                                ),
+                              ],
+                              customStyles: journalStyles(),
+                            ),
                           ),
-                        ),
-                      ],
+                        ],
+                      ),
                     ),
                   ),
                 ),
@@ -737,6 +806,21 @@ class JournalFormatBar extends StatelessWidget {
                   '高亮',
                   const Icon(Icons.border_color_outlined),
                   attribute: const quill.BackgroundAttribute('#FFF2B3'),
+                ),
+                button(
+                  '上标',
+                  const Icon(Icons.superscript),
+                  attribute: quill.Attribute.superscript,
+                ),
+                button(
+                  '下标',
+                  const Icon(Icons.subscript),
+                  attribute: quill.Attribute.subscript,
+                ),
+                button(
+                  '行内代码',
+                  const Icon(Icons.code),
+                  attribute: quill.Attribute.inlineCode,
                 ),
                 button(
                   '表格',

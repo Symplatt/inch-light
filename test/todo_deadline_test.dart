@@ -81,7 +81,7 @@ void main() {
   });
 
   testWidgets(
-    'Deadline shows a gray hourglass and whole days on narrow screens',
+    'Deadline shows matching green day badge before date on narrow screens',
     (tester) async {
       final now = DateTime(2026, 10, 11, 12);
       await tester.pumpWidget(
@@ -103,11 +103,12 @@ void main() {
       final span = text.textSpan! as TextSpan;
       expect(span.style!.color, AppColors.success);
       expect(find.text('（剩余 1 天）'), findsNothing);
-      expect(find.byIcon(Icons.hourglass_empty), findsOneWidget);
+      expect(find.byIcon(Icons.hourglass_empty), findsNothing);
+      expect(find.byKey(const ValueKey('deadline-days')), findsOneWidget);
       final number = tester.widget<Text>(find.text('1'));
-      expect(number.style!.color, const Color(0xFF8D9198));
-      expect(number.style!.fontWeight, FontWeight.w300);
-      expect(number.style!.fontSize, 12);
+      expect(number.style!.color, AppColors.success);
+      expect(number.style!.fontWeight, FontWeight.w400);
+      expect(number.style!.fontSize, 10);
       expect(span.style!.fontSize, 12);
       expect(tester.takeException(), isNull);
     },

@@ -7,6 +7,7 @@ import '../constants/app_colors.dart';
 import '../models/journal_entry.dart';
 import '../providers/app_provider.dart';
 import '../widgets/journal_tags.dart';
+import '../widgets/journal_collection_dialog.dart';
 import '../widgets/position_border.dart';
 import '../widgets/journal_export_icon.dart';
 import '../utils/journal_markdown.dart';
@@ -55,50 +56,13 @@ class _JournalPageState extends State<JournalPage> {
 
   Future<void> _collection([JournalCollection? existing]) async {
     final provider = context.read<AppProvider>();
-    final input = TextEditingController(text: existing?.title ?? '');
-    var deleteRequested = false;
     final title = await showDialog<String>(
       context: context,
-      builder: (context) => StatefulBuilder(
-        builder: (context, update) => AlertDialog(
-          title: Text(existing == null ? '新建合集' : '修改合集名称'),
-          content: TextField(
-            controller: input,
-            autofocus: true,
-            decoration: const InputDecoration(hintText: '合集名称'),
-          ),
-          actions: [
-            if (existing != null)
-              TextButton(
-                onPressed: () {
-                  deleteRequested = true;
-                  Navigator.pop(context, '');
-                },
-                child: const Text(
-                  '删除合集',
-                  style: TextStyle(color: AppColors.danger),
-                ),
-              ),
-            TextButton(
-              onPressed: () => Navigator.pop(context),
-              child: const Text('取消'),
-            ),
-            TextButton(
-              onPressed: () {
-                if (input.text.trim().isNotEmpty) {
-                  Navigator.pop(context, input.text.trim());
-                }
-              },
-              child: const Text('确定'),
-            ),
-          ],
-        ),
-      ),
+      barrierColor: Colors.black.withValues(alpha: .22),
+      builder: (_) => JournalCollectionDialog(title: existing?.title),
     );
-    await Future<void>.delayed(const Duration(milliseconds: 300));
-    input.dispose();
-    if (title == null) return;
-    if (deleteRequested && existing != null) {
+    if (!mounted || title == null) return;
+    if (title.isEmpty && existing != null) {
       await _deleteCollection(existing);
       return;
     }
@@ -117,26 +81,12 @@ class _JournalPageState extends State<JournalPage> {
     final provider = context.read<AppProvider>();
     final deleteNotes = await showDialog<bool>(
       context: context,
-      builder: (context) => AlertDialog(
-        title: Text('删除“${folder.title}”？'),
-        content: const Text('可以保留笔记并移入默认合集，也可以同时删除其中的笔记。'),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text('取消'),
-          ),
-          TextButton(
-            onPressed: () => Navigator.pop(context, false),
-            child: const Text('保留笔记，删除合集'),
-          ),
-          TextButton(
-            onPressed: () => Navigator.pop(context, true),
-            child: const Text(
-              '删除合集和笔记',
-              style: TextStyle(color: AppColors.danger),
-            ),
-          ),
-        ],
+      barrierColor: Colors.black.withValues(alpha: .22),
+      builder: (_) => JournalDeleteCollectionDialog(
+        title: folder.title,
+        count: provider.journalEntries
+            .where((e) => e.collectionId == folder.id)
+            .length,
       ),
     );
     if (deleteNotes == null) return;
@@ -165,13 +115,48 @@ class _JournalPageState extends State<JournalPage> {
       );
   }
 
-  Future<void> _delete(JournalEntry entry) async {
+  Future<void> _delete(JournalEntry entry, {bool swipe = false}) async {
+    final provider = context.read<AppProvider>();
+    final confirmed =
+        swipe ||
+        (await showDialog<bool>(
+              context: context,
+              builder: (context) => AlertDialog(
+                title: const Text('删除记录？'),
+                content: Text(entry.title.isEmpty ? '未命名' : entry.title),
+                actions: [
+                  TextButton(
+                    onPressed: () => Navigator.pop(context, false),
+                    child: const Text('取消'),
+                  ),
+                  TextButton(
+                    onPressed: () => Navigator.pop(context, true),
+                    child: const Text(
+                      '删除',
+                      style: TextStyle(color: AppColors.danger),
+                    ),
+                  ),
+                ],
+              ),
+            ) ??
+            false);
+    if (confirmed != true) return;
+    try {
+      await provider.removeJournalEntry(entry.id, recoverable: swipe);
+    } catch (_) {
+      _error('删除未保存，请重试');
+    }
+  }
+
+  Future<void> _restore() async {
     final provider = context.read<AppProvider>();
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
-        title: const Text('删除记录？'),
-        content: Text(entry.title.isEmpty ? '未命名' : entry.title),
+        title: const Text('恢复最近删除的笔记？'),
+        content: Text(
+          '恢复过去一分钟内滑动删除的 ${provider.recoverableJournalCount} 篇笔记，已超过一分钟的笔记不会恢复。',
+        ),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context, false),
@@ -179,16 +164,17 @@ class _JournalPageState extends State<JournalPage> {
           ),
           TextButton(
             onPressed: () => Navigator.pop(context, true),
-            child: const Text('删除', style: TextStyle(color: AppColors.danger)),
+            child: const Text('恢复'),
           ),
         ],
       ),
     );
     if (confirmed != true) return;
     try {
-      await provider.removeJournalEntry(entry.id);
+      final count = await provider.restoreRecentJournalEntries();
+      _error(count == 0 ? '可恢复的笔记已超过一分钟' : '已恢复 $count 篇笔记');
     } catch (_) {
-      _error('删除未保存，请重试');
+      _error('恢复失败，请重试');
     }
   }
 
@@ -283,7 +269,7 @@ class _JournalPageState extends State<JournalPage> {
     );
     try {
       await Clipboard.setData(
-        ClipboardData(text: entries.map(journalToMarkdown).join()),
+        ClipboardData(text: journalCollectionToMarkdown(entries)),
       );
       _error('合集 Markdown 已复制');
     } catch (_) {
@@ -359,21 +345,15 @@ class _JournalPageState extends State<JournalPage> {
           padding: const EdgeInsets.only(bottom: 8),
           child: Dismissible(
             key: ValueKey('dismiss-note-${entry.id}'),
-            direction: DismissDirection.horizontal,
+            direction: DismissDirection.endToStart,
             background: Container(
-              color: AppColors.danger.withValues(alpha: .1),
-              alignment: Alignment.centerLeft,
-              padding: const EdgeInsets.symmetric(horizontal: 16),
-              child: const Icon(Icons.delete_outline, color: AppColors.danger),
-            ),
-            secondaryBackground: Container(
               color: AppColors.danger.withValues(alpha: .1),
               alignment: Alignment.centerRight,
               padding: const EdgeInsets.symmetric(horizontal: 16),
               child: const Icon(Icons.delete_outline, color: AppColors.danger),
             ),
             confirmDismiss: (_) async {
-              await _delete(entry);
+              await _delete(entry, swipe: true);
               return false;
             },
             child: _card(
@@ -383,6 +363,19 @@ class _JournalPageState extends State<JournalPage> {
               child: ListTile(
                 visualDensity: const VisualDensity(vertical: -2),
                 contentPadding: const EdgeInsets.symmetric(horizontal: 16),
+                trailing: SizedBox(
+                  width: 24,
+                  child: entry.isPinned || entry.isBottom
+                      ? Icon(
+                          entry.isPinned
+                              ? Icons.vertical_align_top
+                              : Icons.vertical_align_bottom,
+                          size: 18,
+                          color: AppColors.textGrey,
+                        )
+                      : null,
+                ),
+                titleAlignment: ListTileTitleAlignment.center,
                 title: Text(
                   entry.title.isEmpty ? '未命名' : entry.title,
                   maxLines: 1,
@@ -436,14 +429,20 @@ class _JournalPageState extends State<JournalPage> {
         title: const Text('记录'),
         actions: [
           IconButton(
-            tooltip: '发送合集',
-            onPressed: _exportCollection,
-            icon: const JournalExportIcon(multiple: true),
-          ),
-          IconButton(
             tooltip: '新建合集',
             onPressed: _collection,
-            icon: const Icon(Icons.create_new_folder_outlined),
+            icon: const JournalActionIcon(JournalActionSymbol.folder),
+          ),
+          if (provider.recoverableJournalCount > 0)
+            IconButton(
+              tooltip: '恢复',
+              onPressed: _restore,
+              icon: const JournalActionIcon(JournalActionSymbol.restore),
+            ),
+          IconButton(
+            tooltip: '批量导出 Markdown',
+            onPressed: _exportCollection,
+            icon: const JournalExportIcon(multiple: true),
           ),
         ],
       ),
@@ -456,6 +455,7 @@ class _JournalPageState extends State<JournalPage> {
         child: const Icon(Icons.add),
       ),
       body: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           Padding(
             padding: const EdgeInsets.fromLTRB(16, 4, 16, 12),

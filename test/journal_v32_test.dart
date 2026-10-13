@@ -168,7 +168,7 @@ void main() {
   );
 
   testWidgets(
-    'Folder viewport keeps margins, export concatenates exactly, bottom uses dashed border',
+    'Folder viewport keeps margins, export separates notes, bottom reserves position icon',
     (t) async {
       final p = await mount(t, const JournalPage());
       final work = () async {
@@ -199,9 +199,9 @@ void main() {
           return null;
         },
       );
-      await t.tap(find.byTooltip('发送合集'));
+      await t.tap(find.byTooltip('批量导出 Markdown'));
       await t.pump();
-      expect(copied, p.journalEntries.map(journalToMarkdown).join());
+      expect(copied, journalCollectionToMarkdown(p.journalEntries));
       t.binding.defaultBinaryMessenger.setMockMethodCallHandler(
         SystemChannels.platform,
         null,
@@ -255,7 +255,7 @@ void main() {
       );
       final body = rich(long);
       expect(
-        t.getTopLeft(find.text('1.')).dy,
+        t.getTopLeft(find.text('1.', findRichText: true)).dy,
         closeTo(t.getTopLeft(body).dy, .01),
       );
       final end = t.getBottomLeft(body).dy;

@@ -2,7 +2,7 @@ import '../models/journal_entry.dart';
 import '../models/journal_table.dart';
 
 String _escape(String text) => text.replaceAllMapped(
-  RegExp(r'[\\`*_{}\[\]<>#+\-.!|~=]'),
+  RegExp(r'[\\`*_{}\[\]<>#+\-.!|~=^]'),
   (match) => '\\${match[0]}',
 );
 
@@ -11,13 +11,32 @@ String _inline(String text, Map attributes) {
   // Keep edge whitespace outside delimiters so emphasis remains valid Markdown.
   final leading = RegExp(r'^\s*').stringMatch(text)!;
   final trailing = RegExp(r'\s*$').stringMatch(text)!;
+  if (attributes['code'] == true) {
+    final raw = text.trim();
+    final runs = RegExp(r'`+').allMatches(raw);
+    final longest = runs.fold(
+      0,
+      (n, match) => match[0]!.length > n ? match[0]!.length : n,
+    );
+    final fence = '`' * (longest + 1);
+    final pad = raw.startsWith('`') || raw.endsWith('`') ? ' ' : '';
+    return '$leading$fence$pad$raw$pad$fence$trailing';
+  }
   var value = _escape(text.trim());
+  if (attributes['script'] == 'super') value = '^$value^';
+  if (attributes['script'] == 'sub') value = '~$value~';
   if (attributes['italic'] == true) value = '*$value*';
   if (attributes['bold'] == true) value = '**$value**';
   if (attributes['strike'] == true) value = '~~$value~~';
   if (attributes['background'] != null) value = '==$value==';
   return '$leading$value$trailing';
 }
+
+/// Blank lines terminate a preceding list, quote or paragraph before the title.
+String journalCollectionToMarkdown(Iterable<JournalEntry> entries) => entries
+    .map(journalToMarkdown)
+    .where((text) => text.isNotEmpty)
+    .join('\n\n');
 
 /// Exports the title and body, leaving dates, counts and organizational tags out
 /// of the user's prose. Alignment uses HTML because Markdown has no equivalent.

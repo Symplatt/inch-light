@@ -416,7 +416,7 @@ void main() {
         '我的记录',
       );
       await tester.pumpAndSettle();
-      expect(find.byTooltip('标签'), findsNothing);
+      expect(find.byTooltip('标签'), findsOneWidget);
       expect(find.byTooltip('取消撤回'), findsOneWidget);
       await tester.tap(find.byTooltip('撤回'));
       await tester.pump();

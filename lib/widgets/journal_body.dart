@@ -77,14 +77,49 @@ Widget? journalLeading(
   if (!['ordered', 'bullet', 'checked', 'unchecked'].contains(type)) {
     return null;
   }
+  if (type == 'checked' || type == 'unchecked') {
+    // The editor constrains this marker to the actual first line's height.
+    return Align(
+      alignment: Alignment.centerLeft,
+      child: GestureDetector(
+        onTap: readOnly ? null : () => config.onCheckboxTap(!config.value),
+        child: Icon(
+          config.value
+              ? Icons.check_box_outlined
+              : Icons.check_box_outline_blank,
+          size: MediaQuery.textScalerOf(context).scale(18),
+          color: const Color(0xFF3D3D3D),
+        ),
+      ),
+    );
+  }
   final style = journalBlock(18).style;
+  final strut = StrutStyle.fromTextStyle(style);
   final painter = TextPainter(
-    text: TextSpan(text: '国', style: style),
+    text: TextSpan(
+      text: node.toPlainText().trimRight().isEmpty
+          ? ' '
+          : node.toPlainText().trimRight(),
+      style: style,
+    ),
     textDirection: TextDirection.ltr,
     textScaler: MediaQuery.textScalerOf(context),
+    strutStyle: strut,
   )..layout();
   final height = painter.height;
+  final baseline = painter.computeDistanceToActualBaseline(
+    TextBaseline.alphabetic,
+  );
   painter.dispose();
+  Widget marker(String text) => Baseline(
+    baseline: baseline,
+    baselineType: TextBaseline.alphabetic,
+    child: RichText(
+      text: TextSpan(text: text, style: style),
+      strutStyle: strut,
+      textScaler: MediaQuery.textScalerOf(context),
+    ),
+  );
   // Constrain to the first line, not the full height of a wrapped list item.
   return Align(
     alignment: Alignment.topLeft,
@@ -94,21 +129,8 @@ Widget? journalLeading(
       child: Align(
         alignment: Alignment.centerLeft,
         child: type == 'ordered'
-            ? Text('${config.getIndexNumberByIndent}.', style: style)
-            : type == 'bullet'
-            ? Text('•', style: style)
-            : GestureDetector(
-                onTap: readOnly
-                    ? null
-                    : () => config.onCheckboxTap(!config.value),
-                child: Icon(
-                  config.value
-                      ? Icons.check_box_outlined
-                      : Icons.check_box_outline_blank,
-                  size: MediaQuery.textScalerOf(context).scale(18),
-                  color: const Color(0xFF3D3D3D),
-                ),
-              ),
+            ? marker('${config.getIndexNumberByIndent}.')
+            : marker('•'),
       ),
     ),
   );

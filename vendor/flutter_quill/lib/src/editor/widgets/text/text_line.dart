@@ -1369,16 +1369,32 @@ class RenderEditableTextLine extends RenderEditableBox {
     );
 
     if (_leading != null) {
+      final listKind = line.style.attributes[Attribute.list.key]?.value;
+      final checkbox = listKind == 'checked' || listKind == 'unchecked';
+      final firstLineHeight =
+          _body!.getFullHeightForCaret(const TextPosition(offset: 0)) ??
+          _body!.preferredLineHeight;
       final leadingConstraints = innerConstraints.copyWith(
         minWidth: indentWidth,
         maxWidth: indentWidth,
-        maxHeight: _body!.size.height,
+        maxHeight: checkbox ? firstLineHeight : _body!.size.height,
       );
       _leading!.layout(leadingConstraints, parentUsesSize: true);
-      (_leading!.parentData as BoxParentData).offset = Offset(
-        0,
-        _resolvedPadding!.top,
-      );
+      // Use the laid-out first line: CJK fallback fonts and inline styles can
+      // have a different baseline from a separately measured marker prototype.
+      var leadingTop = _resolvedPadding!.top;
+      if (listKind == 'ordered' || listKind == 'bullet') {
+        final bodyBaseline = _body!.getDistanceToBaseline(
+          TextBaseline.alphabetic,
+        );
+        final markerBaseline = _leading!.getDistanceToBaseline(
+          TextBaseline.alphabetic,
+        );
+        if (bodyBaseline != null && markerBaseline != null) {
+          leadingTop += bodyBaseline - markerBaseline;
+        }
+      }
+      (_leading!.parentData as BoxParentData).offset = Offset(0, leadingTop);
     }
 
     size = constraints.constrain(

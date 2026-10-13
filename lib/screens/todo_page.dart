@@ -337,8 +337,6 @@ class _TodoPageState extends State<TodoPage> {
     AppProvider provider, {
     bool inCollection = false,
   }) {
-    final dateColor = deadlineColor(task.deadline);
-
     return Dismissible(
       key: Key(task.id),
       direction: DismissDirection.endToStart,
@@ -396,6 +394,16 @@ class _TodoPageState extends State<TodoPage> {
                     : null,
               ),
             ),
+            trailing: task.isPinned || task.isBottom
+                ? Icon(
+                    task.isPinned
+                        ? Icons.vertical_align_top
+                        : Icons.vertical_align_bottom,
+                    size: 18,
+                    color: AppColors.textGrey,
+                  )
+                : null,
+            titleAlignment: ListTileTitleAlignment.center,
             title: Text(
               task.title,
               style: TextStyle(
@@ -445,19 +453,7 @@ class _TodoPageState extends State<TodoPage> {
                       if (task.deadline != null)
                         Padding(
                           padding: const EdgeInsets.only(top: 4),
-                          child: Row(
-                            children: [
-                              Icon(
-                                Icons.access_time,
-                                size: 12,
-                                color: dateColor,
-                              ),
-                              const SizedBox(width: 4),
-                              Flexible(
-                                child: DeadlineLabel(deadline: task.deadline!),
-                              ),
-                            ],
-                          ),
+                          child: DeadlineLabel(deadline: task.deadline!),
                         ),
                     ],
                   ),
