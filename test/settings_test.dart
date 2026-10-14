@@ -31,8 +31,8 @@ void main() {
     expect(find.byIcon(Icons.import_export_rounded), findsNothing);
     await tester.tap(find.text('设置').last);
     await tester.pumpAndSettle();
-    expect(find.text('导出数据'), findsOneWidget);
-    expect(find.text('从剪贴板导入'), findsOneWidget);
+    expect(find.text('导出备份'), findsOneWidget);
+    expect(find.text('粘贴导入'), findsOneWidget);
     for (final looseFirst in [false, true]) {
       await tester.tap(find.text(looseFirst ? '零散事项在上' : '事项合集在上'));
       await tester.pumpAndSettle();
@@ -108,8 +108,8 @@ void main() {
     await tester.pumpAndSettle();
     await tester.tap(find.text('设置').last);
     await tester.pumpAndSettle();
-    await tester.ensureVisible(find.text('导出数据'));
-    await tester.tap(find.text('导出数据'));
+    await tester.ensureVisible(find.text('导出备份'));
+    await tester.tap(find.text('导出备份'));
     await tester.pumpAndSettle();
     expect(clipboard, provider.exportData());
     expect(fileData, clipboard);
@@ -122,14 +122,14 @@ void main() {
         {'id': 'imported', 'title': '备份\n事项', 'type': 2},
       ],
     });
-    await tester.ensureVisible(find.text('从剪贴板导入'));
-    await tester.tap(find.text('从剪贴板导入'));
+    await tester.ensureVisible(find.text('粘贴导入'));
+    await tester.tap(find.text('粘贴导入'));
     await tester.pumpAndSettle();
     await tester.tap(find.text('取消'));
     await tester.pumpAndSettle();
     expect(provider.normalTasks.single.title, '原事项\n内容');
-    await tester.ensureVisible(find.text('从剪贴板导入'));
-    await tester.tap(find.text('从剪贴板导入'));
+    await tester.ensureVisible(find.text('粘贴导入'));
+    await tester.tap(find.text('粘贴导入'));
     await tester.pumpAndSettle();
     await tester.tap(find.text('确认导入'));
     await tester.pumpAndSettle();
@@ -137,16 +137,16 @@ void main() {
     expect(provider.normalTasks.single.title, '备份\n事项');
     expect(find.text('导入成功'), findsOneWidget);
     clipboard = '{"normal_tasks":[42]}';
-    await tester.ensureVisible(find.text('从剪贴板导入'));
-    await tester.tap(find.text('从剪贴板导入'));
+    await tester.ensureVisible(find.text('粘贴导入'));
+    await tester.tap(find.text('粘贴导入'));
     await tester.pumpAndSettle();
     await tester.tap(find.text('确认导入'));
     await tester.pumpAndSettle();
     expect(provider.normalTasks.single.id, 'imported');
     expect(find.text('数据格式错误'), findsOneWidget);
     clipboard = '  ';
-    await tester.ensureVisible(find.text('从剪贴板导入'));
-    await tester.tap(find.text('从剪贴板导入'));
+    await tester.ensureVisible(find.text('粘贴导入'));
+    await tester.tap(find.text('粘贴导入'));
     await tester.pumpAndSettle();
     expect(find.text('剪贴板为空'), findsOneWidget);
     expect(find.text('确认覆盖？'), findsNothing);

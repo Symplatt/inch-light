@@ -55,24 +55,15 @@ class DataExport(private val activity: Activity) {
         val text = pendingText ?: return
         // SAF providers may block; keep document creation and writing off the UI thread.
         BackupRetention.executor.execute {
-            var output: Uri? = null
             try {
-                val directory = DocumentsContract.buildDocumentUriUsingTree(tree, DocumentsContract.getTreeDocumentId(tree))
-                val stamp = SimpleDateFormat("yyyy-MM-dd_HH-mm-ss_SSS", Locale.ROOT).format(Date())
-                val name = "inch-light-$stamp.json"
-                output = DocumentsContract.createDocument(activity.contentResolver, directory, "application/json", name)
-                    ?: error("无法创建文件")
-                val stream = activity.contentResolver.openOutputStream(output, "w") ?: error("无法打开文件")
-                stream.use { it.write(text.toByteArray(Charsets.UTF_8)); it.flush() }
+                val path = BackupRetention.write(activity, tree, text)
                 activity.runOnUiThread {
                     pendingText = null
                     pendingResult = null
-                    result.success("/storage/emulated/0/inch-light/$name")
+                    result.success(path)
                     BackupRetention.schedule(activity.applicationContext)
                 }
             } catch (error: Exception) {
-                // Remove only this call's incomplete document, never an older backup.
-                output?.let { try { DocumentsContract.deleteDocument(activity.contentResolver, it) } catch (_: Exception) {} }
                 activity.runOnUiThread {
                     prefs.edit().remove("folder").apply()
                     fail("write", "文件未保存，请重新授权 inch-light 文件夹")

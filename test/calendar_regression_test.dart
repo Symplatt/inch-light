@@ -113,7 +113,7 @@ void main() {
   });
 
   testWidgets(
-    'Calendar edits persist with stable IDs and swipes delete both ways',
+    'Calendar edits persist with stable IDs and only left swipe deletes',
     (tester) async {
       final provider = AppProvider();
       await tester.runAsync(() => provider.ready);
@@ -164,6 +164,9 @@ void main() {
         restored.dispose();
       });
       await tester.drag(find.text('旅行改期'), const Offset(800, 0));
+      await tester.pumpAndSettle();
+      expect(provider.countdowns, hasLength(1));
+      await tester.drag(find.text('旅行改期'), const Offset(-800, 0));
       await tester.pumpAndSettle();
       expect(provider.countdowns, isEmpty);
       await tester.drag(find.text('每月收纳'), const Offset(-800, 0));

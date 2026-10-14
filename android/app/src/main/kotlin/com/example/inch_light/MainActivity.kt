@@ -23,6 +23,19 @@ class MainActivity : FlutterActivity() {
         super.configureFlutterEngine(flutterEngine)
         MethodChannel(flutterEngine.dartExecutor.binaryMessenger, "inch_light/data_export")
             .setMethodCallHandler { call, result ->
+                if (call.method == "syncBackup") {
+                    val text = call.argument<String>("data")
+                    if (text == null) { result.error("data", "备份数据为空", null); return@setMethodCallHandler }
+                    BackupRetention.executor.execute {
+                        try {
+                            BackupRetention.sync(applicationContext, text)
+                            runOnUiThread { result.success(null) }
+                        } catch (error: Exception) {
+                            runOnUiThread { result.error("backup", "备份暂存失败", null) }
+                        }
+                    }
+                    return@setMethodCallHandler
+                }
                 if (call.method == "importFile") {
                     dataImport.open(result)
                     return@setMethodCallHandler

@@ -207,7 +207,7 @@ void main() {
         const Color(0xFFF5222D),
       );
       await corners(find.byType(SwipeDeleteCard), -70);
-      await corners(find.byType(SwipeDeleteCard), 70);
+
       await t.pumpWidget(const SizedBox());
       p.dispose();
     },

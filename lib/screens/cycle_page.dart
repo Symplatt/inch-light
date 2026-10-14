@@ -142,7 +142,7 @@ class _CyclePageState extends State<CyclePage> {
     key: ValueKey(id),
     id: id,
     bottomMargin: 8,
-    direction: DismissDirection.horizontal,
+    direction: DismissDirection.endToStart,
     onDeleted: onDelete,
     child: Card(
       margin: EdgeInsets.zero,

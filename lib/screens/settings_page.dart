@@ -165,24 +165,45 @@ class _SettingsPageState extends State<SettingsPage> {
                 ),
                 child: Column(
                   children: [
-                    ListTile(
-                      leading: const Icon(Icons.copy_all_outlined),
-                      title: const Text('导出数据'),
-                      onTap: () => _exportData(context, provider),
-                    ),
-                    const Divider(height: 1, indent: 16, endIndent: 16),
-                    ListTile(
-                      leading: const Icon(Icons.content_paste_go_outlined),
-                      title: const Text('从剪贴板导入'),
-                      onTap: _busy ? null : () => _readImport(file: false),
-                    ),
-                    if (!kIsWeb &&
-                        defaultTargetPlatform == TargetPlatform.android)
-                      ListTile(
-                        leading: const Icon(Icons.file_open_outlined),
-                        title: const Text('从文件导入'),
-                        onTap: _busy ? null : () => _readImport(file: true),
+                    Padding(
+                      padding: const EdgeInsets.all(16),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
+                        children: [
+                          FilledButton.tonalIcon(
+                            icon: const Icon(Icons.save_alt_outlined),
+                            label: const Text('导出备份'),
+                            onPressed: _busy
+                                ? null
+                                : () => _exportData(context, provider),
+                          ),
+                          const SizedBox(height: 8),
+                          Wrap(
+                            alignment: WrapAlignment.spaceEvenly,
+                            spacing: 8,
+                            children: [
+                              TextButton.icon(
+                                icon: const Icon(Icons.content_paste_outlined),
+                                label: const Text('粘贴导入'),
+                                onPressed: _busy
+                                    ? null
+                                    : () => _readImport(file: false),
+                              ),
+                              if (!kIsWeb &&
+                                  defaultTargetPlatform ==
+                                      TargetPlatform.android)
+                                TextButton.icon(
+                                  icon: const Icon(Icons.file_open_outlined),
+                                  label: const Text('文件导入'),
+                                  onPressed: _busy
+                                      ? null
+                                      : () => _readImport(file: true),
+                                ),
+                            ],
+                          ),
+                        ],
                       ),
+                    ),
                     if (_pendingImport != null)
                       Padding(
                         padding: const EdgeInsets.all(16),
@@ -218,7 +239,7 @@ class _SettingsPageState extends State<SettingsPage> {
                     const Padding(
                       padding: EdgeInsets.fromLTRB(16, 8, 16, 16),
                       child: Text(
-                        'inch-light 文件夹中导出超过 7 天的数据文件会自动清理。',
+                        '数据导出至本地路径7天后，自动删除',
                         style: TextStyle(
                           fontSize: 12,
                           color: AppColors.textGrey,

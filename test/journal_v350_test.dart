@@ -192,8 +192,8 @@ void main() {
         ),
       );
       await t.pumpAndSettle();
-      await t.ensureVisible(find.text('从文件导入'));
-      await t.tap(find.text('从文件导入'));
+      await t.ensureVisible(find.text('文件导入'));
+      await t.tap(find.text('文件导入'));
       await t.pumpAndSettle();
       expect(find.byType(AlertDialog), findsNothing);
       expect(p.normalTasks, hasLength(1));
@@ -201,8 +201,8 @@ void main() {
       await t.tap(find.text('取消'));
       await t.pumpAndSettle();
       expect(p.normalTasks.single.title, '原数据');
-      await t.ensureVisible(find.text('从文件导入'));
-      await t.tap(find.text('从文件导入'));
+      await t.ensureVisible(find.text('文件导入'));
+      await t.tap(find.text('文件导入'));
       await t.pumpAndSettle();
       await t.ensureVisible(find.text('确认导入'));
       await t.tap(find.text('确认导入'));

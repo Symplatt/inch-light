@@ -1,6 +1,8 @@
 import 'dart:async';
 import 'dart:convert';
 import 'package:flutter/material.dart';
+import 'package:flutter/foundation.dart';
+import 'package:flutter/services.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:uuid/uuid.dart';
 
@@ -10,6 +12,37 @@ import '../models/journal_entry.dart';
 import '../utils/schedule.dart';
 
 class AppProvider with ChangeNotifier, WidgetsBindingObserver {
+  bool _backupReady = false;
+  String? _backupSnapshot;
+  String? _backupDay;
+  Future<void> _backupWrite = Future.value();
+
+  @override
+  void notifyListeners() {
+    super.notifyListeners();
+    if (!_backupReady ||
+        kIsWeb ||
+        defaultTargetPlatform != TargetPlatform.android) {
+      return;
+    }
+    final snapshot = exportData();
+    final day = DateTime.now().toIso8601String().split('T').first;
+    if (snapshot == _backupSnapshot && day == _backupDay) return;
+    _backupSnapshot = snapshot;
+    _backupDay = day;
+    // Serialize complete snapshots; the background job never reads partially saved sections.
+    _backupWrite = _backupWrite.then((_) async {
+      try {
+        await const MethodChannel(
+          'inch_light/data_export',
+        ).invokeMethod<void>('syncBackup', {'data': snapshot});
+      } catch (_) {
+        _backupSnapshot = null;
+        _backupDay = null;
+      }
+    });
+  }
+
   final List<TaskItem> _dailyTasks = [];
   final List<TaskItem> _normalTasks = [];
   final List<CycleTask> _cycleTasks = [];
@@ -423,6 +456,7 @@ class AppProvider with ChangeNotifier, WidgetsBindingObserver {
   Future<void> _initData() async {
     await _loadData();
     if (_disposed) return;
+    _backupReady = true;
     _maintainData();
     _maintenanceTimer = Timer.periodic(
       const Duration(seconds: 1),

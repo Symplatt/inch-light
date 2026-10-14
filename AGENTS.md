@@ -77,7 +77,7 @@
 - 使用中文沟通；应用名称为“一日千录”，界面、文档和新增文案统一使用“事项”命名，保持简洁、低饱和配色和常规字重。
 - 业务模块为待办、时历与记录，设置页用于显示顺序和数据管理；不要恢复专注模块。记录支持富文本、表格、标签、标题与标签统一搜索及独立合集，导航顺序为待办、记录、时历、设置，启动恢复上次所在模块，不提供思维笔记功能。
 - GitHub 仓库为 https://github.com/Symplatt/inch-light.git；每次完成修改后推送最新源代码，并更新 GitHub Release，发布对应 Android APK。
-- 发布序列从 2.0.1 开始，沿用语义化版本；普通修复默认递增补丁号，pubspec.yaml 的构建号必须持续递增。
+- 发布序列从 2.0.1 开始，沿用语义化版本；每次更新由代理根据实际变更自行决定主版本号、次版本号或修订号递增，用户明确指定时优先遵循用户要求，pubspec.yaml 的构建号必须持续递增。
 - 每次发布同步更新 README 中的版本及受影响的功能说明，CHANGELOG 使用带日期的 Keep a Changelog 分类；Git 标签使用 vX.Y.Z，与 pubspec.yaml 的版本对应。
 - 发布前执行 dart format --output=none --set-exit-if-changed lib test、flutter analyze 和 flutter test，Android APK 使用 flutter build apk --release --split-per-abi 构建；核对各架构 APK 的版本名及实际 versionCode，保持包名和签名兼容。
 - 验证安装包生成并上传 Release 后再报告发布成功；不覆盖现有版本标签，不强推，不提交凭据、签名密钥或本机构建目录。
