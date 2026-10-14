@@ -323,6 +323,8 @@ void main() {
       await t.drag(card, const Offset(350, 0));
       await t.pumpAndSettle();
       expect(p.journalEntries, hasLength(1));
+      await t.tap(find.byTooltip('退出多选'));
+      await t.pumpAndSettle();
       await t.drag(card, const Offset(-350, 0));
       await t.pumpAndSettle();
       expect(p.journalEntries, isEmpty);
@@ -333,8 +335,8 @@ void main() {
       );
       expect(actions, hasLength(3));
       expect(actions.map((a) => a.symbol), [
-        JournalActionSymbol.folder,
         JournalActionSymbol.restore,
+        JournalActionSymbol.folder,
         JournalActionSymbol.exportAll,
       ]);
       final rects = find
@@ -441,7 +443,7 @@ void main() {
   });
 
   testWidgets(
-    'Ordered baseline and checkbox center follow the actual first line with larger text',
+    'Ordered baseline follows actual first line and old checklists become bullets',
     (t) async {
       final p = AppProvider();
       await t.runAsync(() => p.ready);
@@ -493,16 +495,7 @@ void main() {
       }
 
       expect(baseline(marker), closeTo(baseline(body), .01));
-      final checkBody = t.renderObject<RenderParagraph>(
-        rich('选框首行较大并自动换行的正文内容测试文字'),
-      );
-      final height = checkBody.getFullHeightForCaret(
-        const TextPosition(offset: 0),
-      );
-      expect(
-        t.getCenter(find.byIcon(Icons.check_box_outline_blank)).dy,
-        closeTo(checkBody.localToGlobal(Offset(0, height / 2)).dy, .5),
-      );
+      expect(find.byIcon(Icons.check_box_outline_blank), findsNothing);
       await t.pumpWidget(const SizedBox());
       p.dispose();
     },

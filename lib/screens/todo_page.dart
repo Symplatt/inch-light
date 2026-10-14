@@ -2,6 +2,7 @@ import '../widgets/position_border.dart';
 import '../widgets/task_action_dialog.dart';
 import '../widgets/date_time_sheet.dart';
 import '../widgets/deadline_label.dart';
+import '../widgets/swipe_delete_card.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:intl/intl.dart';
@@ -337,23 +338,14 @@ class _TodoPageState extends State<TodoPage> {
     AppProvider provider, {
     bool inCollection = false,
   }) {
-    return Dismissible(
-      key: Key(task.id),
-      direction: DismissDirection.endToStart,
-      onDismissed: (_) => provider.removeTask(task),
-      background: Container(
-        margin: EdgeInsets.only(bottom: inCollection ? 0 : 12),
-        padding: const EdgeInsets.only(right: 20),
-        alignment: Alignment.centerRight,
-        decoration: BoxDecoration(
-          color: AppColors.danger,
-          borderRadius: BorderRadius.circular(inCollection ? 0 : 16),
-        ),
-        child: const Icon(Icons.delete_outline, color: Colors.white),
-      ),
+    return SwipeDeleteCard(
+      key: ValueKey('task-card-${task.id}'),
+      id: task.id,
+      radius: inCollection ? 0 : 16,
+      bottomMargin: inCollection ? 0 : 12,
+      onDeleted: () => provider.removeTask(task),
       child: Container(
-        margin: EdgeInsets.only(bottom: inCollection ? 0 : 12),
-        decoration: inCollection && !task.isPinned && !task.isBottom
+        decoration: inCollection
             ? const BoxDecoration(color: AppColors.surface)
             : ShapeDecoration(
                 color: AppColors.surface,
@@ -435,14 +427,14 @@ class _TodoPageState extends State<TodoPage> {
                                       vertical: 2,
                                     ),
                                     decoration: BoxDecoration(
-                                      color: AppColors.bg,
+                                      color: const Color(0xFFF8F8FA),
                                       borderRadius: BorderRadius.circular(4),
                                     ),
                                     child: Text(
                                       tag,
                                       style: const TextStyle(
                                         fontSize: 10,
-                                        color: AppColors.textGrey,
+                                        color: Color(0xFF9699A0),
                                       ),
                                     ),
                                   ),
@@ -452,7 +444,9 @@ class _TodoPageState extends State<TodoPage> {
                         ),
                       if (task.deadline != null)
                         Padding(
-                          padding: const EdgeInsets.only(top: 4),
+                          padding: EdgeInsets.only(
+                            top: task.tags.isEmpty ? 4 : 9,
+                          ),
                           child: DeadlineLabel(deadline: task.deadline!),
                         ),
                     ],
@@ -634,6 +628,19 @@ class _TodoPageState extends State<TodoPage> {
                                 fontWeight: FontWeight.w400,
                               ),
                             ),
+                            const Spacer(),
+                            if (selectedDeadline != null)
+                              IconButton(
+                                tooltip: '取消截止日期',
+                                constraints: const BoxConstraints.tightFor(
+                                  width: 28,
+                                  height: 28,
+                                ),
+                                padding: EdgeInsets.zero,
+                                icon: const Icon(Icons.close, size: 16),
+                                onPressed: () =>
+                                    setState(() => selectedDeadline = null),
+                              ),
                           ],
                         ),
                       ),
@@ -861,6 +868,19 @@ class _TodoPageState extends State<TodoPage> {
                                 fontWeight: FontWeight.w400,
                               ),
                             ),
+                            const Spacer(),
+                            if (selectedDeadline != null)
+                              IconButton(
+                                tooltip: '取消截止日期',
+                                constraints: const BoxConstraints.tightFor(
+                                  width: 28,
+                                  height: 28,
+                                ),
+                                padding: EdgeInsets.zero,
+                                icon: const Icon(Icons.close, size: 16),
+                                onPressed: () =>
+                                    setState(() => selectedDeadline = null),
+                              ),
                           ],
                         ),
                       ),

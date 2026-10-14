@@ -14,11 +14,25 @@ import io.flutter.plugin.common.MethodChannel
 import io.flutter.embedding.android.FlutterActivity
 
 class MainActivity : FlutterActivity() {
+    private val dataExport by lazy { DataExport(this) }
+    private val dataImport by lazy { DataImport(this) }
     private var pendingImage: ByteArray? = null
     private var pendingResult: MethodChannel.Result? = null
 
     override fun configureFlutterEngine(flutterEngine: FlutterEngine) {
         super.configureFlutterEngine(flutterEngine)
+        MethodChannel(flutterEngine.dartExecutor.binaryMessenger, "inch_light/data_export")
+            .setMethodCallHandler { call, result ->
+                if (call.method == "importFile") {
+                    dataImport.open(result)
+                    return@setMethodCallHandler
+                }
+                if (call.method == "exportData") {
+                    val text = call.argument<String>("data")
+                    if (text == null) result.error("data", "导出数据为空", null)
+                    else dataExport.export(text, result)
+                } else result.notImplemented()
+            }
         MethodChannel(flutterEngine.dartExecutor.binaryMessenger, "inch_light/note_export")
             .setMethodCallHandler { call, result ->
                 if (call.method != "saveImage" && call.method != "shareImage") {
@@ -71,6 +85,8 @@ class MainActivity : FlutterActivity() {
     @Deprecated("Android activity result compatibility")
     override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
         super.onActivityResult(requestCode, resultCode, data)
+        if (requestCode == DataExport.REQUEST) { dataExport.onResult(resultCode, data); return }
+        if (requestCode == DataImport.REQUEST) { dataImport.onResult(resultCode, data); return }
         if (requestCode != 3401) return
         val result = pendingResult ?: return
         val bytes = pendingImage
@@ -110,5 +126,10 @@ class MainActivity : FlutterActivity() {
             (getSystemService(NOTIFICATION_SERVICE) as NotificationManager).cancelAll()
             prefs.edit().putBoolean("cleared_v2_0_2", true).apply()
         }
+    }
+
+    override fun onResume() {
+        super.onResume()
+        BackupRetention.schedule(applicationContext)
     }
 }

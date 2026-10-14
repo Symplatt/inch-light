@@ -23,11 +23,11 @@ class _CyclePageState extends State<CyclePage> {
   @override
   Widget build(BuildContext context) {
     final provider = context.watch<AppProvider>();
+    final now = provider.now;
     final countdowns = provider.countdowns.toList()
       ..sort((a, b) => a.deadline.compareTo(b.deadline));
     final cycles = provider.cycleTasks.toList()
       ..sort((a, b) => a.nextRunTime.compareTo(b.nextRunTime));
-    final now = DateTime.now();
     final countdownWidgets = <Widget>[
       _header(
         '倒计时',
@@ -44,6 +44,8 @@ class _CyclePageState extends State<CyclePage> {
                 ? '${DateFormat('yyyy.MM.dd').format(task.deadline)} · 全天'
                 : DateFormat('yyyy.MM.dd  HH:mm').format(task.deadline),
             deadline: task.deadline,
+            completed:
+                task.deadline.difference(now) <= const Duration(hours: 24),
             now: now,
             id: task.id,
             onDelete: () => provider.removeCountdown(task),
@@ -70,6 +72,8 @@ class _CyclePageState extends State<CyclePage> {
             subtitle:
                 '${_frequencyLabels[task.frequency.index]} ${task.allDay ? '全天' : DateFormat('HH:mm').format(task.time)}',
             nextRun: '下次 ${DateFormat('yyyy.MM.dd').format(task.nextRunTime)}',
+            completed:
+                task.nextRunTime.difference(now) <= const Duration(hours: 24),
             deadline: task.nextRunTime,
             now: now,
             id: task.id,
@@ -128,6 +132,7 @@ class _CyclePageState extends State<CyclePage> {
     required String title,
     required String subtitle,
     String? nextRun,
+    bool completed = false,
     required DateTime deadline,
     required DateTime now,
     required VoidCallback onDelete,
@@ -144,53 +149,75 @@ class _CyclePageState extends State<CyclePage> {
       elevation: 0,
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(16),
-        side: const BorderSide(color: AppColors.divider),
+        side: BorderSide(color: AppColors.divider),
       ),
       child: InkWell(
         onLongPress: onEdit,
         borderRadius: BorderRadius.circular(16),
-        child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 20),
-          child: Row(
-            children: [
-              Expanded(
-                flex: 1,
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Text(
-                      title,
-                      style: const TextStyle(
-                        fontSize: 16,
-                        fontWeight: FontWeight.w400,
-                      ),
-                    ),
-                    const SizedBox(height: 14),
-                    Text(
-                      subtitle,
-                      style: const TextStyle(
-                        fontSize: 12,
-                        color: AppColors.textGrey,
-                      ),
-                    ),
-                    if (nextRun != null) ...[
-                      const SizedBox(height: 4),
-                      Text(
-                        nextRun,
-                        style: const TextStyle(
-                          fontSize: 12,
-                          color: AppColors.textGrey,
+        child: Stack(
+          clipBehavior: Clip.none,
+          children: [
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 20),
+              child: Row(
+                children: [
+                  Expanded(
+                    flex: 1,
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Text(
+                          title,
+                          style: const TextStyle(
+                            fontSize: 16,
+                            fontWeight: FontWeight.w400,
+                          ),
                         ),
-                      ),
-                    ],
-                  ],
+                        const SizedBox(height: 14),
+                        Text(
+                          subtitle,
+                          style: const TextStyle(
+                            fontSize: 12,
+                            color: AppColors.textGrey,
+                          ),
+                        ),
+                        if (nextRun != null) ...[
+                          const SizedBox(height: 4),
+                          Text(
+                            nextRun,
+                            style: const TextStyle(
+                              fontSize: 12,
+                              color: AppColors.textGrey,
+                            ),
+                          ),
+                        ],
+                      ],
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(child: _countdown(deadline, now)),
+                ],
+              ),
+            ),
+            if (completed)
+              Positioned(
+                top: 0,
+                right: 0,
+                child: Semantics(
+                  label: '24 小时内到期',
+                  child: Container(
+                    key: ValueKey('completed-$id'),
+                    width: 8,
+                    height: 8,
+                    decoration: const BoxDecoration(
+                      color: Color(0xFFF5222D),
+                      shape: BoxShape.circle,
+                    ),
+                  ),
                 ),
               ),
-              const SizedBox(width: 12),
-              Expanded(child: _countdown(deadline, now)),
-            ],
-          ),
+          ],
         ),
       ),
     ),

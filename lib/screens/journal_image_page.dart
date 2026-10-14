@@ -9,6 +9,7 @@ import '../models/journal_entry.dart';
 import '../models/journal_table.dart';
 import '../widgets/journal_body.dart';
 import '../widgets/journal_tags.dart';
+import '../widgets/journal_export_icon.dart';
 
 class JournalImagePage extends StatefulWidget {
   const JournalImagePage({super.key, required this.entry});
@@ -109,12 +110,12 @@ class _JournalImagePageState extends State<JournalImagePage> {
           IconButton(
             tooltip: '分享图片',
             onPressed: _busy ? null : () => _export(true),
-            icon: const Icon(Icons.ios_share_outlined),
+            icon: const JournalActionIcon(JournalActionSymbol.share),
           ),
           IconButton(
             tooltip: '保存图片',
             onPressed: _busy ? null : () => _export(false),
-            icon: const Icon(Icons.save_alt),
+            icon: const JournalActionIcon(JournalActionSymbol.saveImage),
           ),
         ],
       ),
@@ -130,7 +131,12 @@ class _JournalImagePageState extends State<JournalImagePage> {
                   child: ColoredBox(
                     color: Colors.white,
                     child: Padding(
-                      padding: const EdgeInsets.all(24),
+                      padding: EdgeInsets.fromLTRB(
+                        24,
+                        MediaQuery.textScalerOf(context).scale(18) * 2.5,
+                        24,
+                        MediaQuery.textScalerOf(context).scale(18) * 3,
+                      ),
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.stretch,
                         children: [

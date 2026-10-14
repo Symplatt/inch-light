@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/rendering.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:inch_light/constants/app_colors.dart';
@@ -88,7 +89,7 @@ void main() {
         MaterialApp(
           home: Scaffold(
             body: SizedBox(
-              width: 130,
+              width: 180,
               child: DeadlineLabel(
                 deadline: now.add(const Duration(hours: 47)),
                 now: now,
@@ -105,11 +106,28 @@ void main() {
       expect(find.text('（剩余 1 天）'), findsNothing);
       expect(find.byIcon(Icons.hourglass_empty), findsNothing);
       expect(find.byKey(const ValueKey('deadline-days')), findsOneWidget);
-      final number = tester.widget<Text>(find.text('1'));
-      expect(number.style!.color, AppColors.success);
-      expect(number.style!.fontWeight, FontWeight.w400);
-      expect(number.style!.fontSize, 10);
+      expect(find.text('1'), findsOneWidget);
       expect(span.style!.fontSize, 12);
+      expect(find.byIcon(Icons.alarm_outlined), findsOneWidget);
+      final badge = tester.getRect(find.byKey(const ValueKey('deadline-days')));
+      expect(badge.width, lessThan(24));
+      final paragraph = tester.renderObject<RenderParagraph>(
+        find
+            .descendant(
+              of: find.byType(DeadlineLabel),
+              matching: find.byType(RichText),
+            )
+            .first,
+      );
+      final dateBoxes = paragraph.getBoxesForSelection(
+        const TextSelection(baseOffset: 1, extentOffset: 12),
+      );
+      expect(dateBoxes, hasLength(1));
+      final dateRect = dateBoxes.single.toRect().shift(
+        paragraph.localToGlobal(Offset.zero),
+      );
+      expect(badge.left, greaterThan(dateRect.right));
+      expect(dateRect.center.dy, closeTo(badge.center.dy, 3));
       expect(tester.takeException(), isNull);
     },
   );

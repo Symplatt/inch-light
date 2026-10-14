@@ -123,8 +123,6 @@ void main() {
         ('- ', 'list', 'bullet'),
         ('1. ', 'list', 'ordered'),
         ('> ', 'blockquote', true),
-        ('[ ] ', 'list', 'unchecked'),
-        ('[x] ', 'list', 'checked'),
       ]) {
         final c = quill.QuillController(
           document: quill.Document.fromJson([
@@ -260,11 +258,7 @@ void main() {
       );
       final end = t.getBottomLeft(body).dy;
       expect(t.getTopLeft(rich('第二项')).dy - end, closeTo(5, .01));
-      final box = t.getRect(find.byIcon(Icons.check_box_outline_blank));
-      expect(
-        box.center.dy,
-        closeTo(t.getTopLeft(rich('选框文字')).dy + 18 * 1.6 / 2, .5),
-      );
+      expect(find.byIcon(Icons.check_box_outline_blank), findsNothing);
       await t.pumpWidget(const SizedBox());
       p.dispose();
     },
@@ -316,11 +310,11 @@ void main() {
       );
       expect(
         t.getTopLeft(rich('正文后标题')).dy - t.getBottomLeft(rich('正文')).dy,
-        closeTo(20, .01),
+        closeTo(24, .01),
       );
       expect(
         t.getTopLeft(rich('居中标题')).dy - t.getBottomLeft(rich('再一段')).dy,
-        closeTo(20, .01),
+        closeTo(28, .01),
       );
       await t.pumpWidget(const SizedBox());
       p.dispose();

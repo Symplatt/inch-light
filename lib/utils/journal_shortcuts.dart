@@ -24,10 +24,6 @@ bool applyJournalShortcut(quill.QuillController controller) {
     attribute = quill.Attribute.ol;
   } else if (prefix == '> ') {
     attribute = quill.Attribute.blockQuote;
-  } else if (prefix == '- [ ] ' || prefix == '[ ] ') {
-    attribute = quill.Attribute.unchecked;
-  } else if (prefix == '- [x] ' || prefix == '[x] ') {
-    attribute = quill.Attribute.checked;
   }
   if (attribute == null) return _inlineShortcut(controller, prefix, start);
   controller.replaceText(

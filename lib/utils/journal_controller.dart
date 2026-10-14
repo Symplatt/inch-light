@@ -1,6 +1,8 @@
 import 'package:flutter/services.dart';
 import 'package:flutter_quill/flutter_quill.dart' as quill;
 import 'package:flutter_quill/quill_delta.dart';
+import '../models/journal_table.dart';
+import 'journal_table_markdown.dart';
 
 /// Select a table on the first backspace and delete it on the next one. Keeping
 /// this in the controller covers both IME replacements and hardware backspace.
@@ -25,6 +27,53 @@ class JournalController extends quill.QuillController {
   }
   int? pendingTable;
   bool _deleting = false;
+
+  bool handleTableBackspace() {
+    var offset = 0;
+    for (final op in document.toDelta().toJson()) {
+      final insert = op['insert'];
+      if (insert is Map && insert['table'] is String) {
+        if (pendingTable == offset && !selection.isCollapsed) {
+          return deleteTable(JournalTableData.decode(insert['table']).id);
+        }
+        if (selection.isCollapsed &&
+            selection.baseOffset >= offset &&
+            selection.baseOffset <= offset + 2) {
+          pendingTable = offset;
+          updateSelection(
+            TextSelection(baseOffset: offset, extentOffset: offset + 1),
+            quill.ChangeSource.local,
+          );
+          return true;
+        }
+      }
+      offset += insert is String ? insert.length : 1;
+    }
+    return false;
+  }
+
+  bool deleteTable(String id) {
+    var offset = 0;
+    for (final op in document.toDelta().toJson()) {
+      final insert = op['insert'];
+      if (insert is Map &&
+          insert['table'] is String &&
+          JournalTableData.decode(insert['table']).id == id) {
+        final length = document.length - offset > 2 ? 2 : 1;
+        pendingTable = null;
+        compose(
+          Delta()
+            ..retain(offset)
+            ..delete(length),
+          TextSelection.collapsed(offset: offset),
+          quill.ChangeSource.local,
+        );
+        return true;
+      }
+      offset += insert is String ? insert.length : 1;
+    }
+    return false;
+  }
 
   /// Only collapse leading blank paragraphs when the caret is inside them.
   /// Delete a document range so the first nonempty line retains its attributes.
@@ -67,6 +116,42 @@ class JournalController extends quill.QuillController {
   }
 
   bool _replace(int index, int length, Object? data) {
+    if (data is String && data.contains('\n') && data.contains('|')) {
+      final blocks = markdownTableBlocks(data);
+      if (blocks.isNotEmpty) {
+        final delta = Delta()
+          ..retain(index)
+          ..delete(length);
+        var at = 0;
+        var inserted = 0;
+        void text(String value) {
+          if (value.isNotEmpty) {
+            delta.insert(value);
+            inserted += value.length;
+          }
+        }
+
+        final plain = document.toPlainText();
+        for (final block in blocks) {
+          text(data.substring(at, block.start));
+          if (block.start == 0 && index > 0 && plain[index - 1] != '\n') {
+            text('\n');
+          }
+          delta.insert({'table': block.table.encode()});
+          inserted++;
+          text('\n');
+          at = block.end;
+        }
+        text(data.substring(at));
+        pendingTable = null;
+        compose(
+          delta,
+          TextSelection.collapsed(offset: index + inserted),
+          quill.ChangeSource.local,
+        );
+        return false;
+      }
+    }
     if (_deleting) return true;
     if (data == '' &&
         length > 0 &&
@@ -82,13 +167,7 @@ class JournalController extends quill.QuillController {
     if (pendingTable != null &&
         selection.start == pendingTable &&
         !selection.isCollapsed) {
-      final at = pendingTable!;
-      pendingTable = null;
-      _deleting = true;
-      // Remove the embed and its paragraph ending, preserving the paragraph
-      // below it and therefore never merging surrounding prose accidentally.
-      replaceText(at, 2, '', TextSelection.collapsed(offset: at));
-      _deleting = false;
+      handleTableBackspace();
       return false;
     }
     if (!selection.isCollapsed || length > 1) return true;

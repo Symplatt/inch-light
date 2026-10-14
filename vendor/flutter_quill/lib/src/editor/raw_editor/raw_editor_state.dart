@@ -72,7 +72,8 @@ class QuillRawEditorState extends EditorState
   // Focus
   bool _didAutoFocus = false;
 
-  bool get _hasFocus => widget.config.focusNode.hasFocus;
+  // Embedded text fields must exclusively own their input connection and caret.
+  bool get _hasFocus => widget.config.focusNode.hasPrimaryFocus;
 
   // Theme
   DefaultStyles? _styles;
@@ -1208,11 +1209,14 @@ class QuillRawEditorState extends EditorState
   }
 
   void _handleFocusChanged() {
+    if (!_hasFocus) {
+      closeConnectionIfNeeded();
+      _cursorCont.startOrStopCursorTimerIfNeeded(false, controller.selection);
+    }
     if (dirty) {
-      requestKeyboard();
-      SchedulerBinding.instance.addPostFrameCallback(
-        (_) => _handleFocusChanged(),
-      );
+      SchedulerBinding.instance.addPostFrameCallback((_) {
+        if (mounted) _handleFocusChanged();
+      });
       return;
     }
     openOrCloseConnection();

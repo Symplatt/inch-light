@@ -50,21 +50,27 @@ class EditorKeyboardShortcuts extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Shortcuts(
-      /// Merge with widget.configurations.customShortcuts
-      /// first to allow user's defined shortcuts to take
-      /// priority when activation triggers are the same
-      shortcuts: mergeMaps<ShortcutActivator, Intent>(
-        {...?customShortcuts},
-        {...defaultSinlgeActivatorIntents()},
-      ),
-      child: Actions(
-        actions: mergeMaps<Type, Action<Intent>>(actions, {...?customActions}),
-        child: Focus(
-          focusNode: focusNode,
-          onKeyEvent: _onKeyEvent,
-          child: QuillKeyboardListener(
-            child: Container(constraints: constraints, child: child),
+    return ListenableBuilder(
+      listenable: focusNode,
+      builder: (context, _) => Shortcuts(
+        // Embedded EditableText actions must not inherit Quill's document-wide
+        // delete/selection overrides while a table cell owns the keyboard.
+        shortcuts: focusNode.hasPrimaryFocus
+            ? mergeMaps<ShortcutActivator, Intent>(
+                {...?customShortcuts},
+                {...defaultSinlgeActivatorIntents()},
+              )
+            : const <ShortcutActivator, Intent>{},
+        child: Actions(
+          actions: focusNode.hasPrimaryFocus
+              ? mergeMaps<Type, Action<Intent>>(actions, {...?customActions})
+              : const <Type, Action<Intent>>{},
+          child: Focus(
+            focusNode: focusNode,
+            onKeyEvent: _onKeyEvent,
+            child: QuillKeyboardListener(
+              child: Container(constraints: constraints, child: child),
+            ),
           ),
         ),
       ),
@@ -72,6 +78,7 @@ class EditorKeyboardShortcuts extends StatelessWidget {
   }
 
   KeyEventResult _onKeyEvent(node, KeyEvent event) {
+    if (!focusNode.hasPrimaryFocus) return KeyEventResult.ignored;
     final onKey = onKeyPressed;
     if (onKey != null) {
       // Find the current node the user is on.

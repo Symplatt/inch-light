@@ -1,5 +1,5 @@
+import '../utils/clipboard.dart';
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
 
@@ -10,6 +10,7 @@ import '../widgets/journal_tags.dart';
 import '../widgets/journal_collection_dialog.dart';
 import '../widgets/position_border.dart';
 import '../widgets/journal_export_icon.dart';
+import '../widgets/swipe_delete_card.dart';
 import '../utils/journal_markdown.dart';
 import 'journal_editor_page.dart';
 
@@ -23,13 +24,141 @@ class JournalPage extends StatefulWidget {
 
 class _JournalPageState extends State<JournalPage> {
   String _query = '';
+  bool _selecting = false;
+  bool _batchBusy = false;
+  final _selected = <String>{};
+  Offset? _swipeStart;
+
+  void _exitSelection() => setState(() {
+    _selecting = false;
+    _selected.clear();
+    _swipeStart = null;
+  });
+
+  Future<void> _batchAction({required bool delete}) async {
+    if (_selected.isEmpty || _batchBusy) return;
+    final provider = context.read<AppProvider>();
+    final ids = Set<String>.from(_selected);
+    String? target;
+    if (delete) {
+      final confirmed = await showDialog<bool>(
+        context: context,
+        builder: (ctx) => AlertDialog(
+          title: Text('删除选中的 ${ids.length} 篇笔记？'),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(ctx, false),
+              child: const Text('取消'),
+            ),
+            TextButton(
+              onPressed: () => Navigator.pop(ctx, true),
+              child: const Text(
+                '删除',
+                style: TextStyle(color: AppColors.danger),
+              ),
+            ),
+          ],
+        ),
+      );
+      if (confirmed != true) return;
+    } else {
+      target = await showDialog<String>(
+        context: context,
+        builder: (ctx) => SimpleDialog(
+          title: const Text('移动到合集'),
+          children: [
+            SimpleDialogOption(
+              onPressed: () => Navigator.pop(ctx, ''),
+              child: const Text('默认'),
+            ),
+            for (final folder in provider.journalCollections)
+              SimpleDialogOption(
+                onPressed: () => Navigator.pop(ctx, folder.id),
+                child: Text(folder.title),
+              ),
+          ],
+        ),
+      );
+      if (target == null) return;
+    }
+    if (!mounted) return;
+    setState(() => _batchBusy = true);
+    try {
+      if (delete) {
+        await provider.removeJournalEntries(ids);
+      } else {
+        await provider.moveJournalEntries(ids, target!.isEmpty ? null : target);
+      }
+      if (mounted) _exitSelection();
+    } catch (_) {
+      _error(delete ? '删除未保存，请重试' : '移动未保存，请重试');
+    } finally {
+      if (mounted) setState(() => _batchBusy = false);
+    }
+  }
+
+  Widget _selectableNote(JournalEntry entry, Widget card) => Listener(
+    onPointerDown: (event) => _swipeStart = event.position,
+    onPointerUp: (_) => _swipeStart = null,
+    onPointerCancel: (_) => _swipeStart = null,
+    onPointerMove: (event) {
+      if (_selecting || _swipeStart == null) return;
+      final delta = event.position - _swipeStart!;
+      if (delta.dx > 24 && delta.dx > delta.dy.abs()) {
+        setState(() => _selecting = true);
+      }
+    },
+    child: Row(
+      children: [
+        AnimatedContainer(
+          duration: const Duration(milliseconds: 120),
+          width: _selecting ? 44 : 0,
+          height: _selecting ? 48 : 0,
+          child: ClipRect(
+            child: OverflowBox(
+              minWidth: 44,
+              maxWidth: 44,
+              child: IconButton(
+                tooltip: _selected.contains(entry.id) ? '取消选择' : '选择笔记',
+                onPressed: !_selecting || _batchBusy
+                    ? null
+                    : () => setState(() {
+                        if (!_selected.add(entry.id)) {
+                          _selected.remove(entry.id);
+                        }
+                      }),
+                icon: Icon(
+                  _selected.contains(entry.id)
+                      ? Icons.check_circle
+                      : Icons.circle_outlined,
+                ),
+              ),
+            ),
+          ),
+        ),
+        Expanded(
+          child: SwipeDeleteCard(
+            key: ValueKey('dismiss-note-${entry.id}'),
+            id: entry.id,
+            enabled: !_selecting,
+            bottomMargin: 0,
+            onDeleted: () => _delete(entry, swipe: true),
+            child: card,
+          ),
+        ),
+      ],
+    ),
+  );
+
   final _search = TextEditingController();
   String? _selectedCollection;
 
   @override
   void initState() {
     super.initState();
-    _selectedCollection = widget.collectionId;
+    _selectedCollection =
+        widget.collectionId ??
+        context.read<AppProvider>().lastJournalCollection;
   }
 
   @override
@@ -145,6 +274,7 @@ class _JournalPageState extends State<JournalPage> {
       await provider.removeJournalEntry(entry.id, recoverable: swipe);
     } catch (_) {
       _error('删除未保存，请重试');
+      if (swipe) rethrow;
     }
   }
 
@@ -268,13 +398,78 @@ class _JournalPageState extends State<JournalPage> {
       (e) => _inCollection(e, provider.journalCollections),
     );
     try {
-      await Clipboard.setData(
-        ClipboardData(text: journalCollectionToMarkdown(entries)),
-      );
+      await copyText(journalCollectionToMarkdown(entries));
       _error('合集 Markdown 已复制');
     } catch (_) {
       _error('复制失败，请重试');
     }
+  }
+
+  void _selectCollection(String? id) {
+    FocusScope.of(context).unfocus();
+    context.read<AppProvider>().setLastJournalCollection(id);
+    setState(() {
+      _selectedCollection = id;
+      _selecting = false;
+      _selected.clear();
+    });
+  }
+
+  Future<void> _showCollections() async {
+    final provider = context.read<AppProvider>();
+    await showDialog<void>(
+      context: context,
+      builder: (dialogContext) => ListenableBuilder(
+        listenable: provider,
+        builder: (context, _) {
+          final folders = provider.journalCollections;
+          Widget tile(String? id, String name) => ListTile(
+            title: Text(name),
+            trailing: Text(
+              '${provider.journalEntries.where((e) => id == null ? e.collectionId == null : e.collectionId == id).length}',
+            ),
+            selected: _selectedCollection == id,
+            onTap: () {
+              Navigator.pop(dialogContext);
+              _selectCollection(id);
+            },
+          );
+          return AlertDialog(
+            title: Text('合集 · ${folders.length + 1}'),
+            content: SizedBox(
+              width: double.maxFinite,
+              child: ListView(
+                shrinkWrap: true,
+                children: [
+                  tile(null, '默认'),
+                  for (final folder in folders)
+                    SwipeDeleteCard(
+                      key: ValueKey('collection-list-${folder.id}'),
+                      id: folder.id,
+                      bottomMargin: 0,
+                      onDeleted: () async {
+                        try {
+                          await provider.removeJournalCollection(
+                            folder.id,
+                            deleteEntries: false,
+                          );
+                        } catch (_) {
+                          _error('合集删除失败，请重试');
+                          rethrow;
+                        }
+                      },
+                      child: Material(
+                        color: AppColors.surface,
+                        child: tile(folder.id, folder.title),
+                      ),
+                    ),
+                ],
+              ),
+            ),
+          );
+        },
+      ),
+    );
   }
 
   Widget _collectionTab(
@@ -295,7 +490,13 @@ class _JournalPageState extends State<JournalPage> {
         onLongPress: folder == null ? null : () => _collection(folder),
         onTap: () {
           FocusScope.of(context).unfocus();
-          setState(() => _selectedCollection = id);
+          setState(() {
+            _selectedCollection = id;
+            context.read<AppProvider>().setLastJournalCollection(id);
+            _selecting = false;
+            _selected.clear();
+            _swipeStart = null;
+          });
         },
         child: Padding(
           padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 9),
@@ -328,6 +529,10 @@ class _JournalPageState extends State<JournalPage> {
   @override
   Widget build(BuildContext context) {
     final provider = context.watch<AppProvider>();
+    if (_selectedCollection != null &&
+        !provider.journalCollections.any((c) => c.id == _selectedCollection)) {
+      _selectedCollection = null;
+    }
     final collections = provider.journalCollections;
     final query = _query.trim().toLowerCase();
     final entries = provider.journalEntries.where((entry) {
@@ -342,21 +547,11 @@ class _JournalPageState extends State<JournalPage> {
     final notes = <Widget>[
       for (final entry in entries)
         Padding(
+          key: ValueKey(entry.id),
           padding: const EdgeInsets.only(bottom: 8),
-          child: Dismissible(
-            key: ValueKey('dismiss-note-${entry.id}'),
-            direction: DismissDirection.endToStart,
-            background: Container(
-              color: AppColors.danger.withValues(alpha: .1),
-              alignment: Alignment.centerRight,
-              padding: const EdgeInsets.symmetric(horizontal: 16),
-              child: const Icon(Icons.delete_outline, color: AppColors.danger),
-            ),
-            confirmDismiss: (_) async {
-              await _delete(entry, swipe: true);
-              return false;
-            },
-            child: _card(
+          child: _selectableNote(
+            entry,
+            _card(
               key: ValueKey('note-card-${entry.id}'),
               pinned: entry.isPinned,
               bottom: entry.isBottom,
@@ -417,109 +612,192 @@ class _JournalPageState extends State<JournalPage> {
                     ],
                   ),
                 ),
-                onTap: () => _open(entry),
-                onLongPress: () => _actions(entry),
+                onTap: () {
+                  if (_selecting) {
+                    if (!_batchBusy) {
+                      setState(() {
+                        if (!_selected.add(entry.id)) {
+                          _selected.remove(entry.id);
+                        }
+                      });
+                    }
+                  } else {
+                    _open(entry);
+                  }
+                },
+                onLongPress: _selecting ? null : () => _actions(entry),
               ),
             ),
           ),
         ),
     ];
-    return Scaffold(
-      appBar: AppBar(
-        title: const Text('记录'),
-        actions: [
-          IconButton(
-            tooltip: '新建合集',
-            onPressed: _collection,
-            icon: const JournalActionIcon(JournalActionSymbol.folder),
-          ),
-          if (provider.recoverableJournalCount > 0)
-            IconButton(
-              tooltip: '恢复',
-              onPressed: _restore,
-              icon: const JournalActionIcon(JournalActionSymbol.restore),
-            ),
-          IconButton(
-            tooltip: '批量导出 Markdown',
-            onPressed: _exportCollection,
-            icon: const JournalExportIcon(multiple: true),
-          ),
-        ],
-      ),
-      floatingActionButton: FloatingActionButton(
-        heroTag: 'add-record-${widget.collectionId ?? 'root'}',
-        tooltip: '新建记录',
-        backgroundColor: AppColors.primary,
-        foregroundColor: Colors.white,
-        onPressed: _open,
-        child: const Icon(Icons.add),
-      ),
-      body: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          Padding(
-            padding: const EdgeInsets.fromLTRB(16, 4, 16, 12),
-            child: TextField(
-              key: const ValueKey('record-search'),
-              controller: _search,
-              onChanged: (value) => setState(() => _query = value),
-              decoration: InputDecoration(
-                hintText: '搜索标题和标签',
-                prefixIcon: const Icon(Icons.search),
-                suffixIcon: _query.isEmpty
+    return PopScope(
+      canPop: !_selecting,
+      onPopInvokedWithResult: (didPop, _) {
+        if (!didPop && _selecting) _exitSelection();
+      },
+      child: Scaffold(
+        appBar: AppBar(
+          leading: _selecting
+              ? IconButton(
+                  tooltip: '退出多选',
+                  onPressed: _batchBusy ? null : _exitSelection,
+                  icon: const Icon(Icons.close),
+                )
+              : null,
+          title: Text(_selecting ? '已选 ${_selected.length} 项' : '记录'),
+          actions: [
+            if (_selecting)
+              IconButton(
+                tooltip: '全选',
+                onPressed: _batchBusy
                     ? null
-                    : IconButton(
-                        tooltip: '清空搜索',
-                        icon: const Icon(Icons.close, size: 18),
-                        onPressed: () {
-                          _search.clear();
-                          setState(() => _query = '');
-                        },
-                      ),
-                filled: true,
-                fillColor: Colors.white,
-                border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(14),
-                  borderSide: BorderSide.none,
+                    : () => setState(() {
+                        final all = entries.map((e) => e.id).toSet();
+                        if (all.isNotEmpty && _selected.containsAll(all)) {
+                          _selected.clear();
+                        } else {
+                          _selected.addAll(all);
+                        }
+                      }),
+                icon: const Icon(Icons.library_add_check_outlined),
+              )
+            else ...[
+              if (provider.recoverableJournalCount > 0)
+                IconButton(
+                  tooltip: '恢复',
+                  onPressed: _restore,
+                  icon: const JournalActionIcon(JournalActionSymbol.restore),
                 ),
-                contentPadding: const EdgeInsets.symmetric(
-                  horizontal: 16,
-                  vertical: 12,
-                ),
+              IconButton(
+                tooltip: '新建合集',
+                onPressed: _collection,
+                icon: const JournalActionIcon(JournalActionSymbol.folder),
               ),
-            ),
-          ),
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 16),
-            child: SingleChildScrollView(
-              key: const ValueKey('collection-tabs'),
-              scrollDirection: Axis.horizontal,
-              padding: const EdgeInsets.only(bottom: 12),
-              child: Row(
+              IconButton(
+                tooltip: '批量导出 Markdown',
+                onPressed: _exportCollection,
+                icon: const JournalExportIcon(multiple: true),
+              ),
+            ],
+          ],
+        ),
+        floatingActionButton: _selecting
+            ? Column(
+                mainAxisSize: MainAxisSize.min,
                 children: [
-                  _collectionTab(null, '默认'),
-                  for (final folder in collections)
-                    _collectionTab(folder.id, folder.title, folder: folder),
+                  FloatingActionButton.extended(
+                    heroTag: 'move-records',
+                    backgroundColor: AppColors.primary,
+                    foregroundColor: Colors.white,
+                    onPressed: _selected.isEmpty || _batchBusy
+                        ? null
+                        : () => _batchAction(delete: false),
+                    label: const Text('批量移动'),
+                  ),
+                  const SizedBox(height: 12),
+                  FloatingActionButton.extended(
+                    heroTag: 'delete-records',
+                    backgroundColor: AppColors.danger,
+                    foregroundColor: Colors.white,
+                    onPressed: _selected.isEmpty || _batchBusy
+                        ? null
+                        : () => _batchAction(delete: true),
+                    label: const Text('全部删除'),
+                  ),
                 ],
+              )
+            : FloatingActionButton(
+                heroTag: 'add-record-${widget.collectionId ?? 'root'}',
+                tooltip: '新建记录',
+                backgroundColor: AppColors.primary,
+                foregroundColor: Colors.white,
+                onPressed: _open,
+                child: const Icon(Icons.add),
+              ),
+        body: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Padding(
+              padding: const EdgeInsets.fromLTRB(16, 4, 16, 12),
+              child: TextField(
+                key: const ValueKey('record-search'),
+                controller: _search,
+                onChanged: (value) => setState(() {
+                  _query = value;
+                  _selected.clear();
+                }),
+                decoration: InputDecoration(
+                  hintText: '搜索标题和标签',
+                  prefixIcon: const Icon(Icons.search),
+                  suffixIcon: _query.isEmpty
+                      ? null
+                      : IconButton(
+                          tooltip: '清空搜索',
+                          icon: const Icon(Icons.close, size: 18),
+                          onPressed: () {
+                            _search.clear();
+                            setState(() {
+                              _query = '';
+                              _selected.clear();
+                            });
+                          },
+                        ),
+                  filled: true,
+                  fillColor: Colors.white,
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(14),
+                    borderSide: BorderSide.none,
+                  ),
+                  contentPadding: const EdgeInsets.symmetric(
+                    horizontal: 16,
+                    vertical: 12,
+                  ),
+                ),
               ),
             ),
-          ),
-          Expanded(
-            child: notes.isEmpty
-                ? Center(
-                    child: Text(
-                      query.isEmpty ? '暂无记录' : '没有匹配的记录',
-                      style: const TextStyle(color: AppColors.textGrey),
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 16),
+              child: SingleChildScrollView(
+                key: const ValueKey('collection-tabs'),
+                scrollDirection: Axis.horizontal,
+                padding: const EdgeInsets.only(bottom: 12),
+                child: Row(
+                  children: [
+                    _collectionTab(null, '默认'),
+                    for (final folder in collections)
+                      _collectionTab(folder.id, folder.title, folder: folder),
+                    IconButton(
+                      tooltip: '查看合集列表',
+                      onPressed: _showCollections,
+                      icon: const Icon(Icons.view_list_outlined),
                     ),
-                  )
-                : ListView(
-                    keyboardDismissBehavior:
-                        ScrollViewKeyboardDismissBehavior.onDrag,
-                    padding: const EdgeInsets.fromLTRB(16, 0, 16, 96),
-                    children: notes,
-                  ),
-          ),
-        ],
+                  ],
+                ),
+              ),
+            ),
+            Expanded(
+              child: notes.isEmpty
+                  ? Center(
+                      child: Text(
+                        query.isEmpty ? '暂无记录' : '没有匹配的记录',
+                        style: const TextStyle(color: AppColors.textGrey),
+                      ),
+                    )
+                  : ListView(
+                      keyboardDismissBehavior:
+                          ScrollViewKeyboardDismissBehavior.onDrag,
+                      padding: EdgeInsets.fromLTRB(
+                        16,
+                        0,
+                        16,
+                        _selecting ? 160 : 96,
+                      ),
+                      children: notes,
+                    ),
+            ),
+          ],
+        ),
       ),
     );
   }

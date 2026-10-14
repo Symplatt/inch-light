@@ -19,10 +19,10 @@ quill.DefaultTextBlockStyle journalBlock(double size) =>
     );
 
 quill.DefaultStyles journalStyles() {
-  quill.DefaultTextBlockStyle heading(double size) =>
+  quill.DefaultTextBlockStyle heading(double size, double top) =>
       journalBlock(size).copyWith(
         style: journalBlock(size).style.copyWith(fontWeight: FontWeight.w600),
-        verticalSpacing: const quill.VerticalSpacing(12, 8),
+        verticalSpacing: quill.VerticalSpacing(top, 8),
       );
   return quill.DefaultStyles(
     paragraph: journalBlock(18),
@@ -46,9 +46,9 @@ quill.DefaultStyles journalStyles() {
       ),
       numberPointWidthBuilder: (_, _) => 28,
     ),
-    h1: heading(26),
-    h2: heading(23),
-    h3: heading(20),
+    h1: heading(26, 40),
+    h2: heading(23, 20),
+    h3: heading(20, 16),
   );
 }
 
@@ -74,24 +74,8 @@ Widget? journalLeading(
   bool readOnly = false,
 }) {
   final type = config.attribute.value;
-  if (!['ordered', 'bullet', 'checked', 'unchecked'].contains(type)) {
+  if (!['ordered', 'bullet'].contains(type)) {
     return null;
-  }
-  if (type == 'checked' || type == 'unchecked') {
-    // The editor constrains this marker to the actual first line's height.
-    return Align(
-      alignment: Alignment.centerLeft,
-      child: GestureDetector(
-        onTap: readOnly ? null : () => config.onCheckboxTap(!config.value),
-        child: Icon(
-          config.value
-              ? Icons.check_box_outlined
-              : Icons.check_box_outline_blank,
-          size: MediaQuery.textScalerOf(context).scale(18),
-          color: const Color(0xFF3D3D3D),
-        ),
-      ),
-    );
   }
   final style = journalBlock(18).style;
   final strut = StrutStyle.fromTextStyle(style);
@@ -155,10 +139,14 @@ class JournalTableBuilder extends quill.EmbedBuilder {
     required this.onChanged,
     this.autofocusId,
     this.selectedOffset,
+    this.onDelete,
+    this.tableKeys,
   });
   final ValueChanged<JournalTableData> onChanged;
   final String? autofocusId;
   final int? selectedOffset;
+  final ValueChanged<String>? onDelete;
+  final Map<String, GlobalKey>? tableKeys;
   @override
   String get key => 'table';
   @override
@@ -175,11 +163,14 @@ class JournalTableBuilder extends quill.EmbedBuilder {
       child: IgnorePointer(
         ignoring: selected,
         child: JournalTable(
-          key: ValueKey(table.id),
+          key:
+              tableKeys?.putIfAbsent(table.id, GlobalKey.new) ??
+              ValueKey(table.id),
           data: table,
           onChanged: onChanged,
           readOnly: embedContext.readOnly,
           autofocus: autofocusId == table.id,
+          onDelete: onDelete == null ? null : () => onDelete!(table.id),
         ),
       ),
     );

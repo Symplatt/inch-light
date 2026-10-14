@@ -530,7 +530,8 @@ class QuillController extends ChangeNotifier {
 
   set copiedImageUrl(ImageUrl? value) {
     _copiedImageUrl = value;
-    Clipboard.setData(const ClipboardData(text: ''));
+    // Clearing the image cache must not asynchronously erase a newer text copy.
+    if (value != null) Clipboard.setData(const ClipboardData(text: ''));
   }
 
   @experimental

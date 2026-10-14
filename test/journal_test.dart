@@ -121,7 +121,7 @@ void main() {
       expect(markdown, contains('> 引用'));
       expect(markdown, contains('1. 第一项\n2. 第二项'));
       expect(markdown, contains('- 无序'));
-      expect(markdown, contains('- [ ] 待选\n- [x] 已选'));
+      expect(markdown, contains('- 待选\n- 已选'));
       expect(markdown, contains('\n\n---\n\n'));
       expect(markdown, contains('<div align="center">\n\n居中\n\n</div>'));
       expect(markdown, contains('<div align="right">'));
@@ -290,7 +290,6 @@ void main() {
         ('倾斜', 'italic', true),
         ('删除线', 'strike', true),
         ('高亮', 'background', '#FFF2B3'),
-        ('选框列表', 'list', 'unchecked'),
         ('居中对齐', 'align', 'center'),
         ('左对齐', 'align', 'left'),
         ('右对齐', 'align', 'right'),
@@ -339,6 +338,7 @@ void main() {
         if (call.method == 'Clipboard.setData') {
           copied = (call.arguments as Map)['text'] as String;
         }
+        if (call.method == 'Clipboard.getData') return {'text': copied};
         return null;
       },
     );
@@ -526,6 +526,11 @@ void main() {
   testWidgets(
     'New record from collection retains membership and blank visit creates nothing',
     (tester) async {
+      SharedPreferences.setMockInitialValues({
+        'journal_collections': jsonEncode([
+          {'id': 'folder', 'title': '合集', 'updatedAt': null},
+        ]),
+      });
       final provider = await mount(
         tester,
         const JournalPage(collectionId: 'folder'),

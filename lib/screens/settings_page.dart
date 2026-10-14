@@ -1,4 +1,6 @@
+import '../utils/clipboard.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 
@@ -6,8 +8,15 @@ import '../constants/app_colors.dart';
 import '../providers/app_provider.dart';
 import '../widgets/section_heading.dart';
 
-class SettingsPage extends StatelessWidget {
+class SettingsPage extends StatefulWidget {
   const SettingsPage({super.key});
+  @override
+  State<SettingsPage> createState() => _SettingsPageState();
+}
+
+class _SettingsPageState extends State<SettingsPage> {
+  String? _pendingImport;
+  bool _busy = false;
 
   void _showMessage(BuildContext context, String message) {
     ScaffoldMessenger.of(context)
@@ -21,42 +30,72 @@ class SettingsPage extends StatelessWidget {
   }
 
   Future<void> _exportData(BuildContext context, AppProvider provider) async {
-    await Clipboard.setData(ClipboardData(text: provider.exportData()));
-    if (context.mounted) _showMessage(context, '数据已复制');
-  }
-
-  Future<void> _importData(BuildContext context, AppProvider provider) async {
-    final data = await Clipboard.getData(Clipboard.kTextPlain);
-    if (!context.mounted) return;
-    final text = data?.text;
-    if (text == null || text.trim().isEmpty) {
-      _showMessage(context, '剪贴板为空');
+    final data = provider.exportData();
+    try {
+      await copyText(data);
+    } catch (_) {
+      if (context.mounted) _showMessage(context, '复制失败，请重试');
       return;
     }
-    final confirmed = await showDialog<bool>(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        title: const Text('确认覆盖？'),
-        content: const Text('将覆盖备份中包含的数据，请先导出当前数据。'),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx, false),
-            child: const Text('取消'),
-          ),
-          TextButton(
-            onPressed: () => Navigator.pop(ctx, true),
-            child: const Text(
-              '确认导入',
-              style: TextStyle(color: AppColors.danger),
-            ),
-          ),
-        ],
-      ),
-    );
-    if (confirmed != true || !context.mounted) return;
-    final success = await provider.importData(text);
-    if (context.mounted) {
-      _showMessage(context, success ? '导入成功' : '数据格式错误');
+    if (kIsWeb || defaultTargetPlatform != TargetPlatform.android) {
+      if (context.mounted) _showMessage(context, '数据已复制');
+      return;
+    }
+    try {
+      final path = await const MethodChannel(
+        'inch_light/data_export',
+      ).invokeMethod<String>('exportData', {'data': data});
+      if (context.mounted) {
+        _showMessage(context, path == null ? '已复制；文件未保存，请重试' : '已复制并保存到 $path');
+      }
+    } on PlatformException catch (error) {
+      if (context.mounted) {
+        _showMessage(context, '已复制；${error.message ?? '文件未保存，请重试'}');
+      }
+    } catch (_) {
+      if (context.mounted) _showMessage(context, '已复制；文件未保存，请重试');
+    }
+  }
+
+  Future<void> _readImport({required bool file}) async {
+    if (_busy) return;
+    setState(() {
+      _busy = true;
+      _pendingImport = null;
+    });
+    try {
+      final text = file
+          ? await const MethodChannel(
+              'inch_light/data_export',
+            ).invokeMethod<String>('importFile')
+          : (await Clipboard.getData(Clipboard.kTextPlain))?.text;
+      if (!mounted) return;
+      if (text == null || text.trim().isEmpty) {
+        if (!file) _showMessage(context, '剪贴板为空');
+      } else {
+        setState(() => _pendingImport = text);
+      }
+    } catch (_) {
+      if (mounted) _showMessage(context, file ? '文件读取失败，请重试' : '剪贴板读取失败，请重试');
+    } finally {
+      if (mounted) setState(() => _busy = false);
+    }
+  }
+
+  Future<void> _confirmImport(AppProvider provider) async {
+    final text = _pendingImport;
+    if (text == null || _busy) return;
+    setState(() => _busy = true);
+    try {
+      final success = await provider.importData(text);
+      if (mounted) {
+        setState(() => _pendingImport = null);
+        _showMessage(context, success ? '导入成功' : '数据格式错误');
+      }
+    } catch (_) {
+      if (mounted) _showMessage(context, '导入失败，请重试');
+    } finally {
+      if (mounted) setState(() => _busy = false);
     }
   }
 
@@ -134,8 +173,57 @@ class SettingsPage extends StatelessWidget {
                     const Divider(height: 1, indent: 16, endIndent: 16),
                     ListTile(
                       leading: const Icon(Icons.content_paste_go_outlined),
-                      title: const Text('导入数据'),
-                      onTap: () => _importData(context, provider),
+                      title: const Text('从剪贴板导入'),
+                      onTap: _busy ? null : () => _readImport(file: false),
+                    ),
+                    if (!kIsWeb &&
+                        defaultTargetPlatform == TargetPlatform.android)
+                      ListTile(
+                        leading: const Icon(Icons.file_open_outlined),
+                        title: const Text('从文件导入'),
+                        onTap: _busy ? null : () => _readImport(file: true),
+                      ),
+                    if (_pendingImport != null)
+                      Padding(
+                        padding: const EdgeInsets.all(16),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            const Text('将覆盖备份中包含的数据，请先导出当前数据。'),
+                            Row(
+                              mainAxisAlignment: MainAxisAlignment.end,
+                              children: [
+                                TextButton(
+                                  onPressed: _busy
+                                      ? null
+                                      : () => setState(
+                                          () => _pendingImport = null,
+                                        ),
+                                  child: const Text('取消'),
+                                ),
+                                TextButton(
+                                  onPressed: _busy
+                                      ? null
+                                      : () => _confirmImport(provider),
+                                  child: const Text(
+                                    '确认导入',
+                                    style: TextStyle(color: AppColors.danger),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ],
+                        ),
+                      ),
+                    const Padding(
+                      padding: EdgeInsets.fromLTRB(16, 8, 16, 16),
+                      child: Text(
+                        'inch-light 文件夹中导出超过 7 天的数据文件会自动清理。',
+                        style: TextStyle(
+                          fontSize: 12,
+                          color: AppColors.textGrey,
+                        ),
+                      ),
                     ),
                   ],
                 ),

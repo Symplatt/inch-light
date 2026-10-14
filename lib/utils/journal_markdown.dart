@@ -32,6 +32,16 @@ String _inline(String text, Map attributes) {
   return '$leading$value$trailing';
 }
 
+String journalTableToMarkdown(JournalTableData table) {
+  String row(List<String> cells) =>
+      '| ${cells.map((cell) => _escape(cell).replaceAll('\n', '<br>')).join(' | ')} |';
+  return [
+    row(table.rows.first.cells),
+    '| ${List.filled(table.columns, ':---').join(' | ')} |',
+    ...table.rows.skip(1).map((r) => row(r.cells)),
+  ].join('\n');
+}
+
 /// Blank lines terminate a preceding list, quote or paragraph before the title.
 String journalCollectionToMarkdown(Iterable<JournalEntry> entries) => entries
     .map(journalToMarkdown)
@@ -64,12 +74,6 @@ String journalToMarkdown(JournalEntry entry) {
         case 'bullet':
           text = '- $text';
           kind = 'bullet';
-        case 'checked':
-          text = '- [x] $text';
-          kind = 'check';
-        case 'unchecked':
-          text = '- [ ] $text';
-          kind = 'check';
       }
     }
     final align = attributes['align'];
@@ -86,15 +90,7 @@ String journalToMarkdown(JournalEntry entry) {
     if (insert is Map) {
       if (insert['table'] is String) {
         final table = JournalTableData.decode(insert['table']);
-        String row(List<String> cells) =>
-            '| ${cells.map((cell) => _escape(cell).replaceAll('\n', '<br>')).join(' | ')} |';
-        current.write(
-          [
-            row(table.rows.first.cells),
-            '| ${List.filled(table.columns, ':---').join(' | ')} |',
-            ...table.rows.skip(1).map((r) => row(r.cells)),
-          ].join('\n'),
-        );
+        current.write(journalTableToMarkdown(table));
       } else {
         current.write('---');
       }

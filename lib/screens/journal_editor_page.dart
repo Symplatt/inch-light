@@ -1,3 +1,4 @@
+import '../utils/clipboard.dart';
 import 'dart:async';
 import 'dart:convert';
 
@@ -42,6 +43,7 @@ class _JournalEditorPageState extends State<JournalEditorPage>
   final _pageScroll = ScrollController();
   final _renderEditorKey = GlobalKey<quill.EditorState>();
   final _pageViewportKey = GlobalKey();
+  final _tableKeys = <String, GlobalKey>{};
   bool _caretScrollPending = false;
   bool _titleBold = false;
   late final String _id;
@@ -101,12 +103,12 @@ class _JournalEditorPageState extends State<JournalEditorPage>
   void didChangeMetrics() => _revealCaret();
 
   void _revealCaret() {
-    if (_caretScrollPending || !mounted || !_bodyFocus.hasFocus) return;
+    if (_caretScrollPending || !mounted || !_bodyFocus.hasPrimaryFocus) return;
     _caretScrollPending = true;
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _caretScrollPending = false;
       if (!mounted ||
-          !_bodyFocus.hasFocus ||
+          !_bodyFocus.hasPrimaryFocus ||
           !_pageScroll.hasClients ||
           !_editor.selection.isCollapsed) {
         return;
@@ -175,11 +177,11 @@ class _JournalEditorPageState extends State<JournalEditorPage>
       _current = next;
       _updatedAt = DateTime.now();
       _scheduleSave();
-      if (_bodyFocus.hasFocus && !_shortcutPending) {
+      if (_bodyFocus.hasPrimaryFocus && !_shortcutPending) {
         _shortcutPending = true;
         scheduleMicrotask(() {
           _shortcutPending = false;
-          if (!mounted || !_bodyFocus.hasFocus || _restoring) return;
+          if (!mounted || !_bodyFocus.hasPrimaryFocus || _restoring) return;
           _restoring = true;
           var changed = false;
           try {
@@ -318,6 +320,29 @@ class _JournalEditorPageState extends State<JournalEditorPage>
     }
   }
 
+  Future<void> _deleteTable(String id) async {
+    FocusScope.of(context).unfocus();
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('删除整张表格？'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('取消'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('删除'),
+          ),
+        ],
+      ),
+    );
+    if (!mounted || confirmed != true) return;
+    _newTableId = null;
+    if (_editor.deleteTable(id)) _bodyFocus.requestFocus();
+  }
+
   Future<void> _export() async {
     final choice = await showModalBottomSheet<String>(
       context: context,
@@ -352,7 +377,7 @@ class _JournalEditorPageState extends State<JournalEditorPage>
 
   Future<void> _copyMarkdown() async {
     try {
-      await Clipboard.setData(ClipboardData(text: journalToMarkdown(_entry())));
+      await copyText(journalToMarkdown(_entry()));
       if (mounted) {
         ScaffoldMessenger.of(context)
           ..clearSnackBars()
@@ -438,9 +463,25 @@ class _JournalEditorPageState extends State<JournalEditorPage>
     super.dispose();
   }
 
+  bool _hitTable(Offset position) {
+    // Quill can map the blank line after an embed to its end offset. Hit-test
+    // the rendered table instead, so that empty prose still receives focus.
+    for (final key in _tableKeys.values) {
+      final box = key.currentContext?.findRenderObject();
+      if (box is RenderBox &&
+          box.hasSize &&
+          (Offset.zero & box.size).contains(box.globalToLocal(position))) {
+        return true;
+      }
+    }
+    return false;
+  }
+
   @override
   Widget build(BuildContext context) {
-    final keyboardVisible = MediaQuery.viewInsetsOf(context).bottom > 0;
+    // Some Android IMEs leave a one-pixel inset while their panel is hidden.
+    // Ignore that residue so the toolbar cannot appear alone at screen bottom.
+    final keyboardVisible = MediaQuery.viewInsetsOf(context).bottom > 48;
     return Localizations.override(
       context: context,
       locale: const Locale('zh'),
@@ -560,7 +601,8 @@ class _JournalEditorPageState extends State<JournalEditorPage>
                               scrollable: false,
                               minHeight: 180,
                               showCursor:
-                                  _bodyFocus.hasFocus && !_editor.onEmbedLine,
+                                  _bodyFocus.hasPrimaryFocus &&
+                                  !_editor.onEmbedLine,
                               // Pinned Quill APIs; shortcut handlers also process software-keyboard spaces.
                               // ignore: experimental_member_use
                               characterShortcutEvents:
@@ -572,11 +614,13 @@ class _JournalEditorPageState extends State<JournalEditorPage>
                               // IMEs may send a key event at offset zero instead of a text replacement.
                               // ignore: experimental_member_use
                               onKeyPressed: (event, _) {
-                                if ((event is KeyDownEvent ||
+                                if (_bodyFocus.hasPrimaryFocus &&
+                                    (event is KeyDownEvent ||
                                         event is KeyRepeatEvent) &&
                                     event.logicalKey ==
                                         LogicalKeyboardKey.backspace &&
-                                    _editor.clearLeadingEmptyLines()) {
+                                    (_editor.clearLeadingEmptyLines() ||
+                                        _editor.handleTableBackspace())) {
                                   return KeyEventResult.handled;
                                 }
                                 return null;
@@ -584,11 +628,19 @@ class _JournalEditorPageState extends State<JournalEditorPage>
                               // ignore: experimental_member_use
                               customLeadingBlockBuilder: (node, config) =>
                                   journalLeading(context, node, config),
+                              // Embedded cells own their caret; Quill must not reclaim focus on tap.
+                              onTapUp: (details, _) {
+                                final table = _hitTable(details.globalPosition);
+                                if (!table) _editor.skipRequestKeyboard = false;
+                                return table;
+                              },
                               onTapOutsideEnabled: false,
                               embedBuilders: [
                                 const JournalDividerBuilder(),
                                 JournalTableBuilder(
+                                  tableKeys: _tableKeys,
                                   onChanged: _updateTable,
+                                  onDelete: _deleteTable,
                                   autofocusId: _newTableId,
                                   selectedOffset: _editor.selection.isCollapsed
                                       ? null
@@ -648,9 +700,6 @@ class JournalFormatBar extends StatelessWidget {
         ?.value;
     if (attribute == quill.Attribute.leftAlignment) {
       return value == null || value == 'left';
-    }
-    if (attribute == quill.Attribute.unchecked) {
-      return value == 'checked' || value == 'unchecked';
     }
     return value == attribute.value;
   }
@@ -781,11 +830,6 @@ class JournalFormatBar extends StatelessWidget {
                   '无序列表',
                   const Icon(Icons.format_list_bulleted),
                   attribute: quill.Attribute.ul,
-                ),
-                button(
-                  '选框列表',
-                  const Icon(Icons.checklist),
-                  attribute: quill.Attribute.unchecked,
                 ),
                 button(
                   '倾斜',

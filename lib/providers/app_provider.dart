@@ -19,6 +19,8 @@ class AppProvider with ChangeNotifier, WidgetsBindingObserver {
   final Map<String, ({JournalEntry entry, DateTime deletedAt})>
   _recentlyDeleted = {};
   final DateTime Function() _journalNow;
+  final DateTime Function() _now;
+  DateTime get now => _now();
   bool _recoverable(DateTime deletedAt) {
     final age = _journalNow().difference(deletedAt);
     return !age.isNegative && age < const Duration(minutes: 1);
@@ -190,6 +192,53 @@ class AppProvider with ChangeNotifier, WidgetsBindingObserver {
     }
   }
 
+  Future<void> moveJournalEntries(Set<String> ids, String? collectionId) async {
+    await ready;
+    if (collectionId != null &&
+        !_journalCollections.any((c) => c.id == collectionId)) {
+      throw StateError('合集不存在');
+    }
+    final before = {for (final entry in _journalEntries) entry.id: entry};
+    try {
+      await _persistJournal(
+        _journalEntries
+            .map(
+              (entry) => ids.contains(entry.id)
+                  ? entry.copyWith(collectionId: collectionId, move: true)
+                  : entry,
+            )
+            .toList(),
+      );
+    } catch (_) {
+      for (var i = 0; i < _journalEntries.length; i++) {
+        final entry = _journalEntries[i];
+        if (ids.contains(entry.id) && before.containsKey(entry.id)) {
+          _journalEntries[i] = before[entry.id]!;
+        }
+      }
+      if (!_disposed) notifyListeners();
+      rethrow;
+    }
+  }
+
+  Future<void> removeJournalEntries(Set<String> ids) async {
+    await ready;
+    final before = List<JournalEntry>.from(_journalEntries);
+    try {
+      await _persistJournal(
+        _journalEntries.where((e) => !ids.contains(e.id)).toList(),
+      );
+    } catch (_) {
+      for (final entry in before.where((e) => ids.contains(e.id))) {
+        if (!_journalEntries.any((e) => e.id == entry.id)) {
+          _journalEntries.add(entry);
+        }
+      }
+      if (!_disposed) notifyListeners();
+      rethrow;
+    }
+  }
+
   Future<void> _persistJournal(List<JournalEntry> entries) {
     // Serialize snapshots so rapid edits cannot overwrite a newer save.
     final encoded = jsonEncode(entries.map((e) => e.toJson()).toList());
@@ -228,6 +277,23 @@ class AppProvider with ChangeNotifier, WidgetsBindingObserver {
   bool _looseTasksFirst = true;
   bool _countdownsFirst = true;
   String _lastModule = 'todo';
+  String? _lastJournalCollection;
+  String? get lastJournalCollection =>
+      _journalCollections.any((c) => c.id == _lastJournalCollection)
+      ? _lastJournalCollection
+      : null;
+
+  Future<void> setLastJournalCollection(String? id) async {
+    await ready;
+    _lastJournalCollection = id;
+    final prefs = await SharedPreferences.getInstance();
+    if (id == null) {
+      await prefs.remove('last_journal_collection');
+    } else {
+      await prefs.setString('last_journal_collection', id);
+    }
+  }
+
   bool get countdownsFirst => _countdownsFirst;
   String get lastModule => _lastModule;
 
@@ -332,8 +398,9 @@ class AppProvider with ChangeNotifier, WidgetsBindingObserver {
     return tasks;
   }
 
-  AppProvider({DateTime Function()? journalNow})
-    : _journalNow = journalNow ?? DateTime.now {
+  AppProvider({DateTime Function()? journalNow, DateTime Function()? now})
+    : _journalNow = journalNow ?? now ?? DateTime.now,
+      _now = now ?? DateTime.now {
     ready = _initData();
     WidgetsBinding.instance.addObserver(this);
   }
@@ -368,6 +435,7 @@ class AppProvider with ChangeNotifier, WidgetsBindingObserver {
     final prefs = await SharedPreferences.getInstance();
     _looseTasksFirst = prefs.getBool('loose_tasks_first') ?? true;
     _countdownsFirst = prefs.getBool('countdowns_first') ?? true;
+    _lastJournalCollection = prefs.getString('last_journal_collection');
     final module = prefs.getString('last_module');
     _lastModule = ['todo', 'journal', 'calendar', 'settings'].contains(module)
         ? module!
@@ -794,7 +862,7 @@ class AppProvider with ChangeNotifier, WidgetsBindingObserver {
   void _maintainData() {
     if (_disposed) return;
     _recentlyDeleted.removeWhere((_, item) => !_recoverable(item.deletedAt));
-    final now = DateTime.now();
+    final now = _now();
     final day = DateTime(now.year, now.month, now.day);
     if (_lastMaintenanceDay != day) {
       _lastMaintenanceDay = day;
@@ -807,7 +875,10 @@ class AppProvider with ChangeNotifier, WidgetsBindingObserver {
           t.finishedAt != null &&
           now.difference(t.finishedAt!) >= const Duration(days: 7),
     );
-    bool changed = before != _normalTasks.length;
+    final countdownCount = _countdowns.length;
+    _countdowns.removeWhere((task) => !task.deadline.isAfter(now));
+    bool changed =
+        before != _normalTasks.length || countdownCount != _countdowns.length;
     bool cyclesChanged = false;
     for (final task in _cycleTasks) {
       if (!task.nextRunTime.isAfter(now)) {

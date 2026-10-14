@@ -274,9 +274,9 @@ void main() {
     expect(journalTableWidths(data, 340, scaler), [170, 170]);
     data = JournalTableData.empty(3, 5);
     widths = journalTableWidths(data, 340, scaler);
-    expect(widths, everyElement(106));
+    expect(widths, everyElement(108.5));
     data = data.edit(data.rows.first.id, 0, '很多文字' * 30);
-    expect(journalTableWidths(data, 340, scaler).first, 196);
+    expect(journalTableWidths(data, 340, scaler).first, 201);
   });
 
   testWidgets('Calendar ordering persists and settings credit Symplatt', (
@@ -341,17 +341,14 @@ void main() {
       final p = await mount(t, JournalEditorPage(entry: entry));
       final left = t.getTopLeft(find.byKey(const ValueKey('record-title'))).dx;
       expect(
-        t.getTopLeft(find.text('•', findRichText: true)).dx,
+        t.getTopLeft(find.text('•', findRichText: true).first).dx,
         closeTo(left, .01),
       );
       expect(
         t.getTopLeft(find.text('1.', findRichText: true)).dx,
         closeTo(left, .01),
       );
-      expect(
-        t.getTopLeft(find.byIcon(Icons.check_box_outline_blank)).dx,
-        closeTo(left, .01),
-      );
+      expect(find.byIcon(Icons.check_box_outline_blank), findsNothing);
       final before = t
           .getTopLeft(find.byKey(const ValueKey('record-metadata')))
           .dy;

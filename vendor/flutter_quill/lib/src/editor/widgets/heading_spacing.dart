@@ -19,7 +19,7 @@ VerticalSpacing? contextualHeadingSpacing(Line line, DefaultStyles styles) {
   if (previous is Block) previous = previous.children.last;
   final tight =
       previous == null ||
-      previous.style.attributes.containsKey(Attribute.header.key);
+      (level != 1 && previous.style.attributes.containsKey(Attribute.header.key));
   return VerticalSpacing(
     tight ? 0 : style.verticalSpacing.top,
     style.verticalSpacing.bottom,

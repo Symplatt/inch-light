@@ -54,10 +54,10 @@ mixin RawEditorStateTextInputClientMixin on EditorState
   /// Opens or closes input connection based on the current state of
   /// [focusNode] and [value].
   void openOrCloseConnection() {
-    if (widget.config.focusNode.hasFocus &&
+    if (widget.config.focusNode.hasPrimaryFocus &&
         widget.config.focusNode.consumeKeyboardToken()) {
       openConnectionIfNeeded();
-    } else if (!widget.config.focusNode.hasFocus) {
+    } else if (!widget.config.focusNode.hasPrimaryFocus) {
       closeConnectionIfNeeded();
     }
   }
@@ -71,7 +71,8 @@ mixin RawEditorStateTextInputClientMixin on EditorState
       Theme.of(context).brightness;
 
   void openConnectionIfNeeded() {
-    if (!shouldCreateInputConnection) {
+    if (!shouldCreateInputConnection ||
+        !widget.config.focusNode.hasPrimaryFocus) {
       return;
     }
 
@@ -210,7 +211,10 @@ mixin RawEditorStateTextInputClientMixin on EditorState
 
   @override
   void updateEditingValue(TextEditingValue value) {
-    if (!shouldCreateInputConnection) {
+    // Ignore delayed IME messages from a connection replaced by an embedded cell.
+    if (!hasConnection || _lastKnownRemoteTextEditingValue == null) return;
+    if (!shouldCreateInputConnection ||
+        !widget.config.focusNode.hasPrimaryFocus) {
       return;
     }
 

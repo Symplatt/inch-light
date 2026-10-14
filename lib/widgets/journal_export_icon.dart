@@ -9,6 +9,8 @@ enum JournalActionSymbol {
   redo,
   done,
   tags,
+  share,
+  saveImage,
 }
 
 class JournalExportIcon extends StatelessWidget {
@@ -74,6 +76,34 @@ class _ActionPainter extends CustomPainter {
         line(9, 13, 15, 13);
         line(7, 17, 17, 17);
       }
+    } else if (symbol == JournalActionSymbol.share) {
+      canvas.drawPath(
+        Path()
+          ..moveTo(3, 21)
+          ..lineTo(21, 12)
+          ..lineTo(3, 3)
+          ..lineTo(6, 12)
+          ..close(),
+        pen,
+      );
+      line(6, 12, 15, 12);
+    } else if (symbol == JournalActionSymbol.saveImage) {
+      canvas.drawPath(
+        Path()
+          ..moveTo(3, 14)
+          ..lineTo(3, 21)
+          ..lineTo(21, 21)
+          ..lineTo(21, 14),
+        pen,
+      );
+      line(12, 3, 12, 15);
+      canvas.drawPath(
+        Path()
+          ..moveTo(7, 10)
+          ..lineTo(12, 15)
+          ..lineTo(17, 10),
+        pen,
+      );
     } else if (symbol == JournalActionSymbol.folder) {
       canvas.drawPath(
         Path()
@@ -105,18 +135,11 @@ class _ActionPainter extends CustomPainter {
       );
       canvas.drawCircle(const Offset(7.5, 7.5), 1.2, pen);
     } else if (symbol == JournalActionSymbol.done) {
-      canvas.drawRRect(
-        RRect.fromRectAndRadius(
-          const Rect.fromLTRB(3, 3, 21, 21),
-          const Radius.circular(4),
-        ),
-        pen,
-      );
       canvas.drawPath(
         Path()
-          ..moveTo(7, 12)
-          ..lineTo(10.5, 15.5)
-          ..lineTo(17, 8.5),
+          ..moveTo(3, 12)
+          ..lineTo(9, 21)
+          ..lineTo(21, 3),
         pen,
       );
     } else {

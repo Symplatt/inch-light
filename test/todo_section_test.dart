@@ -43,7 +43,7 @@ void main() {
     await tester.tap(find.text('设置').last);
     await tester.pumpAndSettle();
     expect(find.text('导出数据'), findsOneWidget);
-    expect(find.text('导入数据'), findsOneWidget);
+    expect(find.text('从剪贴板导入'), findsOneWidget);
     expect(find.text('事项顺序'), findsOneWidget);
     for (final label in ['本地备份', '每日自动备份', '读取本地备份']) {
       expect(find.text(label), findsNothing);

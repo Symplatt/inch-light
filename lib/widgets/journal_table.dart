@@ -1,14 +1,18 @@
+import '../utils/clipboard.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import '../constants/app_colors.dart';
 import '../models/journal_table.dart';
+import '../utils/journal_markdown.dart';
 
 List<double> journalTableWidths(
   JournalTableData data,
   double available,
   TextScaler scaler,
 ) {
-  final char = scaler.scale(18);
+  // Match the actual TextField letter spacing; otherwise a measured line can
+  // wrap before the column receives the spare width from its neighbours.
+  final char = scaler.scale(18) + .5;
   final initial = char * 5 + 16;
   final maximum = char * 10 + 16;
   final natural = List.generate(data.columns, (c) {
@@ -19,6 +23,7 @@ List<double> journalTableWidths(
           text: data.rows[r].cells[c],
           style: TextStyle(
             fontSize: r == 0 ? 18 : 17,
+            letterSpacing: .5,
             fontWeight: r == 0 ? FontWeight.w600 : FontWeight.w400,
           ),
         ),
@@ -139,17 +144,20 @@ class JournalTable extends StatefulWidget {
     required this.onChanged,
     this.autofocus = false,
     this.readOnly = false,
+    this.onDelete,
   });
   final JournalTableData data;
   final ValueChanged<JournalTableData> onChanged;
   final bool autofocus;
   final bool readOnly;
+  final VoidCallback? onDelete;
   @override
   State<JournalTable> createState() => _JournalTableState();
 }
 
 class _JournalTableState extends State<JournalTable> {
   late JournalTableData _data;
+  bool _menuOpen = false;
   final Map<String, TextEditingController> _controllers = {};
   final Map<String, FocusNode> _focus = {};
   String _key(String row, int column) => '$row:$column';
@@ -169,7 +177,7 @@ class _JournalTableState extends State<JournalTable> {
           key,
           () => TextEditingController(text: row.cells[c]),
         );
-        _focus.putIfAbsent(key, () => FocusNode());
+        _focus.putIfAbsent(key, () => FocusNode()..addListener(_focusChanged));
         if (controller.text != row.cells[c]) {
           controller.value = TextEditingValue(
             text: row.cells[c],
@@ -184,6 +192,15 @@ class _JournalTableState extends State<JournalTable> {
       }
     }
   }
+
+  void _focusChanged() {
+    if (mounted) setState(() {});
+  }
+
+  bool get _headerFocused => List.generate(
+    _data.columns,
+    (column) => _focus[_key(_data.rows.first.id, column)]?.hasFocus ?? false,
+  ).any((focused) => focused);
 
   @override
   void didUpdateWidget(JournalTable oldWidget) {
@@ -219,6 +236,29 @@ class _JournalTableState extends State<JournalTable> {
     }
   }
 
+  Future<void> _tableAction(String action) async {
+    setState(() => _menuOpen = false);
+    if (action == 'delete') {
+      widget.onDelete?.call();
+      return;
+    }
+    var message = '表格 Markdown 已复制';
+    try {
+      await copyText(journalTableToMarkdown(_data));
+    } catch (_) {
+      message = '复制失败，请重试';
+    }
+    if (!mounted) return;
+    ScaffoldMessenger.of(context)
+      ..clearSnackBars()
+      ..showSnackBar(
+        SnackBar(
+          content: Text(message),
+          duration: const Duration(milliseconds: 1500),
+        ),
+      );
+  }
+
   @override
   void dispose() {
     for (final controller in _controllers.values) {
@@ -238,87 +278,119 @@ class _JournalTableState extends State<JournalTable> {
         constraints.maxWidth,
         MediaQuery.textScalerOf(context),
       );
-      return Padding(
-        padding: const EdgeInsets.symmetric(vertical: 8),
-        child: SingleChildScrollView(
-          scrollDirection: Axis.horizontal,
-          child: SizedBox(
-            width: widths.reduce((a, b) => a + b),
-            child: Table(
-              columnWidths: {
-                for (var c = 0; c < widths.length; c++)
-                  c: FixedColumnWidth(widths[c]),
-              },
-              defaultVerticalAlignment: TableCellVerticalAlignment.middle,
-              border: TableBorder.all(color: const Color(0xFFDADDE1)),
-              children: [
-                for (var r = 0; r < _data.rows.length; r++)
-                  TableRow(
-                    key: ValueKey(_data.rows[r].id),
-                    decoration: r == 0
-                        ? const BoxDecoration(color: Color(0xFFF5F5F5))
-                        : null,
-                    children: [
-                      for (var c = 0; c < _data.columns; c++)
-                        Padding(
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 8,
-                            vertical: 3,
-                          ),
-                          child: Focus(
-                            onKeyEvent: (_, event) {
-                              final controller =
-                                  _controllers[_key(_data.rows[r].id, c)]!;
-                              if (event is KeyDownEvent &&
-                                  event.logicalKey ==
-                                      LogicalKeyboardKey.enter &&
-                                  controller.value.composing.isCollapsed) {
-                                _newRow(_data.rows[r].id);
-                                return KeyEventResult.handled;
-                              }
-                              return KeyEventResult.ignored;
-                            },
-                            child: TextField(
-                              key: ValueKey(
-                                'table-cell-${_data.rows[r].id}-$c',
+      return Stack(
+        children: [
+          Padding(
+            padding: const EdgeInsets.symmetric(vertical: 8),
+            child: SingleChildScrollView(
+              scrollDirection: Axis.horizontal,
+              child: SizedBox(
+                width: widths.reduce((a, b) => a + b),
+                child: Table(
+                  columnWidths: {
+                    for (var c = 0; c < widths.length; c++)
+                      c: FixedColumnWidth(widths[c]),
+                  },
+                  defaultVerticalAlignment: TableCellVerticalAlignment.middle,
+                  border: TableBorder.all(color: const Color(0xFFDADDE1)),
+                  children: [
+                    for (var r = 0; r < _data.rows.length; r++)
+                      TableRow(
+                        key: ValueKey(_data.rows[r].id),
+                        decoration: r == 0
+                            ? const BoxDecoration(color: Color(0xFFF5F5F5))
+                            : null,
+                        children: [
+                          for (var c = 0; c < _data.columns; c++)
+                            Padding(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 8,
+                                vertical: 3,
                               ),
-                              readOnly: widget.readOnly,
-                              showCursor: !widget.readOnly,
-                              enableInteractiveSelection: !widget.readOnly,
-                              controller:
-                                  _controllers[_key(_data.rows[r].id, c)],
-                              focusNode: _focus[_key(_data.rows[r].id, c)],
-                              autofocus: widget.autofocus && r == 0 && c == 0,
-                              textAlign: TextAlign.left,
-                              cursorHeight: r == 0 ? 18 : 17,
-                              style: TextStyle(
-                                fontSize: r == 0 ? 18 : 17,
-                                fontWeight: r == 0
-                                    ? FontWeight.w600
-                                    : FontWeight.w400,
-                                color: const Color(0xFF3D3D3D),
-                                height: 1.5,
-                              ),
-                              maxLines: null,
-                              textInputAction: TextInputAction.newline,
-                              decoration: const InputDecoration(
-                                isDense: true,
-                                border: InputBorder.none,
-                                contentPadding: EdgeInsets.symmetric(
-                                  vertical: 8,
+                              child: Focus(
+                                onKeyEvent: (_, event) {
+                                  final controller =
+                                      _controllers[_key(_data.rows[r].id, c)]!;
+                                  if (event is KeyDownEvent &&
+                                      event.logicalKey ==
+                                          LogicalKeyboardKey.enter &&
+                                      controller.value.composing.isCollapsed) {
+                                    _newRow(_data.rows[r].id);
+                                    return KeyEventResult.handled;
+                                  }
+                                  return KeyEventResult.ignored;
+                                },
+                                child: TextField(
+                                  key: ValueKey(
+                                    'table-cell-${_data.rows[r].id}-$c',
+                                  ),
+                                  readOnly: widget.readOnly,
+                                  showCursor: !widget.readOnly,
+                                  enableInteractiveSelection: !widget.readOnly,
+                                  controller:
+                                      _controllers[_key(_data.rows[r].id, c)],
+                                  focusNode: _focus[_key(_data.rows[r].id, c)],
+                                  autofocus:
+                                      widget.autofocus && r == 0 && c == 0,
+                                  textAlign: TextAlign.left,
+                                  cursorHeight: r == 0 ? 18 : 17,
+                                  style: TextStyle(
+                                    fontSize: r == 0 ? 18 : 17,
+                                    letterSpacing: .5,
+                                    fontWeight: r == 0
+                                        ? FontWeight.w600
+                                        : FontWeight.w400,
+                                    color: const Color(0xFF3D3D3D),
+                                    height: 1.5,
+                                  ),
+                                  maxLines: null,
+                                  textInputAction: TextInputAction.newline,
+                                  decoration: const InputDecoration(
+                                    isDense: true,
+                                    border: InputBorder.none,
+                                    contentPadding: EdgeInsets.symmetric(
+                                      vertical: 8,
+                                    ),
+                                  ),
+                                  onChanged: (value) =>
+                                      _edit(_data.rows[r].id, c, value),
                                 ),
                               ),
-                              onChanged: (value) =>
-                                  _edit(_data.rows[r].id, c, value),
                             ),
-                          ),
-                        ),
-                    ],
-                  ),
-              ],
+                        ],
+                      ),
+                  ],
+                ),
+              ),
             ),
           ),
-        ),
+          if (!widget.readOnly &&
+              widget.onDelete != null &&
+              (_headerFocused || _menuOpen))
+            Positioned(
+              top: 0,
+              right: 0,
+              child: PopupMenuButton<String>(
+                tooltip: '表格操作',
+                onOpened: () => setState(() => _menuOpen = true),
+                onCanceled: () => setState(() => _menuOpen = false),
+                onSelected: _tableAction,
+                itemBuilder: (_) => const [
+                  PopupMenuItem(value: 'copy', child: Text('复制 Markdown')),
+                  PopupMenuItem(value: 'delete', child: Text('删除表格')),
+                ],
+                child: const Material(
+                  elevation: 2,
+                  color: Colors.white,
+                  shape: CircleBorder(),
+                  child: Padding(
+                    padding: EdgeInsets.all(4),
+                    child: Icon(Icons.more_horiz, size: 20),
+                  ),
+                ),
+              ),
+            ),
+        ],
       );
     },
   );
