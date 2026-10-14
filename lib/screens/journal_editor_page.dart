@@ -283,21 +283,7 @@ class _JournalEditorPageState extends State<JournalEditorPage>
     if (!mounted || table == null) return;
     _newTableId = table.id;
     _editor.skipRequestKeyboard = true;
-    _editor.replaceText(
-      selection.start,
-      selection.end - selection.start,
-      quill.BlockEmbed('table', table.encode()),
-      null,
-    );
-    // Leave a normal paragraph below an end-of-document table so writing can
-    // continue outside the cells without adding a row to the table.
-    final operations = _editor.document.toDelta().toJson();
-    if (operations.length >= 2 &&
-        operations[operations.length - 2]['insert'] is Map &&
-        operations.last['insert'] == '\n') {
-      _editor.skipRequestKeyboard = true;
-      _editor.replaceText(_editor.document.length - 1, 0, '\n', null);
-    }
+    _editor.insertTable(table, selection);
   }
 
   void _updateTable(JournalTableData table) {
@@ -842,14 +828,19 @@ class JournalFormatBar extends StatelessWidget {
                   attribute: quill.Attribute.strikeThrough,
                 ),
                 button(
-                  '分隔线',
-                  const JournalFormatIcon(JournalFormatSymbol.divider),
-                  action: _divider,
-                ),
-                button(
                   '高亮',
                   const Icon(Icons.border_color_outlined),
                   attribute: const quill.BackgroundAttribute('#FFF2B3'),
+                ),
+                button(
+                  '下划线',
+                  const Icon(Icons.format_underlined),
+                  attribute: quill.Attribute.underline,
+                ),
+                button(
+                  '分隔线',
+                  const JournalFormatIcon(JournalFormatSymbol.divider),
+                  action: _divider,
                 ),
                 button(
                   '上标',

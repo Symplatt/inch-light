@@ -41,13 +41,13 @@ quill.DefaultStyles journalStyles() {
       null,
       null,
       indentWidthBuilder: (block, _, _, _) => quill.HorizontalSpacing(
-        block.style.attributes.containsKey('blockquote') ? 10 : 28,
+        block.style.attributes.containsKey('blockquote') ? 10 : 24,
         0,
       ),
-      numberPointWidthBuilder: (_, _) => 28,
+      numberPointWidthBuilder: (_, _) => 24,
     ),
-    h1: heading(26, 40),
-    h2: heading(23, 20),
+    h1: heading(26, 48),
+    h2: heading(23, 32),
     h3: heading(20, 16),
   );
 }
@@ -108,7 +108,7 @@ Widget? journalLeading(
   return Align(
     alignment: Alignment.topLeft,
     child: SizedBox(
-      width: 28,
+      width: 24,
       height: height,
       child: Align(
         alignment: Alignment.centerLeft,

@@ -7,6 +7,7 @@ import '../providers/app_provider.dart';
 import '../utils/countdown.dart';
 import '../widgets/date_time_sheet.dart';
 import '../widgets/section_heading.dart';
+import '../widgets/swipe_delete_card.dart';
 
 const _frequencyLabels = ['每天', '每周', '每月', '每年'];
 
@@ -137,14 +138,15 @@ class _CyclePageState extends State<CyclePage> {
     required DateTime now,
     required VoidCallback onDelete,
     required VoidCallback onEdit,
-  }) => Dismissible(
+  }) => SwipeDeleteCard(
     key: ValueKey(id),
+    id: id,
+    bottomMargin: 8,
     direction: DismissDirection.horizontal,
-    onDismissed: (_) => onDelete(),
-    background: _deleteBackground(Alignment.centerLeft),
-    secondaryBackground: _deleteBackground(Alignment.centerRight),
+    onDeleted: onDelete,
     child: Card(
-      margin: const EdgeInsets.only(bottom: 8),
+      margin: EdgeInsets.zero,
+      borderOnForeground: false,
       color: AppColors.surface,
       elevation: 0,
       shape: RoundedRectangleBorder(
@@ -221,17 +223,6 @@ class _CyclePageState extends State<CyclePage> {
         ),
       ),
     ),
-  );
-
-  Widget _deleteBackground(Alignment alignment) => Container(
-    margin: const EdgeInsets.only(bottom: 8),
-    padding: const EdgeInsets.symmetric(horizontal: 20),
-    alignment: alignment,
-    decoration: BoxDecoration(
-      color: AppColors.danger,
-      borderRadius: BorderRadius.circular(16),
-    ),
-    child: const Icon(Icons.delete_outline, color: Colors.white),
   );
 
   Widget _empty(IconData icon) => Padding(

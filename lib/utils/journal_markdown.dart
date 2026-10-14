@@ -28,6 +28,7 @@ String _inline(String text, Map attributes) {
   if (attributes['italic'] == true) value = '*$value*';
   if (attributes['bold'] == true) value = '**$value**';
   if (attributes['strike'] == true) value = '~~$value~~';
+  if (attributes['underline'] == true) value = '<u>$value</u>';
   if (attributes['background'] != null) value = '==$value==';
   return '$leading$value$trailing';
 }

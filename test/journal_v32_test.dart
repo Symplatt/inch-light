@@ -314,7 +314,7 @@ void main() {
       );
       expect(
         t.getTopLeft(rich('居中标题')).dy - t.getBottomLeft(rich('再一段')).dy,
-        closeTo(28, .01),
+        closeTo(40, .01),
       );
       await t.pumpWidget(const SizedBox());
       p.dispose();

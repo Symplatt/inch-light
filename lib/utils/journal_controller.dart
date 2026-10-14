@@ -28,6 +28,35 @@ class JournalController extends quill.QuillController {
   int? pendingTable;
   bool _deleting = false;
 
+  /// Insert on a clean paragraph without splitting or replacing existing prose.
+  /// Compose once so whitespace cleanup and insertion share one undo step.
+  void insertTable(JournalTableData table, TextSelection caret) {
+    final plain = document.toPlainText();
+    final offset = caret.start.clamp(0, plain.length - 1);
+    final start = offset == 0 ? 0 : plain.lastIndexOf('\n', offset - 1) + 1;
+    final end = plain.indexOf('\n', offset);
+    final blank = plain.substring(start, end).trim().isEmpty;
+    final last = end == plain.length - 1;
+    final at = blank ? start : (last ? end : end + 1);
+    final delta = Delta()..retain(at);
+    // Quill requires the terminal newline to survive; insert before it.
+    if (!blank && last) delta.insert('\n');
+    if (blank) delta.delete(end - start + (last ? 0 : 1));
+    delta
+      ..insert({'table': table.encode()})
+      ..insert('\n');
+    if (blank && last) {
+      final attributes = document.queryChild(end).node!.style.attributes;
+      delta.retain(1, {for (final key in attributes.keys) key: null});
+    }
+    pendingTable = null;
+    compose(
+      delta,
+      TextSelection.collapsed(offset: at + 2 + (!blank && last ? 1 : 0)),
+      quill.ChangeSource.local,
+    );
+  }
+
   bool handleTableBackspace() {
     var offset = 0;
     for (final op in document.toDelta().toJson()) {

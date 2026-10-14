@@ -178,22 +178,12 @@ class _TodoPageState extends State<TodoPage> {
     final nearest = provider.nearestDeadline(collection.id);
     return GestureDetector(
       onLongPress: () => _showCollectionActions(context, collection, provider),
-      child: Dismissible(
+      child: SwipeDeleteCard(
         key: Key(collection.id),
-        direction: DismissDirection.endToStart,
-        background: Container(
-          margin: const EdgeInsets.only(bottom: 16),
-          decoration: BoxDecoration(
-            color: AppColors.danger,
-            borderRadius: BorderRadius.circular(16),
-          ),
-          alignment: Alignment.centerRight,
-          padding: const EdgeInsets.only(right: 20),
-          child: const Icon(Icons.delete, color: Colors.white),
-        ),
-        onDismissed: (_) => provider.removeCollection(collection.id),
+        id: collection.id,
+        bottomMargin: 16,
+        onDeleted: () => provider.removeCollection(collection.id),
         child: Container(
-          margin: const EdgeInsets.only(bottom: 16),
           decoration: BoxDecoration(
             color: AppColors.surface,
             borderRadius: BorderRadius.circular(16),

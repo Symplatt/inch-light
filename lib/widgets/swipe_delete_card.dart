@@ -4,15 +4,16 @@ import '../constants/app_colors.dart';
 
 /// Paint under the entire rounded card, including the moving edge's corners.
 class SwipeDeleteBackground extends StatelessWidget {
-  const SwipeDeleteBackground({super.key});
+  const SwipeDeleteBackground({super.key, this.fromLeft = false});
+  final bool fromLeft;
   @override
-  Widget build(BuildContext context) => const ColoredBox(
+  Widget build(BuildContext context) => ColoredBox(
     color: AppColors.danger,
     child: Padding(
-      padding: EdgeInsets.only(right: 20),
+      padding: const EdgeInsets.symmetric(horizontal: 20),
       child: Align(
-        alignment: Alignment.centerRight,
-        child: Icon(Icons.delete_outline, color: Colors.white),
+        alignment: fromLeft ? Alignment.centerLeft : Alignment.centerRight,
+        child: const Icon(Icons.delete_outline, color: Colors.white),
       ),
     ),
   );
@@ -27,6 +28,7 @@ class SwipeDeleteCard extends StatefulWidget {
     this.enabled = true,
     this.radius = 16,
     this.bottomMargin = 12,
+    this.direction = DismissDirection.endToStart,
   });
   final String id;
   final bool enabled;
@@ -34,12 +36,14 @@ class SwipeDeleteCard extends StatefulWidget {
   final FutureOr<void> Function() onDeleted;
   final double radius;
   final double bottomMargin;
+  final DismissDirection direction;
   @override
   State<SwipeDeleteCard> createState() => _SwipeDeleteCardState();
 }
 
 class _SwipeDeleteCardState extends State<SwipeDeleteCard> {
   bool _moving = false;
+  bool _fromLeft = false;
   bool _dismissed = false;
   int _attempt = 0;
   Future<void> _delete() async {
@@ -65,19 +69,31 @@ class _SwipeDeleteCardState extends State<SwipeDeleteCard> {
       : Padding(
           padding: EdgeInsets.only(bottom: widget.bottomMargin),
           child: ClipRRect(
+            // Corner badges may extend over the outline while the card rests.
+            clipBehavior: _moving ? Clip.antiAlias : Clip.none,
             borderRadius: BorderRadius.circular(widget.radius),
             child: Stack(
               children: [
                 if (_moving)
-                  const Positioned.fill(child: SwipeDeleteBackground()),
+                  Positioned.fill(
+                    child: SwipeDeleteBackground(fromLeft: _fromLeft),
+                  ),
                 Dismissible(
                   key: ValueKey('${widget.id}:$_attempt'),
                   direction: widget.enabled
-                      ? DismissDirection.endToStart
+                      ? widget.direction
                       : DismissDirection.none,
                   onUpdate: (details) {
                     final moving = details.progress > 0;
-                    if (_moving != moving) setState(() => _moving = moving);
+                    final fromLeft =
+                        (details.direction == DismissDirection.startToEnd) ==
+                        (Directionality.of(context) == TextDirection.ltr);
+                    if (_moving != moving || _fromLeft != fromLeft) {
+                      setState(() {
+                        _moving = moving;
+                        _fromLeft = fromLeft;
+                      });
+                    }
                   },
                   onDismissed: (_) => _delete(),
                   child: widget.child,

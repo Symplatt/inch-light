@@ -439,10 +439,11 @@ void main() {
   );
 
   testWidgets(
-    'Image padding is 2.5em above and 3em below; H1 grows without changing H2',
+    'Image padding is 2.5em above and 3em below; H1 H2 margins exceed unchanged H3',
     (t) async {
-      expect(journalStyles().h1!.verticalSpacing.top, 40);
-      expect(journalStyles().h2!.verticalSpacing.top, 20);
+      expect(journalStyles().h1!.verticalSpacing.top, 48);
+      expect(journalStyles().h2!.verticalSpacing.top, 32);
+      expect(journalStyles().h3!.verticalSpacing.top, 16);
       final p = AppProvider();
       await t.runAsync(() => p.ready);
       await mount(
