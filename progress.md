@@ -8,7 +8,10 @@
 - 已覆盖安装并启动手机 fc4f8df9 上的 3.7.0（2028）；firstInstallTime 保持 2026-09-30 11:02:21，使用 install -r，未清除数据。
 - 用户已明确授权完成提交和 GitHub 更新，进入发布阶段。
 - 已复核三架构 APK：3.7.0，versionCode 1028／2028／4028，签名兼容；手机仍为 3.7.0（2028）。
-- 发布中：提交、Push、v3.7.0 Tag、Release 三架构资产及 D 盘交付，完成后记录最终核验。
+- 发布已完成：功能提交 af5a7c7 已推送；v3.7.0 Tag 与 Release 已发布，三架构 APK 已交付 D 盘。
+- 最终核验：远程 Tag 指向功能提交；Release 说明与 CHANGELOG 一致（仅换行符差异）；GitHub 资产 SHA-256 与构建包及 D 盘包一致，手机已安装 ARM64 APK 的 SHA-256 也一致。
+- 发布地址：https://github.com/Symplatt/inch-light/releases/tag/v3.7.0
+- 本地必要验证已通过；远程主分支与标签 CI 仍在运行，结果尚未确认。
 
 # 更新进度
 
