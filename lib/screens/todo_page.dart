@@ -404,6 +404,11 @@ class _TodoPageState extends State<TodoPage> {
                 : Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
+                      if (task.deadline != null)
+                        Padding(
+                          padding: const EdgeInsets.only(top: 4),
+                          child: DeadlineLabel(deadline: task.deadline!),
+                        ),
                       if (task.tags.isNotEmpty)
                         Padding(
                           padding: const EdgeInsets.only(top: 6),
@@ -431,13 +436,6 @@ class _TodoPageState extends State<TodoPage> {
                                 )
                                 .toList(),
                           ),
-                        ),
-                      if (task.deadline != null)
-                        Padding(
-                          padding: EdgeInsets.only(
-                            top: task.tags.isEmpty ? 4 : 9,
-                          ),
-                          child: DeadlineLabel(deadline: task.deadline!),
                         ),
                     ],
                   ),

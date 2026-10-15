@@ -152,9 +152,23 @@ void main() {
       expect(t.getRect(find.byType(Table)), tableBounds);
       await t.tap(find.byTooltip('表格操作'));
       await t.pumpAndSettle();
-      await t.tap(find.text('复制 Markdown'));
+      await t.tap(find.text('复制表格'));
       await t.pumpAndSettle();
       expect(copied, journalTableToMarkdown(table));
+      expect(c.document.toDelta().toJson(), original);
+      await t.tap(find.byKey(ValueKey('table-cell-${table.rows.first.id}-0')));
+      await t.pumpAndSettle();
+      await t.tap(find.byTooltip('表格操作'));
+      await t.pumpAndSettle();
+      expect(
+        t.getTopLeft(find.text('下移一行')).dy,
+        greaterThan(t.getTopLeft(find.text('删除表格')).dy),
+      );
+      await t.tap(find.text('下移一行'));
+      await t.pumpAndSettle();
+      expect(c.document.toPlainText(), '前文\n\n\uFFFC\n后文\n');
+      c.undo();
+      await t.pumpAndSettle();
       expect(c.document.toDelta().toJson(), original);
       await t.tap(find.byKey(ValueKey('table-cell-${table.rows.first.id}-0')));
       await t.pumpAndSettle();

@@ -99,6 +99,31 @@ class _SettingsPageState extends State<SettingsPage> {
     }
   }
 
+  Widget _dataAction(
+    IconData icon,
+    String label,
+    String description,
+    VoidCallback action,
+  ) => ListTile(
+    enabled: !_busy,
+    onTap: action,
+    contentPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 6),
+    leading: Icon(icon, size: 26, color: AppColors.textDark),
+    title: Text(label, style: const TextStyle(fontWeight: FontWeight.w400)),
+    subtitle: Text(
+      description,
+      style: const TextStyle(fontSize: 12, color: AppColors.textGrey),
+    ),
+  );
+
+  Widget _dataDivider() => const Divider(
+    height: 1,
+    thickness: 1,
+    indent: 16,
+    endIndent: 16,
+    color: Color(0xFFEEF0F3),
+  );
+
   @override
   Widget build(BuildContext context) {
     final provider = context.watch<AppProvider>();
@@ -118,6 +143,7 @@ class _SettingsPageState extends State<SettingsPage> {
                 color: AppColors.surface,
                 shape: RoundedRectangleBorder(
                   borderRadius: BorderRadius.circular(16),
+                  side: const BorderSide(color: Color(0xFFE7E8EB)),
                 ),
                 child: RadioGroup<bool>(
                   groupValue: provider.looseTasksFirst,
@@ -140,6 +166,7 @@ class _SettingsPageState extends State<SettingsPage> {
                 color: AppColors.surface,
                 shape: RoundedRectangleBorder(
                   borderRadius: BorderRadius.circular(16),
+                  side: const BorderSide(color: Color(0xFFE7E8EB)),
                 ),
                 child: RadioGroup<bool>(
                   groupValue: provider.countdownsFirst,
@@ -155,55 +182,41 @@ class _SettingsPageState extends State<SettingsPage> {
                 ),
               ),
               const SizedBox(height: 24),
-              const SectionHeading(title: '数据'),
+              const SectionHeading(title: '数据管理'),
               Card(
                 margin: EdgeInsets.zero,
                 elevation: 0,
                 color: AppColors.surface,
                 shape: RoundedRectangleBorder(
                   borderRadius: BorderRadius.circular(16),
+                  side: const BorderSide(color: Color(0xFFE7E8EB)),
                 ),
                 child: Column(
                   children: [
-                    Padding(
-                      padding: const EdgeInsets.all(16),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.stretch,
-                        children: [
-                          FilledButton.tonalIcon(
-                            icon: const Icon(Icons.save_alt_outlined),
-                            label: const Text('导出备份'),
-                            onPressed: _busy
-                                ? null
-                                : () => _exportData(context, provider),
-                          ),
-                          const SizedBox(height: 8),
-                          Wrap(
-                            alignment: WrapAlignment.spaceEvenly,
-                            spacing: 8,
-                            children: [
-                              TextButton.icon(
-                                icon: const Icon(Icons.content_paste_outlined),
-                                label: const Text('粘贴导入'),
-                                onPressed: _busy
-                                    ? null
-                                    : () => _readImport(file: false),
-                              ),
-                              if (!kIsWeb &&
-                                  defaultTargetPlatform ==
-                                      TargetPlatform.android)
-                                TextButton.icon(
-                                  icon: const Icon(Icons.file_open_outlined),
-                                  label: const Text('文件导入'),
-                                  onPressed: _busy
-                                      ? null
-                                      : () => _readImport(file: true),
-                                ),
-                            ],
-                          ),
-                        ],
-                      ),
+                    _dataAction(
+                      Icons.save_alt_outlined,
+                      '导出备份',
+                      '导出全部数据到本地',
+                      () => _exportData(context, provider),
                     ),
+                    _dataDivider(),
+                    if (!kIsWeb &&
+                        defaultTargetPlatform == TargetPlatform.android) ...[
+                      _dataAction(
+                        Icons.insert_drive_file_outlined,
+                        '文件导入',
+                        '从备份文件恢复数据',
+                        () => _readImport(file: true),
+                      ),
+                      _dataDivider(),
+                    ],
+                    _dataAction(
+                      Icons.content_paste_outlined,
+                      '粘贴导入',
+                      '从剪贴板文本导入数据',
+                      () => _readImport(file: false),
+                    ),
+                    _dataDivider(),
                     if (_pendingImport != null)
                       Padding(
                         padding: const EdgeInsets.all(16),
@@ -237,23 +250,20 @@ class _SettingsPageState extends State<SettingsPage> {
                         ),
                       ),
                     const Padding(
-                      padding: EdgeInsets.fromLTRB(16, 8, 16, 16),
-                      child: Text(
-                        '数据导出至本地路径7天后，自动删除',
-                        style: TextStyle(
-                          fontSize: 12,
-                          color: AppColors.textGrey,
+                      padding: EdgeInsets.fromLTRB(20, 14, 20, 16),
+                      child: Align(
+                        alignment: Alignment.centerLeft,
+                        child: Text(
+                          '导出的本地备份文件将在 7 天后自动删除',
+                          style: TextStyle(
+                            fontSize: 12,
+                            color: AppColors.textGrey,
+                          ),
                         ),
                       ),
                     ),
                   ],
                 ),
-              ),
-              const SizedBox(height: 32),
-              Text(
-                '© ${DateTime.now().year} Symplatt · 版权所有',
-                textAlign: TextAlign.center,
-                style: const TextStyle(fontSize: 12, color: AppColors.textGrey),
               ),
             ],
           ),

@@ -309,8 +309,8 @@ void main() {
         matching: find.byType(DeadlineLabel),
       );
       expect(
-        t.getTopLeft(taskLabel).dy - t.getBottomLeft(find.text('标签')).dy,
-        greaterThanOrEqualTo(9),
+        t.getTopLeft(find.text('标签')).dy - t.getBottomLeft(taskLabel).dy,
+        greaterThanOrEqualTo(6),
       );
       await t.longPress(find.text('待修改事项'));
       await t.pumpAndSettle();

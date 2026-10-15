@@ -81,6 +81,30 @@ class JournalController extends quill.QuillController {
     return false;
   }
 
+  /// Insert a plain paragraph before the existing embed, preserving its data
+  /// and attributes and allowing the entire move to be undone in one step.
+  bool moveTableDown(String id) {
+    var offset = 0;
+    for (final op in document.toDelta().toJson()) {
+      final insert = op['insert'];
+      if (insert is Map &&
+          insert['table'] is String &&
+          JournalTableData.decode(insert['table']).id == id) {
+        pendingTable = null;
+        compose(
+          Delta()
+            ..retain(offset)
+            ..insert('\n'),
+          TextSelection.collapsed(offset: offset),
+          quill.ChangeSource.local,
+        );
+        return true;
+      }
+      offset += insert is String ? insert.length : 1;
+    }
+    return false;
+  }
+
   bool deleteTable(String id) {
     var offset = 0;
     for (final op in document.toDelta().toJson()) {

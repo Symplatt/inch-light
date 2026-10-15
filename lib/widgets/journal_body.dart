@@ -140,12 +140,14 @@ class JournalTableBuilder extends quill.EmbedBuilder {
     this.autofocusId,
     this.selectedOffset,
     this.onDelete,
+    this.onMoveDown,
     this.tableKeys,
   });
   final ValueChanged<JournalTableData> onChanged;
   final String? autofocusId;
   final int? selectedOffset;
   final ValueChanged<String>? onDelete;
+  final ValueChanged<String>? onMoveDown;
   final Map<String, GlobalKey>? tableKeys;
   @override
   String get key => 'table';
@@ -171,6 +173,7 @@ class JournalTableBuilder extends quill.EmbedBuilder {
           readOnly: embedContext.readOnly,
           autofocus: autofocusId == table.id,
           onDelete: onDelete == null ? null : () => onDelete!(table.id),
+          onMoveDown: onMoveDown == null ? null : () => onMoveDown!(table.id),
         ),
       ),
     );

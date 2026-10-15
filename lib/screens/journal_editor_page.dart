@@ -627,6 +627,7 @@ class _JournalEditorPageState extends State<JournalEditorPage>
                                   tableKeys: _tableKeys,
                                   onChanged: _updateTable,
                                   onDelete: _deleteTable,
+                                  onMoveDown: (id) => _editor.moveTableDown(id),
                                   autofocusId: _newTableId,
                                   selectedOffset: _editor.selection.isCollapsed
                                       ? null

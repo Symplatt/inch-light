@@ -288,8 +288,7 @@ void main() {
     await t.tap(find.text('周期在上'));
     await t.pumpAndSettle();
     expect(p.countdownsFirst, isFalse);
-    await t.ensureVisible(find.text('© 2026 Symplatt · 版权所有'));
-    expect(find.text('© 2026 Symplatt · 版权所有'), findsOneWidget);
+    expect(find.textContaining('版权所有'), findsNothing);
     await t.pumpWidget(
       ChangeNotifierProvider.value(
         value: p,

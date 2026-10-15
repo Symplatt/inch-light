@@ -145,12 +145,14 @@ class JournalTable extends StatefulWidget {
     this.autofocus = false,
     this.readOnly = false,
     this.onDelete,
+    this.onMoveDown,
   });
   final JournalTableData data;
   final ValueChanged<JournalTableData> onChanged;
   final bool autofocus;
   final bool readOnly;
   final VoidCallback? onDelete;
+  final VoidCallback? onMoveDown;
   @override
   State<JournalTable> createState() => _JournalTableState();
 }
@@ -240,6 +242,10 @@ class _JournalTableState extends State<JournalTable> {
     setState(() => _menuOpen = false);
     if (action == 'delete') {
       widget.onDelete?.call();
+      return;
+    }
+    if (action == 'moveDown') {
+      widget.onMoveDown?.call();
       return;
     }
     var message = '表格 Markdown 已复制';
@@ -376,8 +382,9 @@ class _JournalTableState extends State<JournalTable> {
                 onCanceled: () => setState(() => _menuOpen = false),
                 onSelected: _tableAction,
                 itemBuilder: (_) => const [
-                  PopupMenuItem(value: 'copy', child: Text('复制 Markdown')),
+                  PopupMenuItem(value: 'copy', child: Text('复制表格')),
                   PopupMenuItem(value: 'delete', child: Text('删除表格')),
+                  PopupMenuItem(value: 'moveDown', child: Text('下移一行')),
                 ],
                 child: const Material(
                   elevation: 2,
