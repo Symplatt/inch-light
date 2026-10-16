@@ -7,7 +7,13 @@
 - 安装前已确认手机 fc4f8df9 为 3.8.0（2030），firstInstallTime=2026-09-30 11:02:21，并读取安装 APK 签名用于比较。
 - 已 install -r 保留数据覆盖安装手机 fc4f8df9；启动后处于 RESUMED，实际版本 3.9.0（2031），firstInstallTime 保持不变。真机软件信息弹窗已核验：顶部仅“一日千录”，版本及构建号正确，正文左对齐。
 - 右滑隐藏、快捷操作不弹键盘及标点清理通过自动化测试；本轮未逐项进行真机数据操作核验。
-- 用户已审核通过，正在完成 README、AGENTS 新约定、GitHub 发布与 D 盘交付；未发布的 3.8.0 变更已合并到 3.9.0 更新日志。
+- 用户已审核通过；未发布的 3.8.0 变更已合并到 3.9.0 更新日志，README 已同步当前版本与功能。
+- AGENTS.md 已新增：每次覆盖安装后立即将对应版本更新日志以 Markdown 文档保存至 D 盘根目录，自 3.9.0 起生效，不等待审核或发布。
+- 已提交并推送 9f4c662，v3.9.0 标签与 GitHub Release 已发布，含三架构 APK：https://github.com/Symplatt/inch-light/releases/tag/v3.9.0 。
+- D 盘已交付 inch-light-3.9.0-arm64-v8a.apk、inch-light-3.9.0-armeabi-v7a.apk、inch-light-3.9.0-x86_64.apk，以及 一日千录-3.9.0-更新日志.md。
+- 最终核验：三架构构建包／GitHub Release 资产摘要／D 盘包 SHA-256 一致；手机已装 APK 与 ARM64 构建包 SHA-256 一致，实际版本仍为 3.9.0（2031），首次安装时间未变；远程标签指向功能提交，Release 说明与 CHANGELOG 和 D 盘 Markdown 内容一致。
+- 本地验证及交付已完成；远程 CI 38888800267（标签）与 38888794670（主分支）仍运行中，结果尚未确认。
+- 原有 web/manifest.json 和三张参考图片保持原状，未纳入提交。
 
 # 3.8.0+30 安装后审核修订（2026-10-16）
 
