@@ -1,0 +1,306 @@
+import 'dart:math';
+import 'package:flutter_quill/quill_delta.dart';
+import '../models/journal_table.dart';
+
+enum JournalOperation {
+  clearBlankLines('清除空行'),
+  removeBold('取消加粗'),
+  capitalize('首字母大写'),
+  shuffleBullets('打乱无序列表'),
+  promoteHeadings('标题升级'),
+  demoteHeadings('标题降级'),
+  normalizeSpaces('空格管理'),
+  removeLeadingPunctuation('去除异常标点');
+
+  const JournalOperation(this.label);
+  final String label;
+}
+
+class _Atom {
+  _Atom(this.value, Map<String, dynamic>? attributes)
+    : attributes = Map<String, dynamic>.from(attributes ?? {});
+  dynamic value;
+  final Map<String, dynamic> attributes;
+}
+
+class _Line {
+  _Line(this.atoms, this.attributes);
+  List<_Atom> atoms;
+  final Map<String, dynamic> attributes;
+  bool get blank => atoms.every(
+    (a) => a.value is String && (a.value as String).trim().isEmpty,
+  );
+  bool get bullet => attributes['list'] == 'bullet';
+  int get indent => attributes['indent'] as int? ?? 0;
+}
+
+List<_Line> _lines(List<dynamic> document) {
+  final lines = <_Line>[];
+  var atoms = <_Atom>[];
+  for (final raw in document) {
+    final attributes = Map<String, dynamic>.from(
+      raw['attributes'] as Map? ?? {},
+    );
+    final insert = raw['insert'];
+    if (insert is! String) {
+      atoms.add(_Atom(insert, attributes));
+      continue;
+    }
+    // Work at rune boundaries to retain emoji and supplementary Han characters.
+    for (final rune in insert.runes) {
+      if (rune == 10) {
+        lines.add(_Line(atoms, Map.from(attributes)));
+        atoms = [];
+      } else {
+        atoms.add(_Atom(String.fromCharCode(rune), attributes));
+      }
+    }
+  }
+  if (atoms.isNotEmpty) lines.add(_Line(atoms, {}));
+  return lines;
+}
+
+bool _english(dynamic value) =>
+    value is String && RegExp(r'^[A-Za-z0-9]$').hasMatch(value);
+bool _han(dynamic value) {
+  if (value is! String || value.runes.length != 1) return false;
+  final rune = value.runes.single;
+  return (rune >= 0x3400 && rune <= 0x9fff) ||
+      (rune >= 0x20000 && rune <= 0x323af);
+}
+
+bool _space(_Atom atom) =>
+    atom.value is String && RegExp(r'^\s$').hasMatch(atom.value);
+
+List<_Atom> _normalize(List<_Atom> atoms) {
+  final out = <_Atom>[];
+  for (var i = 0; i < atoms.length; i++) {
+    final atom = atoms[i];
+    if (_space(atom)) {
+      var next = i + 1;
+      while (next < atoms.length && _space(atoms[next])) {
+        next++;
+      }
+      if (out.isNotEmpty && next < atoms.length) {
+        final left = out.last.value;
+        final right = atoms[next].value;
+        // English punctuation retains ordinary separation ("hello, world").
+        final leftEnglish =
+            _english(left) ||
+            (left is String && RegExp(r"^[,.;:!?\)\]\}'’]$").hasMatch(left));
+        final rightEnglish =
+            _english(right) ||
+            (right is String && RegExp(r"^[\(\[\{'‘]$").hasMatch(right));
+        if ((leftEnglish && rightEnglish) ||
+            (_han(left) && _english(right)) ||
+            (_english(left) && _han(right))) {
+          out.add(_Atom(' ', atom.attributes));
+        }
+      }
+      i = next - 1;
+      continue;
+    }
+    if (out.isNotEmpty &&
+        ((_han(out.last.value) && _english(atom.value)) ||
+            (_english(out.last.value) && _han(atom.value)))) {
+      out.add(_Atom(' ', atom.attributes));
+    }
+    out.add(atom);
+  }
+  return out;
+}
+
+final _punctuation = RegExp(r'^\p{P}$', unicode: true);
+final _pairedPunctuation = RegExp(
+  r'^[\p{Ps}\p{Pe}\p{Pi}\p{Pf}]$',
+  unicode: true,
+);
+
+List<_Atom> _removeLeadingPunctuation(List<_Atom> atoms) {
+  var leading = true;
+  return atoms.where((atom) {
+    if (!leading) return true;
+    if (_space(atom)) return true;
+    final value = atom.value;
+    if (value is String &&
+        _punctuation.hasMatch(value) &&
+        !_pairedPunctuation.hasMatch(value) &&
+        !['"', "'", '＂', '＇', '<', '>'].contains(value)) {
+      return false;
+    }
+    // An opening quote/bracket is meaningful content; do not clean inside it.
+    leading = false;
+    return true;
+  }).toList();
+}
+
+String transformJournalText(String text, JournalOperation operation) {
+  if (operation == JournalOperation.removeLeadingPunctuation) {
+    return text
+        .split('\n')
+        .map(
+          (line) => _removeLeadingPunctuation(
+            line.runes.map((r) => _Atom(String.fromCharCode(r), {})).toList(),
+          ).map((atom) => atom.value).join(),
+        )
+        .join('\n');
+  }
+  if (operation == JournalOperation.capitalize) {
+    return text.replaceAllMapped(
+      RegExp(r'\b[a-zA-Z]'),
+      (m) => m[0]!.toUpperCase(),
+    );
+  }
+  if (operation == JournalOperation.normalizeSpaces) {
+    return text
+        .split('\n')
+        .map(
+          (line) => _normalize(
+            line.runes.map((r) => _Atom(String.fromCharCode(r), {})).toList(),
+          ).map((a) => a.value).join(),
+        )
+        .join('\n');
+  }
+  if (operation == JournalOperation.clearBlankLines) {
+    return text.split('\n').where((line) => line.trim().isNotEmpty).join('\n');
+  }
+  return text;
+}
+
+// Shuffle sibling items with their descendants, then shuffle each nested list.
+// Separate bullet runs never exchange content, nor do ordered lists.
+List<_Line> _shuffle(List<_Line> lines, Random random) {
+  if (lines.length < 2) return lines;
+  final minimum = lines.map((line) => line.indent).reduce(min);
+  final groups = <List<_Line>>[];
+  for (final line in lines) {
+    if (groups.isEmpty || line.indent == minimum) groups.add([]);
+    groups.last.add(line);
+  }
+  for (final group in groups) {
+    if (group.length > 1) {
+      final nested = _shuffle(group.sublist(1), random);
+      group.replaceRange(1, group.length, nested);
+    }
+  }
+  groups.shuffle(random);
+  return groups.expand((group) => group).toList();
+}
+
+List<dynamic> transformJournalDocument(
+  List<dynamic> document,
+  JournalOperation operation, {
+  Random? random,
+}) {
+  var lines = _lines(document);
+  if (operation == JournalOperation.clearBlankLines) {
+    lines = lines.where((line) => !line.blank).toList();
+  }
+  for (final line in lines) {
+    if (operation == JournalOperation.promoteHeadings ||
+        operation == JournalOperation.demoteHeadings) {
+      final header = line.attributes['header'];
+      if (header is int) {
+        line.attributes['header'] =
+            (header + (operation == JournalOperation.promoteHeadings ? -1 : 1))
+                .clamp(1, 3);
+      }
+    }
+    if (operation == JournalOperation.removeBold) {
+      line.attributes.remove('bold');
+    }
+    var inWord = false;
+    for (final atom in line.atoms) {
+      if (operation == JournalOperation.removeBold) {
+        atom.attributes['bold'] = false;
+      }
+      if (operation == JournalOperation.capitalize) {
+        final word =
+            atom.value is String &&
+            RegExp(r'^[A-Za-z0-9_]$').hasMatch(atom.value);
+        if (word && !inWord) atom.value = (atom.value as String).toUpperCase();
+        inWord = word;
+      }
+      final value = atom.value;
+      if (value is Map && value['table'] is String) {
+        var table = JournalTableData.decode(value['table']);
+        for (final row in table.rows) {
+          for (var column = 0; column < table.columns; column++) {
+            table = table.edit(
+              row.id,
+              column,
+              transformJournalText(row.cells[column], operation),
+            );
+          }
+        }
+        if (operation == JournalOperation.removeBold) {
+          table = table.withoutBold();
+        }
+        atom.value = <String, dynamic>{
+          ...Map<String, dynamic>.from(value),
+          'table': table.encode(),
+        };
+      }
+    }
+    if (operation == JournalOperation.normalizeSpaces) {
+      line.atoms = _normalize(line.atoms);
+    }
+    if (operation == JournalOperation.removeLeadingPunctuation) {
+      line.atoms = _removeLeadingPunctuation(line.atoms);
+    }
+  }
+  if (operation == JournalOperation.shuffleBullets) {
+    final shuffled = <_Line>[];
+    for (var i = 0; i < lines.length;) {
+      if (!lines[i].bullet) {
+        shuffled.add(lines[i++]);
+        continue;
+      }
+      var end = i + 1;
+      while (end < lines.length && lines[end].bullet) {
+        end++;
+      }
+      shuffled.addAll(_shuffle(lines.sublist(i, end), random ?? Random()));
+      i = end;
+    }
+    lines = shuffled;
+  }
+  final delta = Delta();
+  for (final line in lines) {
+    for (final atom in line.atoms) {
+      delta.insert(
+        atom.value,
+        atom.attributes.isEmpty ? null : atom.attributes,
+      );
+    }
+    delta.insert('\n', line.attributes.isEmpty ? null : line.attributes);
+  }
+  if (lines.isEmpty) delta.insert('\n');
+  return delta.toJson();
+}
+
+/// Export indentation belongs only to ordinary prose, never tables or lists.
+List<dynamic> journalImageDocument(List<dynamic> document, bool indent) {
+  if (!indent) return document;
+  final delta = Delta();
+  for (final line in _lines(document)) {
+    if (!line.blank &&
+        line.atoms.every((a) => a.value is String) &&
+        ![
+          'header',
+          'list',
+          'blockquote',
+          'code-block',
+        ].any(line.attributes.containsKey)) {
+      delta.insert('　　');
+    }
+    for (final atom in line.atoms) {
+      delta.insert(
+        atom.value,
+        atom.attributes.isEmpty ? null : atom.attributes,
+      );
+    }
+    delta.insert('\n', line.attributes.isEmpty ? null : line.attributes);
+  }
+  return delta.toJson();
+}

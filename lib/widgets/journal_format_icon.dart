@@ -1,6 +1,24 @@
 import 'package:flutter/material.dart';
 
-enum JournalFormatSymbol { h1, h2, h3, bold, italic, strike, divider }
+enum JournalFormatSymbol {
+  h1,
+  h2,
+  h3,
+  bold,
+  italic,
+  strike,
+  divider,
+  bullet,
+  underline,
+  highlight,
+  superscript,
+  subscript,
+  code,
+  table,
+  alignLeft,
+  alignCenter,
+  alignRight,
+}
 
 class JournalFormatIcon extends StatelessWidget {
   const JournalFormatIcon(this.symbol, {super.key});
@@ -87,24 +105,100 @@ class _FormatPainter extends CustomPainter {
     } else if (symbol == JournalFormatSymbol.strike) {
       path(
         Path()
-          ..moveTo(9, 10)
-          ..cubicTo(2, 6, 1, 20, 8, 18)
-          ..lineTo(9, 17)
-          ..moveTo(9, 9)
-          ..lineTo(9, 19)
-          ..moveTo(14, 5)
-          ..lineTo(14, 19)
-          ..moveTo(14, 11)
-          ..cubicTo(24, 4, 24, 25, 14, 17),
+          ..moveTo(18, 4)
+          ..lineTo(10, 4)
+          ..cubicTo(3, 4, 3, 12, 12, 12)
+          ..cubicTo(21, 12, 21, 20, 14, 20)
+          ..lineTo(6, 20),
       );
-      line(1, 12, 23, 12);
+      line(3, 12, 21, 12);
+    } else if (symbol == JournalFormatSymbol.underline) {
+      path(
+        Path()
+          ..moveTo(6, 4)
+          ..lineTo(6, 11)
+          ..cubicTo(6, 18, 18, 18, 18, 11)
+          ..lineTo(18, 4),
+      );
+      line(4, 20, 20, 20);
+    } else if (symbol == JournalFormatSymbol.highlight) {
+      // Slanted marker tip above a color swatch, on the same grid as text icons.
+      path(
+        Path()
+          ..moveTo(6, 13)
+          ..lineTo(15, 4)
+          ..lineTo(20, 9)
+          ..lineTo(11, 18)
+          ..close(),
+      );
+      line(8, 15, 5, 18);
+      line(4, 20, 20, 20);
+    } else if (symbol == JournalFormatSymbol.bullet) {
+      for (final y in [5.0, 12.0, 19.0]) {
+        canvas.drawCircle(Offset(4, y), 1.8, paint..style = PaintingStyle.fill);
+        line(9, y, 21, y);
+      }
+    } else if (symbol == JournalFormatSymbol.superscript ||
+        symbol == JournalFormatSymbol.subscript) {
+      final superscript = symbol == JournalFormatSymbol.superscript;
+      final top = superscript ? 8.0 : 4.0;
+      final bottom = superscript ? 20.0 : 16.0;
+      line(3, top, 12, bottom);
+      line(12, top, 3, bottom);
+      final y = superscript ? 4.0 : 12.0;
+      path(
+        Path()
+          ..moveTo(16, y)
+          ..lineTo(21, y)
+          ..lineTo(21, y + 3)
+          ..lineTo(16, y + 8)
+          ..lineTo(22, y + 8),
+      );
+    } else if (symbol == JournalFormatSymbol.code) {
+      path(
+        Path()
+          ..moveTo(8, 4)
+          ..lineTo(2, 12)
+          ..lineTo(8, 20),
+      );
+      path(
+        Path()
+          ..moveTo(16, 4)
+          ..lineTo(22, 12)
+          ..lineTo(16, 20),
+      );
+    } else if (symbol == JournalFormatSymbol.table) {
+      path(Path()..addRect(const Rect.fromLTRB(3, 4, 21, 20)));
+      line(3, 10, 21, 10);
+      line(3, 15, 21, 15);
+      line(9, 4, 9, 20);
+      line(15, 4, 15, 20);
+    } else if ([
+      JournalFormatSymbol.alignLeft,
+      JournalFormatSymbol.alignCenter,
+      JournalFormatSymbol.alignRight,
+    ].contains(symbol)) {
+      for (var i = 0; i < 4; i++) {
+        final short = i.isOdd;
+        final left = !short || symbol == JournalFormatSymbol.alignLeft
+            ? 3.0
+            : symbol == JournalFormatSymbol.alignCenter
+            ? 6.0
+            : 9.0;
+        final right = !short || symbol == JournalFormatSymbol.alignRight
+            ? 21.0
+            : symbol == JournalFormatSymbol.alignCenter
+            ? 18.0
+            : 15.0;
+        line(left, 4 + i * 16 / 3, right, 4 + i * 16 / 3);
+      }
     } else {
       canvas.drawLine(
-        const Offset(4, 5),
-        const Offset(20, 5),
+        const Offset(4, 4),
+        const Offset(20, 4),
         paint..color = color.withValues(alpha: .5),
       );
-      canvas.drawLine(const Offset(4, 19), const Offset(20, 19), paint);
+      canvas.drawLine(const Offset(4, 20), const Offset(20, 20), paint);
       canvas.drawLine(
         const Offset(1, 12),
         const Offset(23, 12),

@@ -92,10 +92,10 @@ void main() {
           .widgetList<IconButton>(find.byType(IconButton))
           .map((b) => b.tooltip)
           .toList();
-      final first = labels.indexOf('高亮');
+      final first = labels.indexOf('下划线');
       expect(labels.sublist(first, first + 5), [
-        '高亮',
         '下划线',
+        '高亮',
         '分隔线',
         '上标',
         '下标',

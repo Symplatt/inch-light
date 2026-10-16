@@ -10,6 +10,8 @@ import '../models/journal_table.dart';
 import '../widgets/journal_body.dart';
 import '../widgets/journal_tags.dart';
 import '../widgets/journal_export_icon.dart';
+import '../widgets/journal_image_settings.dart';
+import '../utils/journal_operations.dart';
 
 class JournalImagePage extends StatefulWidget {
   const JournalImagePage({super.key, required this.entry});
@@ -24,6 +26,24 @@ class _JournalImagePageState extends State<JournalImagePage> {
   final _scroll = ScrollController();
   late final quill.QuillController _controller;
   bool _busy = false;
+  JournalImageSettings _settings = JournalImageSettings();
+
+  Future<void> _configure() async {
+    final settings = await showDialog<JournalImageSettings>(
+      context: context,
+      builder: (_) => JournalImageSettingsDialog(settings: _settings),
+    );
+    if (!mounted || settings == null) return;
+    final previous = _controller.document;
+    setState(() {
+      _settings = settings;
+      _controller.document = quill.Document.fromJson(
+        journalImageDocument(widget.entry.document, settings.indent),
+      );
+    });
+    previous.close();
+  }
+
   @override
   void initState() {
     super.initState();
@@ -91,7 +111,12 @@ class _JournalImagePageState extends State<JournalImagePage> {
         final columns = JournalTableData.decode(insert['table']).columns;
         width = math.max(
           width,
-          columns * (MediaQuery.textScalerOf(context).scale(18) * 5 + 16) + 48,
+          columns *
+                  ((MediaQuery.textScalerOf(context).scale(_settings.fontSize) +
+                              _settings.letterSpacing) *
+                          5 +
+                      16) +
+              _settings.sideMargin * 2,
         );
       }
     }
@@ -107,6 +132,11 @@ class _JournalImagePageState extends State<JournalImagePage> {
       appBar: AppBar(
         title: const Text('导出长图'),
         actions: [
+          IconButton(
+            tooltip: '图片设置',
+            onPressed: _busy ? null : _configure,
+            icon: const Icon(Icons.tune),
+          ),
           IconButton(
             tooltip: '分享图片',
             onPressed: _busy ? null : () => _export(true),
@@ -131,11 +161,12 @@ class _JournalImagePageState extends State<JournalImagePage> {
                   child: ColoredBox(
                     color: Colors.white,
                     child: Padding(
+                      key: const ValueKey('image-page-padding'),
                       padding: EdgeInsets.fromLTRB(
-                        24,
-                        MediaQuery.textScalerOf(context).scale(18) * 2.5,
-                        24,
-                        MediaQuery.textScalerOf(context).scale(18) * 3,
+                        _settings.sideMargin,
+                        _settings.topMargin,
+                        _settings.sideMargin,
+                        _settings.bottomMargin,
                       ),
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -144,7 +175,8 @@ class _JournalImagePageState extends State<JournalImagePage> {
                             Text(
                               widget.entry.title,
                               style: TextStyle(
-                                fontSize: 30,
+                                fontSize: _settings.fontSize * 30 / 18,
+                                letterSpacing: _settings.letterSpacing,
                                 height: 1.4,
                                 color: const Color(0xFF3D3D3D),
                                 fontWeight: widget.entry.titleBold
@@ -154,14 +186,15 @@ class _JournalImagePageState extends State<JournalImagePage> {
                             ),
                             const SizedBox(height: 20),
                           ],
-                          Text(
-                            '${DateFormat('M月d日 HH:mm').format(widget.entry.updatedAt)}  |  ${widget.entry.wordCount}字',
-                            key: const ValueKey('image-metadata'),
-                            style: const TextStyle(
-                              fontSize: 14,
-                              color: Color(0xFF999999),
+                          if (!_settings.hideMetadata)
+                            Text(
+                              '${DateFormat('M月d日 HH:mm').format(widget.entry.updatedAt)}  |  ${widget.entry.wordCount}字',
+                              key: const ValueKey('image-metadata'),
+                              style: const TextStyle(
+                                fontSize: 14,
+                                color: Color(0xFF999999),
+                              ),
                             ),
-                          ),
                           if (widget.entry.tags.isNotEmpty) ...[
                             const SizedBox(height: 16),
                             JournalTags(tags: widget.entry.tags),
@@ -176,7 +209,12 @@ class _JournalImagePageState extends State<JournalImagePage> {
                               padding: EdgeInsets.zero,
                               showCursor: false,
                               enableInteractiveSelection: false,
-                              customStyles: journalStyles(),
+                              customStyles: journalStyles(
+                                fontSize: _settings.fontSize,
+                                letterSpacing: _settings.letterSpacing,
+                                lineHeight: _settings.lineHeight,
+                                paragraphSpacing: _settings.paragraphSpacing,
+                              ),
                               textSpanBuilder: journalSpan,
                               // ignore: experimental_member_use
                               customLeadingBlockBuilder: (node, config) =>
@@ -185,10 +223,22 @@ class _JournalImagePageState extends State<JournalImagePage> {
                                     node,
                                     config,
                                     readOnly: true,
+                                    textStyle: journalBlock(_settings.fontSize)
+                                        .style
+                                        .copyWith(
+                                          letterSpacing:
+                                              _settings.letterSpacing,
+                                          height: _settings.lineHeight,
+                                        ),
                                   ),
                               embedBuilders: [
                                 const JournalDividerBuilder(),
-                                JournalTableBuilder(onChanged: (_) {}),
+                                JournalTableBuilder(
+                                  onChanged: (_) {},
+                                  fontSize: _settings.fontSize,
+                                  letterSpacing: _settings.letterSpacing,
+                                  lineHeight: _settings.lineHeight,
+                                ),
                               ],
                             ),
                           ),

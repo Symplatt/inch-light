@@ -670,14 +670,19 @@ class _JournalPageState extends State<JournalPage> {
                   icon: const JournalActionIcon(JournalActionSymbol.restore),
                 ),
               IconButton(
+                tooltip: '批量导出 Markdown',
+                onPressed: _exportCollection,
+                icon: const JournalExportIcon(multiple: true),
+              ),
+              IconButton(
                 tooltip: '新建合集',
                 onPressed: _collection,
                 icon: const JournalActionIcon(JournalActionSymbol.folder),
               ),
               IconButton(
-                tooltip: '批量导出 Markdown',
-                onPressed: _exportCollection,
-                icon: const JournalExportIcon(multiple: true),
+                tooltip: '多选',
+                onPressed: () => setState(() => _selecting = true),
+                icon: const Icon(Icons.checklist_outlined),
               ),
             ],
           ],

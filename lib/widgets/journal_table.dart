@@ -8,23 +8,27 @@ import '../utils/journal_markdown.dart';
 List<double> journalTableWidths(
   JournalTableData data,
   double available,
-  TextScaler scaler,
-) {
+  TextScaler scaler, {
+  double fontSize = 18,
+  double letterSpacing = .5,
+}) {
   // Match the actual TextField letter spacing; otherwise a measured line can
   // wrap before the column receives the spare width from its neighbours.
-  final char = scaler.scale(18) + .5;
+  final char = scaler.scale(fontSize) + letterSpacing;
   final initial = char * 5 + 16;
   final maximum = char * 10 + 16;
   final natural = List.generate(data.columns, (c) {
-    var width = char + 16;
+    var width = char * (c == 0 ? 4 : 1) + 16;
     for (var r = 0; r < data.rows.length; r++) {
       final painter = TextPainter(
         text: TextSpan(
           text: data.rows[r].cells[c],
           style: TextStyle(
-            fontSize: r == 0 ? 18 : 17,
-            letterSpacing: .5,
-            fontWeight: r == 0 ? FontWeight.w600 : FontWeight.w400,
+            fontSize: r == 0 ? fontSize : fontSize * 17 / 18,
+            letterSpacing: letterSpacing,
+            fontWeight: r == 0 && data.headerBold
+                ? FontWeight.w600
+                : FontWeight.w400,
           ),
         ),
         textDirection: TextDirection.ltr,
@@ -109,7 +113,7 @@ class _TableSizeDialogState extends State<_TableSizeDialog> {
           inputFormatters: [FilteringTextInputFormatter.digitsOnly],
           decoration: const InputDecoration(
             labelText: '列数',
-            helperText: '1–12 列，创建后固定',
+            helperText: '1–12 列',
           ),
         ),
         if (_error != null)
@@ -146,6 +150,9 @@ class JournalTable extends StatefulWidget {
     this.readOnly = false,
     this.onDelete,
     this.onMoveDown,
+    this.fontSize = 18,
+    this.letterSpacing = .5,
+    this.lineHeight = 1.5,
   });
   final JournalTableData data;
   final ValueChanged<JournalTableData> onChanged;
@@ -153,6 +160,9 @@ class JournalTable extends StatefulWidget {
   final bool readOnly;
   final VoidCallback? onDelete;
   final VoidCallback? onMoveDown;
+  final double fontSize;
+  final double letterSpacing;
+  final double lineHeight;
   @override
   State<JournalTable> createState() => _JournalTableState();
 }
@@ -238,6 +248,47 @@ class _JournalTableState extends State<JournalTable> {
     }
   }
 
+  void _cellAction(String rowId, int column, {required bool insert}) {
+    if (!insert && _data.rows.length == 1 && widget.onDelete != null) {
+      widget.onDelete!();
+      return;
+    }
+    final rowIndex = _data.rows.indexWhere((row) => row.id == rowId);
+    if (rowIndex < 0) return;
+    setState(() {
+      _data = insert ? _data.insertColumnAfter(column) : _data.removeRow(rowId);
+      _sync();
+    });
+    widget.onChanged(_data);
+    final targetRow = _data.rows[rowIndex.clamp(0, _data.rows.length - 1)].id;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) {
+        _focus[_key(
+              targetRow,
+              insert ? (column + 1).clamp(0, _data.columns - 1) : column,
+            )]
+            ?.requestFocus();
+      }
+    });
+  }
+
+  void _deleteColumn(String rowId, int column) {
+    if (_data.columns == 1) {
+      widget.onDelete?.call();
+      return;
+    }
+    setState(() {
+      _data = _data.removeColumn(column);
+      _sync();
+    });
+    widget.onChanged(_data);
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) {
+        _focus[_key(rowId, column.clamp(0, _data.columns - 1))]?.requestFocus();
+      }
+    });
+  }
+
   Future<void> _tableAction(String action) async {
     setState(() => _menuOpen = false);
     if (action == 'delete') {
@@ -283,6 +334,8 @@ class _JournalTableState extends State<JournalTable> {
         _data,
         constraints.maxWidth,
         MediaQuery.textScalerOf(context),
+        fontSize: widget.fontSize,
+        letterSpacing: widget.letterSpacing,
       );
       return Stack(
         children: [
@@ -330,6 +383,46 @@ class _JournalTableState extends State<JournalTable> {
                                   key: ValueKey(
                                     'table-cell-${_data.rows[r].id}-$c',
                                   ),
+                                  contextMenuBuilder: (context, state) =>
+                                      AdaptiveTextSelectionToolbar.buttonItems(
+                                        anchors: state.contextMenuAnchors,
+                                        buttonItems: [
+                                          ...state.contextMenuButtonItems,
+                                          ContextMenuButtonItem(
+                                            label: '删除该行',
+                                            onPressed: () {
+                                              state.hideToolbar();
+                                              _cellAction(
+                                                _data.rows[r].id,
+                                                c,
+                                                insert: false,
+                                              );
+                                            },
+                                          ),
+                                          ContextMenuButtonItem(
+                                            label: '删除该列',
+                                            onPressed: () {
+                                              state.hideToolbar();
+                                              _deleteColumn(
+                                                _data.rows[r].id,
+                                                c,
+                                              );
+                                            },
+                                          ),
+                                          if (_data.columns < 12)
+                                            ContextMenuButtonItem(
+                                              label: '右侧增列',
+                                              onPressed: () {
+                                                state.hideToolbar();
+                                                _cellAction(
+                                                  _data.rows[r].id,
+                                                  c,
+                                                  insert: true,
+                                                );
+                                              },
+                                            ),
+                                        ],
+                                      ),
                                   readOnly: widget.readOnly,
                                   showCursor: !widget.readOnly,
                                   enableInteractiveSelection: !widget.readOnly,
@@ -339,15 +432,19 @@ class _JournalTableState extends State<JournalTable> {
                                   autofocus:
                                       widget.autofocus && r == 0 && c == 0,
                                   textAlign: TextAlign.left,
-                                  cursorHeight: r == 0 ? 18 : 17,
+                                  cursorHeight: r == 0
+                                      ? widget.fontSize
+                                      : widget.fontSize * 17 / 18,
                                   style: TextStyle(
-                                    fontSize: r == 0 ? 18 : 17,
-                                    letterSpacing: .5,
-                                    fontWeight: r == 0
+                                    fontSize: r == 0
+                                        ? widget.fontSize
+                                        : widget.fontSize * 17 / 18,
+                                    letterSpacing: widget.letterSpacing,
+                                    fontWeight: r == 0 && _data.headerBold
                                         ? FontWeight.w600
                                         : FontWeight.w400,
                                     color: const Color(0xFF3D3D3D),
-                                    height: 1.5,
+                                    height: widget.lineHeight,
                                   ),
                                   maxLines: null,
                                   textInputAction: TextInputAction.newline,

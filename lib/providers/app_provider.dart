@@ -47,6 +47,21 @@ class AppProvider with ChangeNotifier, WidgetsBindingObserver {
   final List<TaskItem> _normalTasks = [];
   final List<CycleTask> _cycleTasks = [];
   List<TaskCollection> _collections = [];
+  Set<String> _hiddenTodoCollections = {};
+  bool isTodoCollectionVisible(String id) =>
+      !_hiddenTodoCollections.contains(id);
+
+  Future<void> setVisibleTodoCollections(Set<String> ids) async {
+    final hidden = _collections
+        .where((c) => !ids.contains(c.id))
+        .map((c) => c.id)
+        .toSet();
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setStringList('hidden_todo_collections', hidden.toList());
+    _hiddenTodoCollections = hidden;
+    notifyListeners();
+  }
+
   final List<JournalEntry> _journalEntries = [];
   final List<JournalCollection> _journalCollections = [];
   final Map<String, ({JournalEntry entry, DateTime deletedAt})>
@@ -467,6 +482,8 @@ class AppProvider with ChangeNotifier, WidgetsBindingObserver {
 
   Future<void> _loadData() async {
     final prefs = await SharedPreferences.getInstance();
+    _hiddenTodoCollections =
+        (prefs.getStringList('hidden_todo_collections') ?? []).toSet();
     _looseTasksFirst = prefs.getBool('loose_tasks_first') ?? true;
     _countdownsFirst = prefs.getBool('countdowns_first') ?? true;
     _lastJournalCollection = prefs.getString('last_journal_collection');

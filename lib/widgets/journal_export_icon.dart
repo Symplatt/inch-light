@@ -77,16 +77,15 @@ class _ActionPainter extends CustomPainter {
         line(7, 17, 17, 17);
       }
     } else if (symbol == JournalActionSymbol.share) {
-      canvas.drawPath(
-        Path()
-          ..moveTo(3, 21)
-          ..lineTo(21, 12)
-          ..lineTo(3, 3)
-          ..lineTo(6, 12)
-          ..close(),
-        pen,
-      );
-      line(6, 12, 15, 12);
+      line(7.7, 10.8, 16.3, 6.2);
+      line(7.7, 13.2, 16.3, 17.8);
+      for (final center in [
+        const Offset(5.5, 12),
+        const Offset(18.5, 5.5),
+        const Offset(18.5, 18.5),
+      ]) {
+        canvas.drawCircle(center, 2.5, pen);
+      }
     } else if (symbol == JournalActionSymbol.saveImage) {
       canvas.drawPath(
         Path()

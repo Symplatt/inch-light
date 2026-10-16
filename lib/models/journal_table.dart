@@ -13,8 +13,10 @@ class JournalTableData {
     required this.id,
     required this.columns,
     required this.rows,
+    this.headerBold = true,
   });
   final String id;
+  final bool headerBold;
   final int columns;
   final List<JournalTableRow> rows;
 
@@ -49,6 +51,7 @@ class JournalTableData {
     }
     return JournalTableData(
       id: data['id'] as String,
+      headerBold: data['headerBold'] as bool? ?? true,
       columns: columns,
       rows: rows,
     );
@@ -57,6 +60,7 @@ class JournalTableData {
   String encode() => jsonEncode({
     'id': id,
     'columns': columns,
+    if (!headerBold) 'headerBold': false,
     'rows': rows.map((r) => r.toJson()).toList(),
   });
   String get plainText => rows.map((r) => r.cells.join(' ')).join('\n');
@@ -64,6 +68,7 @@ class JournalTableData {
   JournalTableData edit(String rowId, int column, String text) =>
       JournalTableData(
         id: id,
+        headerBold: headerBold,
         columns: columns,
         rows: rows.map((row) {
           if (row.id != rowId) return row;
@@ -71,6 +76,53 @@ class JournalTableData {
           return JournalTableRow(id: row.id, cells: cells);
         }).toList(),
       );
+
+  JournalTableData withoutBold() =>
+      JournalTableData(id: id, columns: columns, rows: rows, headerBold: false);
+
+  // The final row is kept empty so the embed always remains decodable.
+  JournalTableData removeRow(String rowId) => JournalTableData(
+    id: id,
+    headerBold: headerBold,
+    columns: columns,
+    rows: rows.length == 1
+        ? [JournalTableRow(id: rows.first.id, cells: List.filled(columns, ''))]
+        : rows.where((row) => row.id != rowId).toList(),
+  );
+
+  JournalTableData removeColumn(int column) {
+    if (column < 0 || column >= columns || columns == 1) return this;
+    return JournalTableData(
+      id: id,
+      columns: columns - 1,
+      headerBold: headerBold,
+      rows: rows
+          .map(
+            (row) => JournalTableRow(
+              id: row.id,
+              cells: List<String>.from(row.cells)..removeAt(column),
+            ),
+          )
+          .toList(),
+    );
+  }
+
+  JournalTableData insertColumnAfter(int column) {
+    if (column < 0 || column >= columns || columns >= 12) return this;
+    return JournalTableData(
+      id: id,
+      headerBold: headerBold,
+      columns: columns + 1,
+      rows: rows
+          .map(
+            (row) => JournalTableRow(
+              id: row.id,
+              cells: List<String>.from(row.cells)..insert(column + 1, ''),
+            ),
+          )
+          .toList(),
+    );
+  }
 
   JournalTableData insertAfter(String rowId, {String firstText = ''}) {
     final index = rows.indexWhere((r) => r.id == rowId);
@@ -80,6 +132,11 @@ class JournalTableData {
       index + 1,
       JournalTableRow(id: const Uuid().v4(), cells: cells),
     );
-    return JournalTableData(id: id, columns: columns, rows: next);
+    return JournalTableData(
+      id: id,
+      columns: columns,
+      rows: next,
+      headerBold: headerBold,
+    );
   }
 }

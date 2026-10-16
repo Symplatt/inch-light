@@ -29,6 +29,7 @@ class SwipeDeleteCard extends StatefulWidget {
     this.radius = 16,
     this.bottomMargin = 12,
     this.direction = DismissDirection.endToStart,
+    this.onSwipedRight,
   });
   final String id;
   final bool enabled;
@@ -37,6 +38,7 @@ class SwipeDeleteCard extends StatefulWidget {
   final double radius;
   final double bottomMargin;
   final DismissDirection direction;
+  final FutureOr<void> Function()? onSwipedRight;
   @override
   State<SwipeDeleteCard> createState() => _SwipeDeleteCardState();
 }
@@ -46,10 +48,15 @@ class _SwipeDeleteCardState extends State<SwipeDeleteCard> {
   bool _fromLeft = false;
   bool _dismissed = false;
   int _attempt = 0;
-  Future<void> _delete() async {
+  Future<void> _delete(DismissDirection direction) async {
     setState(() => _dismissed = true);
     try {
-      await widget.onDeleted();
+      if (direction == DismissDirection.startToEnd &&
+          widget.onSwipedRight != null) {
+        await widget.onSwipedRight!();
+      } else {
+        await widget.onDeleted();
+      }
     } catch (_) {
       // A failed persistence operation restores a fresh swipe state, rather
       // than leaving a dismissed widget in the tree or hiding a restored item.
@@ -76,7 +83,21 @@ class _SwipeDeleteCardState extends State<SwipeDeleteCard> {
               children: [
                 if (_moving)
                   Positioned.fill(
-                    child: SwipeDeleteBackground(fromLeft: _fromLeft),
+                    child: _fromLeft && widget.onSwipedRight != null
+                        ? const ColoredBox(
+                            color: AppColors.textGrey,
+                            child: Align(
+                              alignment: Alignment.centerLeft,
+                              child: Padding(
+                                padding: EdgeInsets.symmetric(horizontal: 20),
+                                child: Icon(
+                                  Icons.visibility_off_outlined,
+                                  color: Colors.white,
+                                ),
+                              ),
+                            ),
+                          )
+                        : SwipeDeleteBackground(fromLeft: _fromLeft),
                   ),
                 Dismissible(
                   key: ValueKey('${widget.id}:$_attempt'),
@@ -95,7 +116,7 @@ class _SwipeDeleteCardState extends State<SwipeDeleteCard> {
                       });
                     }
                   },
-                  onDismissed: (_) => _delete(),
+                  onDismissed: _delete,
                   child: widget.child,
                 ),
               ],

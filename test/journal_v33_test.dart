@@ -18,6 +18,7 @@ import 'package:inch_light/utils/journal_markdown.dart';
 import 'package:inch_light/utils/journal_shortcuts.dart';
 import 'package:inch_light/widgets/journal_collection_dialog.dart';
 import 'package:inch_light/widgets/journal_export_icon.dart';
+import 'package:inch_light/widgets/journal_format_icon.dart';
 
 JournalEntry note(String id, {List<dynamic>? document, String? folder}) =>
     JournalEntry(
@@ -89,6 +90,45 @@ void main() {
       expect(rect.bottom, closeTo(bounds.first.bottom, .25));
     }
   });
+
+  testWidgets(
+    'Format glyphs use consistent visible height and vertical center',
+    (t) async {
+      for (final symbol in JournalFormatSymbol.values) {
+        final key = GlobalKey();
+        await t.pumpWidget(
+          Directionality(
+            textDirection: TextDirection.ltr,
+            child: Center(
+              child: RepaintBoundary(
+                key: key,
+                child: JournalFormatIcon(symbol),
+              ),
+            ),
+          ),
+        );
+        await t.runAsync(() async {
+          final boundary =
+              key.currentContext!.findRenderObject()! as RenderRepaintBoundary;
+          final image = await boundary.toImage(pixelRatio: 4);
+          final data = (await image.toByteData(
+            format: ui.ImageByteFormat.rawRgba,
+          ))!;
+          var top = image.height, bottom = -1;
+          for (var y = 0; y < image.height; y++) {
+            for (var x = 0; x < image.width; x++) {
+              if (data.getUint8((y * image.width + x) * 4 + 3) < 32) continue;
+              if (y < top) top = y;
+              if (y > bottom) bottom = y;
+            }
+          }
+          expect((top + bottom + 1) / 8, closeTo(12, .5), reason: symbol.name);
+          expect((bottom + 1 - top) / 4, closeTo(18, 1), reason: symbol.name);
+          image.dispose();
+        });
+      }
+    },
+  );
 
   Future<void> mount(WidgetTester t, AppProvider p, Widget page) async {
     t.view.physicalSize = const Size(390, 844);
@@ -313,7 +353,7 @@ void main() {
       await mount(t, p, const JournalPage());
       expect(
         t.getCenter(find.byTooltip('新建合集')).dx,
-        lessThan(t.getCenter(find.byTooltip('批量导出 Markdown')).dx),
+        greaterThan(t.getCenter(find.byTooltip('批量导出 Markdown')).dx),
       );
       expect(
         t.getTopLeft(find.byKey(const ValueKey('note-folder-default'))).dx,
@@ -336,8 +376,8 @@ void main() {
       expect(actions, hasLength(3));
       expect(actions.map((a) => a.symbol), [
         JournalActionSymbol.restore,
-        JournalActionSymbol.folder,
         JournalActionSymbol.exportAll,
+        JournalActionSymbol.folder,
       ]);
       final rects = find
           .byType(JournalActionIcon)
@@ -379,7 +419,7 @@ void main() {
         t
             .widgetList<JournalActionIcon>(find.byType(JournalActionIcon))
             .map((a) => a.symbol),
-        [JournalActionSymbol.tags, JournalActionSymbol.export],
+        [JournalActionSymbol.export, JournalActionSymbol.tags],
       );
       final editor = t.widget<quill.QuillEditor>(
         find.byType(quill.QuillEditor),

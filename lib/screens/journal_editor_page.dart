@@ -15,6 +15,7 @@ import '../widgets/journal_tags.dart';
 import '../providers/app_provider.dart';
 import '../utils/journal_markdown.dart';
 import '../utils/journal_shortcuts.dart';
+import '../utils/journal_operations.dart';
 import '../utils/journal_controller.dart';
 import '../widgets/journal_body.dart';
 import '../widgets/journal_export_icon.dart';
@@ -254,9 +255,11 @@ class _JournalEditorPageState extends State<JournalEditorPage>
         ),
       ),
     );
-    _editor.skipRequestKeyboard = _titleFocus.hasFocus;
+    final skipKeyboard = !_bodyFocus.hasFocus;
+    _editor.skipRequestKeyboard = skipKeyboard;
     final oldDocument = _editor.document;
     _editor.document = quill.Document.fromJson(data['document'] as List);
+    _editor.skipRequestKeyboard = skipKeyboard;
     _editor.updateSelection(
       TextSelection.collapsed(
         offset: selection.extentOffset.clamp(0, _editor.document.length - 1),
@@ -327,6 +330,48 @@ class _JournalEditorPageState extends State<JournalEditorPage>
     if (!mounted || confirmed != true) return;
     _newTableId = null;
     if (_editor.deleteTable(id)) _bodyFocus.requestFocus();
+  }
+
+  Future<void> _operate(JournalOperation operation) async {
+    FocusScope.of(context).unfocus();
+    final document = transformJournalDocument(
+      _editor.document.toDelta().toJson(),
+      operation,
+    );
+    final before = _current;
+    _restoring = true;
+    final previous = _editor.document;
+    _editor.skipRequestKeyboard = true;
+    _editor.document = quill.Document.fromJson(document);
+    // Quill consumes this flag on each notification, including document replacement.
+    _editor.skipRequestKeyboard = true;
+    _editor.updateSelection(
+      const TextSelection.collapsed(offset: 0),
+      quill.ChangeSource.local,
+    );
+    previous.close();
+    _title.text = transformJournalText(_title.text, operation);
+    if (operation == JournalOperation.removeBold) _titleBold = false;
+    _restoring = false;
+    _changed();
+    if (_current == before) {
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('没有需要修改的内容')));
+      return;
+    }
+    ScaffoldMessenger.of(context)
+      ..clearSnackBars()
+      ..showSnackBar(
+        SnackBar(
+          content: Text('已${operation.label}'),
+          duration: const Duration(seconds: 3),
+          persist: false,
+          behavior: SnackBarBehavior.floating,
+          action: SnackBarAction(label: '撤回', onPressed: () => _history(false)),
+        ),
+      );
+    await _save();
   }
 
   Future<void> _export() async {
@@ -499,6 +544,12 @@ class _JournalEditorPageState extends State<JournalEditorPage>
                   icon: const JournalActionIcon(JournalActionSymbol.redo),
                 ),
               ],
+              if (!keyboardVisible)
+                IconButton(
+                  tooltip: '导出',
+                  onPressed: _export,
+                  icon: const JournalExportIcon(),
+                ),
               IconButton(
                 tooltip: '标签',
                 onPressed: _editTags,
@@ -511,10 +562,17 @@ class _JournalEditorPageState extends State<JournalEditorPage>
                   icon: const JournalActionIcon(JournalActionSymbol.done),
                 )
               else
-                IconButton(
-                  tooltip: '发送',
-                  onPressed: _export,
-                  icon: const JournalExportIcon(),
+                PopupMenuButton<JournalOperation>(
+                  tooltip: '操作',
+                  icon: const Icon(Icons.more_horiz),
+                  onSelected: _operate,
+                  itemBuilder: (_) => [
+                    for (final operation in JournalOperation.values)
+                      PopupMenuItem(
+                        value: operation,
+                        child: Text(operation.label),
+                      ),
+                  ],
                 ),
               const SizedBox(width: 8),
             ],
@@ -815,7 +873,7 @@ class JournalFormatBar extends StatelessWidget {
                 ),
                 button(
                   '无序列表',
-                  const Icon(Icons.format_list_bulleted),
+                  const JournalFormatIcon(JournalFormatSymbol.bullet),
                   attribute: quill.Attribute.ul,
                 ),
                 button(
@@ -829,14 +887,14 @@ class JournalFormatBar extends StatelessWidget {
                   attribute: quill.Attribute.strikeThrough,
                 ),
                 button(
-                  '高亮',
-                  const Icon(Icons.border_color_outlined),
-                  attribute: const quill.BackgroundAttribute('#FFF2B3'),
+                  '下划线',
+                  const JournalFormatIcon(JournalFormatSymbol.underline),
+                  attribute: quill.Attribute.underline,
                 ),
                 button(
-                  '下划线',
-                  const Icon(Icons.format_underlined),
-                  attribute: quill.Attribute.underline,
+                  '高亮',
+                  const JournalFormatIcon(JournalFormatSymbol.highlight),
+                  attribute: const quill.BackgroundAttribute('#FFF2B3'),
                 ),
                 button(
                   '分隔线',
@@ -845,37 +903,37 @@ class JournalFormatBar extends StatelessWidget {
                 ),
                 button(
                   '上标',
-                  const Icon(Icons.superscript),
+                  const JournalFormatIcon(JournalFormatSymbol.superscript),
                   attribute: quill.Attribute.superscript,
                 ),
                 button(
                   '下标',
-                  const Icon(Icons.subscript),
+                  const JournalFormatIcon(JournalFormatSymbol.subscript),
                   attribute: quill.Attribute.subscript,
                 ),
                 button(
                   '行内代码',
-                  const Icon(Icons.code),
+                  const JournalFormatIcon(JournalFormatSymbol.code),
                   attribute: quill.Attribute.inlineCode,
                 ),
                 button(
                   '表格',
-                  const Icon(Icons.table_chart_outlined),
+                  const JournalFormatIcon(JournalFormatSymbol.table),
                   action: onTable,
                 ),
                 button(
                   '居中对齐',
-                  const Icon(Icons.format_align_center),
+                  const JournalFormatIcon(JournalFormatSymbol.alignCenter),
                   attribute: quill.Attribute.centerAlignment,
                 ),
                 button(
                   '左对齐',
-                  const Icon(Icons.format_align_left),
+                  const JournalFormatIcon(JournalFormatSymbol.alignLeft),
                   attribute: quill.Attribute.leftAlignment,
                 ),
                 button(
                   '右对齐',
-                  const Icon(Icons.format_align_right),
+                  const JournalFormatIcon(JournalFormatSymbol.alignRight),
                   attribute: quill.Attribute.rightAlignment,
                 ),
               ],

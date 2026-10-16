@@ -60,7 +60,7 @@ void main() {
       t.view.viewInsets = FakeViewPadding(bottom: inset);
       await t.pumpAndSettle();
       expect(find.byType(JournalFormatBar), findsNothing);
-      expect(find.byTooltip('发送'), findsOneWidget);
+      expect(find.byTooltip('导出'), findsOneWidget);
     }
     t.view.viewInsets = const FakeViewPadding(bottom: 300);
     await t.pumpAndSettle();
@@ -439,7 +439,7 @@ void main() {
   );
 
   testWidgets(
-    'Image padding is 2.5em above and 3em below; H1 H2 margins exceed unchanged H3',
+    'Image default padding is 54 above and below; H1 H2 margins exceed unchanged H3',
     (t) async {
       expect(journalStyles().h1!.verticalSpacing.top, 48);
       expect(journalStyles().h2!.verticalSpacing.top, 32);
@@ -459,7 +459,7 @@ void main() {
         find.byWidgetPredicate(
           (w) =>
               w is Padding &&
-              w.padding == const EdgeInsets.fromLTRB(24, 45, 24, 54),
+              w.padding == const EdgeInsets.fromLTRB(24, 54, 24, 54),
         ),
         findsOneWidget,
       );

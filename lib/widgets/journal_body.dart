@@ -18,25 +18,37 @@ quill.DefaultTextBlockStyle journalBlock(double size) =>
       null,
     );
 
-quill.DefaultStyles journalStyles() {
+quill.DefaultStyles journalStyles({
+  double fontSize = 18,
+  double letterSpacing = 0,
+  double lineHeight = 1.6,
+  double paragraphSpacing = 8,
+}) {
+  quill.DefaultTextBlockStyle block(double size) =>
+      journalBlock(size * fontSize / 18).copyWith(
+        style: journalBlock(
+          size * fontSize / 18,
+        ).style.copyWith(letterSpacing: letterSpacing, height: lineHeight),
+        verticalSpacing: quill.VerticalSpacing(0, paragraphSpacing),
+      );
   quill.DefaultTextBlockStyle heading(double size, double top) =>
-      journalBlock(size).copyWith(
-        style: journalBlock(size).style.copyWith(fontWeight: FontWeight.w600),
-        verticalSpacing: quill.VerticalSpacing(top, 8),
+      block(size).copyWith(
+        style: block(size).style.copyWith(fontWeight: FontWeight.w600),
+        verticalSpacing: quill.VerticalSpacing(top, paragraphSpacing),
       );
   return quill.DefaultStyles(
-    paragraph: journalBlock(18),
-    quote: journalBlock(18).copyWith(
-      style: journalBlock(18).style.copyWith(color: const Color(0xFF898989)),
+    paragraph: block(18),
+    quote: block(18).copyWith(
+      style: block(18).style.copyWith(color: const Color(0xFF898989)),
       horizontalSpacing: const quill.HorizontalSpacing(0, 0),
       decoration: const BoxDecoration(
         border: Border(left: BorderSide(color: Color(0xFFD8D8D8), width: 1)),
       ),
     ),
     lists: quill.DefaultListBlockStyle(
-      journalBlock(18).style,
+      block(18).style,
       const quill.HorizontalSpacing(0, 0),
-      const quill.VerticalSpacing(0, 8),
+      quill.VerticalSpacing(0, paragraphSpacing),
       const quill.VerticalSpacing(0, 5),
       null,
       null,
@@ -61,7 +73,9 @@ InlineSpan journalSpan(
   GestureRecognizer? recognizer,
 ) {
   final line = node is quill.Line ? node : node.parent;
-  if (line?.style.attributes['header'] != null) {
+  if (node.style.attributes['bold']?.value == false) {
+    style = style?.copyWith(fontWeight: FontWeight.w400);
+  } else if (line?.style.attributes['header'] != null) {
     style = style?.copyWith(fontWeight: FontWeight.w600);
   }
   return TextSpan(text: text, recognizer: recognizer, style: style);
@@ -72,12 +86,13 @@ Widget? journalLeading(
   quill.Node node,
   quill.LeadingConfig config, {
   bool readOnly = false,
+  TextStyle? textStyle,
 }) {
   final type = config.attribute.value;
   if (!['ordered', 'bullet'].contains(type)) {
     return null;
   }
-  final style = journalBlock(18).style;
+  final style = textStyle ?? journalBlock(18).style;
   final strut = StrutStyle.fromTextStyle(style);
   final painter = TextPainter(
     text: TextSpan(
@@ -142,6 +157,9 @@ class JournalTableBuilder extends quill.EmbedBuilder {
     this.onDelete,
     this.onMoveDown,
     this.tableKeys,
+    this.fontSize = 18,
+    this.letterSpacing = .5,
+    this.lineHeight = 1.5,
   });
   final ValueChanged<JournalTableData> onChanged;
   final String? autofocusId;
@@ -149,6 +167,9 @@ class JournalTableBuilder extends quill.EmbedBuilder {
   final ValueChanged<String>? onDelete;
   final ValueChanged<String>? onMoveDown;
   final Map<String, GlobalKey>? tableKeys;
+  final double fontSize;
+  final double letterSpacing;
+  final double lineHeight;
   @override
   String get key => 'table';
   @override
@@ -169,6 +190,9 @@ class JournalTableBuilder extends quill.EmbedBuilder {
               tableKeys?.putIfAbsent(table.id, GlobalKey.new) ??
               ValueKey(table.id),
           data: table,
+          fontSize: fontSize,
+          letterSpacing: letterSpacing,
+          lineHeight: lineHeight,
           onChanged: onChanged,
           readOnly: embedContext.readOnly,
           autofocus: autofocusId == table.id,

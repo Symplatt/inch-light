@@ -129,7 +129,53 @@ class _SettingsPageState extends State<SettingsPage> {
     final provider = context.watch<AppProvider>();
     return Scaffold(
       backgroundColor: AppColors.bg,
-      appBar: AppBar(title: const Text('设置')),
+      appBar: AppBar(
+        title: const Text('设置'),
+        actions: [
+          IconButton(
+            tooltip: '软件信息',
+            icon: const Icon(Icons.help_outline, color: AppColors.textGrey),
+            onPressed: () => showDialog<void>(
+              context: context,
+              builder: (dialogContext) => AlertDialog(
+                title: const Text('一日千录'),
+                content: const SizedBox(
+                  width: double.maxFinite,
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        '版本 3.9.0（构建 31）',
+                        style: TextStyle(color: AppColors.textGrey),
+                      ),
+                      SizedBox(height: 16),
+                      Text('版权所有 © Symplatt'),
+                      SizedBox(height: 16),
+                      Text('数据保存在本机，可在设置中导出备份。'),
+                    ],
+                  ),
+                ),
+                actions: [
+                  TextButton(
+                    onPressed: () => showLicensePage(
+                      context: dialogContext,
+                      applicationName: '一日千录',
+                      applicationVersion: '3.9.0',
+                      applicationLegalese: '版权所有 © Symplatt',
+                    ),
+                    child: const Text('开源许可'),
+                  ),
+                  TextButton(
+                    onPressed: () => Navigator.pop(dialogContext),
+                    child: const Text('关闭'),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ],
+      ),
       body: Center(
         child: ConstrainedBox(
           constraints: const BoxConstraints(maxWidth: 720),

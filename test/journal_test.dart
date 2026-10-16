@@ -362,7 +362,7 @@ void main() {
       updatedAt: DateTime(2026),
     );
     final provider = await mount(tester, JournalEditorPage(entry: entry));
-    await tester.tap(find.byTooltip('发送'));
+    await tester.tap(find.byTooltip('导出'));
     await tester.pumpAndSettle();
     expect(find.text('导出长图'), findsOneWidget);
     await tester.tap(find.text('复制 Markdown'));

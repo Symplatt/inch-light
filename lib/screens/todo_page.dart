@@ -1,4 +1,5 @@
 import '../widgets/position_border.dart';
+import '../widgets/section_heading.dart';
 import '../widgets/task_action_dialog.dart';
 import '../widgets/date_time_sheet.dart';
 import '../widgets/deadline_label.dart';
@@ -22,6 +23,58 @@ class TodoPage extends StatefulWidget {
 class _TodoPageState extends State<TodoPage> {
   // 视图状态 (默认显示未完成)
   bool _showCompleted = false;
+  bool _collectionsExpanded = true;
+
+  Future<void> _chooseVisible(AppProvider provider) async {
+    final selected = provider.collections
+        .where((c) => provider.isTodoCollectionVisible(c.id))
+        .map((c) => c.id)
+        .toSet();
+    final result = await showDialog<Set<String>>(
+      context: context,
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, update) => AlertDialog(
+          title: const Text('请勾选需要显示的合集'),
+          titlePadding: const EdgeInsets.fromLTRB(24, 24, 24, 12),
+          content: SizedBox(
+            width: double.maxFinite,
+            child: ListView(
+              shrinkWrap: true,
+              children: [
+                for (final collection in provider.orderedCollections)
+                  CheckboxListTile(
+                    contentPadding: EdgeInsets.zero,
+                    title: Text(collection.title, textAlign: TextAlign.left),
+                    value: selected.contains(collection.id),
+                    onChanged: (value) => update(() {
+                      if (value == true) {
+                        selected.add(collection.id);
+                      } else {
+                        selected.remove(collection.id);
+                      }
+                    }),
+                  ),
+              ],
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(ctx),
+              child: const Text('取消'),
+            ),
+            TextButton(
+              onPressed: () => Navigator.pop(ctx, selected),
+              child: const Text('确定'),
+            ),
+          ],
+        ),
+      ),
+    );
+    if (!mounted || result == null) return;
+    await provider.setVisibleTodoCollections(result);
+    if (!mounted) return;
+    setState(() => _collectionsExpanded = true);
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -42,14 +95,54 @@ class _TodoPageState extends State<TodoPage> {
         ];
         final collectionSection = <Widget>[
           if (collections.isNotEmpty) ...[
-            _buildSectionHeader("事项合集"),
-            ...collections.map((collection) {
-              final tasks = provider.getTasksInCollection(
-                collection.id,
-                isCompleted: _showCompleted,
-              );
-              return _buildCollectionCard(context, collection, tasks, provider);
-            }),
+            Row(
+              children: [
+                Expanded(
+                  child: SectionHeading(
+                    title: '事项合集',
+                    count: collections.length,
+                    onTap: () => setState(
+                      () => _collectionsExpanded = !_collectionsExpanded,
+                    ),
+                  ),
+                ),
+                IconButton(
+                  tooltip: '部分显示',
+                  icon: const Icon(
+                    Icons.filter_list,
+                    color: AppColors.textGrey,
+                  ),
+                  onPressed: () => _chooseVisible(provider),
+                ),
+                IconButton(
+                  tooltip: _collectionsExpanded ? '折叠' : '展开',
+                  icon: Icon(
+                    _collectionsExpanded
+                        ? Icons.expand_less
+                        : Icons.expand_more,
+                    color: AppColors.textGrey,
+                  ),
+                  onPressed: () => setState(
+                    () => _collectionsExpanded = !_collectionsExpanded,
+                  ),
+                ),
+              ],
+            ),
+            if (_collectionsExpanded)
+              ...collections
+                  .where((c) => provider.isTodoCollectionVisible(c.id))
+                  .map((collection) {
+                    final tasks = provider.getTasksInCollection(
+                      collection.id,
+                      isCompleted: _showCompleted,
+                    );
+                    return _buildCollectionCard(
+                      context,
+                      collection,
+                      tasks,
+                      provider,
+                    );
+                  }),
             const SizedBox(height: 20),
           ],
         ];
@@ -182,6 +275,19 @@ class _TodoPageState extends State<TodoPage> {
         key: Key(collection.id),
         id: collection.id,
         bottomMargin: 16,
+        direction: DismissDirection.horizontal,
+        onSwipedRight: () async {
+          await provider.setVisibleTodoCollections({
+            for (final item in provider.collections)
+              if (item.id != collection.id &&
+                  provider.isTodoCollectionVisible(item.id))
+                item.id,
+          });
+          if (!context.mounted) return;
+          ScaffoldMessenger.of(context)
+            ..clearSnackBars()
+            ..showSnackBar(const SnackBar(content: Text('已取消显示')));
+        },
         onDeleted: () => provider.removeCollection(collection.id),
         child: Container(
           decoration: BoxDecoration(
@@ -198,6 +304,7 @@ class _TodoPageState extends State<TodoPage> {
                 context,
               ).copyWith(dividerColor: Colors.transparent),
               child: ExpansionTile(
+                key: ValueKey('${collection.id}-${collection.isExpanded}'),
                 initiallyExpanded: collection.isExpanded,
                 onExpansionChanged: (_) =>
                     provider.toggleCollectionExpand(collection.id),

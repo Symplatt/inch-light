@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_quill/flutter_quill.dart' as quill;
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 
@@ -32,6 +33,10 @@ class MyApp extends StatelessWidget {
     return MaterialApp(
       debugShowCheckedModeBanner: false,
       title: '一日千录',
+      locale: const Locale('zh', 'CN'),
+      supportedLocales: const [Locale('zh', 'CN')],
+      localizationsDelegates:
+          quill.FlutterQuillLocalizations.localizationsDelegates,
       theme: ThemeData(
         scaffoldBackgroundColor: AppColors.bg,
         primaryColor: AppColors.primary,

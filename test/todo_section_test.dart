@@ -29,10 +29,9 @@ void main() {
         expect(find.byIcon(Icons.delete_sweep), findsOneWidget);
       }
       for (final title in ['事项合集', '零散事项']) {
-        final header = find.ancestor(
-          of: find.text(title),
-          matching: find.byType(Row),
-        );
+        final header = find
+            .ancestor(of: find.text(title), matching: find.byType(Row))
+            .first;
         expect(header, findsOneWidget);
         expect(
           find.descendant(of: header, matching: find.byType(IconButton)),
