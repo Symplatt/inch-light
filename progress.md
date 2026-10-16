@@ -12,7 +12,8 @@
 - 已提交并推送 9f4c662，v3.9.0 标签与 GitHub Release 已发布，含三架构 APK：https://github.com/Symplatt/inch-light/releases/tag/v3.9.0 。
 - D 盘已交付 inch-light-3.9.0-arm64-v8a.apk、inch-light-3.9.0-armeabi-v7a.apk、inch-light-3.9.0-x86_64.apk，以及 一日千录-3.9.0-更新日志.md。
 - 最终核验：三架构构建包／GitHub Release 资产摘要／D 盘包 SHA-256 一致；手机已装 APK 与 ARM64 构建包 SHA-256 一致，实际版本仍为 3.9.0（2031），首次安装时间未变；远程标签指向功能提交，Release 说明与 CHANGELOG 和 D 盘 Markdown 内容一致。
-- 本地验证及交付已完成；远程 CI 38888800267（标签）与 38888794670（主分支）仍运行中，结果尚未确认。
+- 2026-10-16 最终补充核验：远程 CI 38888800267（v3.9.0 标签）与 38888794670（主分支）均 completed／success，格式、静态分析、测试、三架构构建及产物上传全部通过。GitHub Release 为正式发布，三架构资产均 uploaded。
+- 本次正式更新的开发、验证、版本与文档、覆盖安装及用户审核、commit／Push／Tag／Release、D 盘交付与最终核验全部完成，无待处理交付事项。
 - 原有 web/manifest.json 和三张参考图片保持原状，未纳入提交。
 
 # 3.8.0+30 安装后审核修订（2026-10-16）
