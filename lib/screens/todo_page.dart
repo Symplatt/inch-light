@@ -100,6 +100,7 @@ class _TodoPageState extends State<TodoPage> {
                 Expanded(
                   child: SectionHeading(
                     title: '事项合集',
+                    fontSize: 18,
                     count: collections.length,
                     onTap: () => setState(
                       () => _collectionsExpanded = !_collectionsExpanded,
@@ -514,7 +515,10 @@ class _TodoPageState extends State<TodoPage> {
                       if (task.deadline != null)
                         Padding(
                           padding: const EdgeInsets.only(top: 4),
-                          child: DeadlineLabel(deadline: task.deadline!),
+                          child: DeadlineLabel(
+                            deadline: task.deadline!,
+                            blue: task.deadlineBlue,
+                          ),
                         ),
                       if (task.tags.isNotEmpty)
                         Padding(
@@ -586,6 +590,7 @@ class _TodoPageState extends State<TodoPage> {
     final titleController = TextEditingController(text: task.title);
     final tagController = TextEditingController(text: task.tags.join(" "));
     DateTime? selectedDeadline = task.deadline;
+    bool deadlineBlue = task.deadlineBlue;
     List<String> tags = List.from(task.tags);
 
     showModalBottomSheet(
@@ -719,6 +724,8 @@ class _TodoPageState extends State<TodoPage> {
                               style: TextStyle(
                                 color: selectedDeadline == null
                                     ? AppColors.textGrey
+                                    : deadlineBlue
+                                    ? const Color(0xFF5787B5)
                                     : AppColors.primary,
                                 fontWeight: FontWeight.w400,
                               ),
@@ -740,21 +747,34 @@ class _TodoPageState extends State<TodoPage> {
                         ),
                       ),
                     ),
-                    Align(
-                      alignment: Alignment.centerLeft,
-                      child: Wrap(
-                        spacing: 8,
-                        children: [
-                          for (final offset in [0, 1])
-                            TextButton.icon(
-                              icon: const Icon(Icons.today_outlined, size: 18),
-                              label: Text(offset == 0 ? '今日截止' : '明日截止'),
-                              onPressed: () => setState(() {
-                                selectedDeadline = endOfDay(offset);
-                              }),
+                    Row(
+                      children: [
+                        for (final offset in [0, 1])
+                          TextButton.icon(
+                            style: TextButton.styleFrom(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 4,
+                              ),
                             ),
-                        ],
-                      ),
+                            icon: const Icon(Icons.today_outlined, size: 18),
+                            label: Text(offset == 0 ? '今日截止' : '明日截止'),
+                            onPressed: () => setState(() {
+                              selectedDeadline = endOfDay(offset);
+                            }),
+                          ),
+                        const Spacer(),
+                        TextButton(
+                          style: TextButton.styleFrom(
+                            foregroundColor: deadlineBlue
+                                ? const Color(0xFF5787B5)
+                                : AppColors.textGrey,
+                            padding: const EdgeInsets.symmetric(horizontal: 8),
+                          ),
+                          onPressed: () =>
+                              setState(() => deadlineBlue = !deadlineBlue),
+                          child: const Text('时间标蓝'),
+                        ),
+                      ],
                     ),
                   ],
                   const SizedBox(height: 24),
@@ -778,6 +798,7 @@ class _TodoPageState extends State<TodoPage> {
                             task,
                             titleController.text,
                             newDeadline: selectedDeadline,
+                            deadlineBlue: deadlineBlue,
                             newTags: tags,
                           );
                           Navigator.pop(context);
@@ -801,12 +822,46 @@ class _TodoPageState extends State<TodoPage> {
     );
   }
 
+  Widget _taskTypeChip(
+    String label,
+    bool selected,
+    VoidCallback onSelected,
+  ) => ChoiceChip(
+    padding: const EdgeInsets.symmetric(horizontal: 4),
+    labelPadding: const EdgeInsets.symmetric(horizontal: 4),
+    showCheckmark: false,
+    pressElevation: 0,
+    chipAnimationStyle: ChipAnimationStyle(
+      enableAnimation: AnimationStyle.noAnimation,
+      selectAnimation: AnimationStyle.noAnimation,
+      avatarDrawerAnimation: AnimationStyle.noAnimation,
+      deleteDrawerAnimation: AnimationStyle.noAnimation,
+    ),
+    // Keep the checkmark slot present so selection never moves nearby chips.
+    label: Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        SizedBox.square(
+          dimension: 18,
+          child: selected
+              ? const Icon(Icons.check, size: 18, color: Color(0xFF404040))
+              : null,
+        ),
+        const SizedBox(width: 4),
+        Text(label),
+      ],
+    ),
+    selected: selected,
+    onSelected: (_) => onSelected(),
+  );
+
   void _showAddTaskDialog(BuildContext context, {String? collectionId}) {
     final titleController = TextEditingController();
     final tagController = TextEditingController();
     bool isDaily = false;
     bool isCollection = false;
     DateTime? selectedDeadline;
+    bool deadlineBlue = false;
     List<String> tags = [];
 
     showModalBottomSheet(
@@ -837,47 +892,49 @@ class _TodoPageState extends State<TodoPage> {
                   ),
                   const SizedBox(height: 20),
                   if (collectionId == null)
-                    Row(
-                      children: [
-                        ChoiceChip(
-                          padding: const EdgeInsets.symmetric(horizontal: 4),
-                          labelPadding: const EdgeInsets.symmetric(
-                            horizontal: 4,
-                          ),
-                          label: const Text("普通事项"),
-                          selected: !isDaily && !isCollection,
-                          onSelected: (v) => setState(() {
-                            isDaily = false;
-                            isCollection = false;
-                          }),
+                    ChipTheme(
+                      data: ChipTheme.of(context).copyWith(
+                        backgroundColor: const Color(0xFFF7F7F7),
+                        selectedColor: const Color(0xFFE3E3E3),
+                        secondarySelectedColor: const Color(0xFFE3E3E3),
+                        labelStyle: const TextStyle(color: Color(0xFF606060)),
+                        secondaryLabelStyle: const TextStyle(
+                          color: Color(0xFF404040),
                         ),
-                        const SizedBox(width: 10),
-                        ChoiceChip(
-                          padding: const EdgeInsets.symmetric(horizontal: 4),
-                          labelPadding: const EdgeInsets.symmetric(
-                            horizontal: 4,
+                        checkmarkColor: const Color(0xFF404040),
+                        side: const BorderSide(color: Color(0xFFC7C7C7)),
+                        surfaceTintColor: Colors.transparent,
+                      ),
+                      child: Row(
+                        children: [
+                          _taskTypeChip(
+                            '普通事项',
+                            !isDaily && !isCollection,
+                            () => setState(() {
+                              isDaily = false;
+                              isCollection = false;
+                            }),
                           ),
-                          label: const Text("每日打卡"),
-                          selected: isDaily,
-                          onSelected: (v) => setState(() {
-                            isDaily = true;
-                            isCollection = false;
-                          }),
-                        ),
-                        const SizedBox(width: 10),
-                        ChoiceChip(
-                          padding: const EdgeInsets.symmetric(horizontal: 4),
-                          labelPadding: const EdgeInsets.symmetric(
-                            horizontal: 4,
+                          const SizedBox(width: 10),
+                          _taskTypeChip(
+                            '每日打卡',
+                            isDaily,
+                            () => setState(() {
+                              isDaily = true;
+                              isCollection = false;
+                            }),
                           ),
-                          label: const Text('合集'),
-                          selected: isCollection,
-                          onSelected: (v) => setState(() {
-                            isDaily = false;
-                            isCollection = true;
-                          }),
-                        ),
-                      ],
+                          const SizedBox(width: 10),
+                          _taskTypeChip(
+                            '合集',
+                            isCollection,
+                            () => setState(() {
+                              isDaily = false;
+                              isCollection = true;
+                            }),
+                          ),
+                        ],
+                      ),
                     ),
                   const SizedBox(height: 16),
                   TextField(
@@ -959,6 +1016,8 @@ class _TodoPageState extends State<TodoPage> {
                               style: TextStyle(
                                 color: selectedDeadline == null
                                     ? AppColors.textGrey
+                                    : deadlineBlue
+                                    ? const Color(0xFF5787B5)
                                     : AppColors.primary,
                                 fontWeight: FontWeight.w400,
                               ),
@@ -980,21 +1039,34 @@ class _TodoPageState extends State<TodoPage> {
                         ),
                       ),
                     ),
-                    Align(
-                      alignment: Alignment.centerLeft,
-                      child: Wrap(
-                        spacing: 8,
-                        children: [
-                          for (final offset in [0, 1])
-                            TextButton.icon(
-                              icon: const Icon(Icons.today_outlined, size: 18),
-                              label: Text(offset == 0 ? '今日截止' : '明日截止'),
-                              onPressed: () => setState(() {
-                                selectedDeadline = endOfDay(offset);
-                              }),
+                    Row(
+                      children: [
+                        for (final offset in [0, 1])
+                          TextButton.icon(
+                            style: TextButton.styleFrom(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 4,
+                              ),
                             ),
-                        ],
-                      ),
+                            icon: const Icon(Icons.today_outlined, size: 18),
+                            label: Text(offset == 0 ? '今日截止' : '明日截止'),
+                            onPressed: () => setState(() {
+                              selectedDeadline = endOfDay(offset);
+                            }),
+                          ),
+                        const Spacer(),
+                        TextButton(
+                          style: TextButton.styleFrom(
+                            foregroundColor: deadlineBlue
+                                ? const Color(0xFF5787B5)
+                                : AppColors.textGrey,
+                            padding: const EdgeInsets.symmetric(horizontal: 8),
+                          ),
+                          onPressed: () =>
+                              setState(() => deadlineBlue = !deadlineBlue),
+                          child: const Text('时间标蓝'),
+                        ),
+                      ],
                     ),
                   ],
                   const SizedBox(height: 24),
@@ -1026,6 +1098,7 @@ class _TodoPageState extends State<TodoPage> {
                             ).addNormalTask(
                               title,
                               deadline: selectedDeadline,
+                              deadlineBlue: deadlineBlue,
                               collectionId: collectionId,
                               tags: tags,
                             );

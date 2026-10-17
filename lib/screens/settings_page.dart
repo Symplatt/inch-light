@@ -146,7 +146,7 @@ class _SettingsPageState extends State<SettingsPage> {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text(
-                        '版本 3.9.0（构建 31）',
+                        '版本 3.10.0（构建 35）',
                         style: TextStyle(color: AppColors.textGrey),
                       ),
                       SizedBox(height: 16),
@@ -161,7 +161,7 @@ class _SettingsPageState extends State<SettingsPage> {
                     onPressed: () => showLicensePage(
                       context: dialogContext,
                       applicationName: '一日千录',
-                      applicationVersion: '3.9.0',
+                      applicationVersion: '3.10.0',
                       applicationLegalese: '版权所有 © Symplatt',
                     ),
                     child: const Text('开源许可'),

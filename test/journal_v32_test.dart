@@ -306,15 +306,15 @@ void main() {
       );
       expect(
         t.getTopLeft(rich('连续标题')).dy - t.getBottomLeft(rich('首标题')).dy,
-        closeTo(8, .01),
+        closeTo(10, .01),
       );
       expect(
         t.getTopLeft(rich('正文后标题')).dy - t.getBottomLeft(rich('正文')).dy,
-        closeTo(24, .01),
+        closeTo(26, .01),
       );
       expect(
         t.getTopLeft(rich('居中标题')).dy - t.getBottomLeft(rich('再一段')).dy,
-        closeTo(40, .01),
+        closeTo(42, .01),
       );
       await t.pumpWidget(const SizedBox());
       p.dispose();

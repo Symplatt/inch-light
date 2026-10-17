@@ -8,16 +8,20 @@ class DeadlineLabel extends StatelessWidget {
     required this.deadline,
     this.pattern = 'MM-dd HH:mm',
     this.now,
+    this.blue = false,
   });
   final DateTime deadline;
   final String pattern;
   final DateTime? now;
+  final bool blue;
 
   @override
   Widget build(BuildContext context) {
     final instant = now ?? DateTime.now();
     final days = greenDeadlineDays(deadline, now: instant);
-    final color = deadlineColor(deadline, now: instant);
+    final color = blue
+        ? const Color(0xFF5787B5)
+        : deadlineColor(deadline, now: instant);
     return Text.rich(
       TextSpan(
         style: TextStyle(

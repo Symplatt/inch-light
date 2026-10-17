@@ -1,3 +1,6 @@
+import 'package:shared_preferences/shared_preferences.dart';
+import '../widgets/journal_image_settings.dart';
+import '../widgets/journal_chain_dialog.dart';
 import '../utils/clipboard.dart';
 import 'dart:async';
 import 'dart:convert';
@@ -60,6 +63,106 @@ class _JournalEditorPageState extends State<JournalEditorPage>
   bool _shortcutPending = false;
   bool _leaving = false;
   String? _newTableId;
+  JournalImageSettings _pageStyle = JournalImageSettings(
+    topMargin: 16,
+    bottomMargin: 32,
+  );
+  List<JournalOperation> _chain = [];
+
+  Future<void> _loadPreferences() async {
+    final style = await JournalImageSettings.load(page: true);
+    final prefs = await SharedPreferences.getInstance();
+    final names = prefs.getStringList('journal_operation_chain') ?? [];
+    if (!mounted) return;
+    setState(() {
+      _pageStyle = style;
+      _chain = names
+          .expand(
+            (name) => JournalOperation.values.where((op) => op.name == name),
+          )
+          .toList();
+    });
+  }
+
+  void _stayBrowsing() {
+    // Disable route focus restoration until an explicit tap in the note.
+    _titleFocus.canRequestFocus = false;
+    _bodyFocus.canRequestFocus = false;
+    FocusScope.of(context).unfocus();
+    _editor.skipRequestKeyboard = true;
+    SystemChannels.textInput.invokeMethod<void>('TextInput.hide');
+  }
+
+  Future<void> _configurePage() async {
+    _stayBrowsing();
+    final next = await showDialog<JournalImageSettings>(
+      context: context,
+      builder: (_) =>
+          JournalImageSettingsDialog(settings: _pageStyle, page: true),
+    );
+    if (!mounted || next == null) return;
+    try {
+      await next.savePage(_pageStyle);
+      if (mounted) setState(() => _pageStyle = next);
+    } catch (_) {
+      if (mounted) {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(const SnackBar(content: Text('页面设置保存失败，请重试')));
+      }
+    }
+  }
+
+  Future<void> _editChain() async {
+    _stayBrowsing();
+    final next = await showDialog<List<JournalOperation>>(
+      context: context,
+      builder: (_) => JournalChainDialog(operations: _chain),
+    );
+    if (!mounted || next == null) return;
+    final prefs = await SharedPreferences.getInstance();
+    final saved = await prefs.setStringList(
+      'journal_operation_chain',
+      next.map((op) => op.name).toList(),
+    );
+    if (!mounted) return;
+    if (saved) {
+      setState(() => _chain = next);
+    } else {
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('连携操作保存失败，请重试')));
+    }
+  }
+
+  Future<void> _punctuationMenu() async {
+    _stayBrowsing();
+    final operation = await showDialog<JournalOperation>(
+      context: context,
+      builder: (ctx) => SimpleDialog(
+        title: const Text('标点管理'),
+        children: [
+          for (final op in [
+            JournalOperation.removeLeadingPunctuation,
+            JournalOperation.addSentencePeriods,
+          ])
+            SimpleDialogOption(
+              onPressed: () => Navigator.pop(ctx, op),
+              child: Text(journalOperationName(op)),
+            ),
+        ],
+      ),
+    );
+    if (mounted && operation != null) await _operate(operation);
+  }
+
+  Future<void> _runChain() async {
+    if (_chain.isEmpty) {
+      await _editChain();
+      return;
+    }
+    await _operate(_chain.first, chain: _chain);
+  }
 
   @override
   void initState() {
@@ -93,6 +196,7 @@ class _JournalEditorPageState extends State<JournalEditorPage>
     _editor.addListener(_changed);
     _titleFocus.addListener(_refreshFocus);
     _bodyFocus.addListener(_refreshFocus);
+    _loadPreferences();
   }
 
   void _refreshFocus() {
@@ -237,6 +341,7 @@ class _JournalEditorPageState extends State<JournalEditorPage>
   }
 
   void _history(bool redo) {
+    if (!_bodyFocus.hasFocus && !_titleFocus.hasFocus) _stayBrowsing();
     final source = redo ? _redo : _undo;
     final target = redo ? _undo : _redo;
     if (source.isEmpty) return;
@@ -332,12 +437,18 @@ class _JournalEditorPageState extends State<JournalEditorPage>
     if (_editor.deleteTable(id)) _bodyFocus.requestFocus();
   }
 
-  Future<void> _operate(JournalOperation operation) async {
-    FocusScope.of(context).unfocus();
-    final document = transformJournalDocument(
-      _editor.document.toDelta().toJson(),
-      operation,
-    );
+  Future<void> _operate(
+    JournalOperation operation, {
+    List<JournalOperation>? chain,
+  }) async {
+    _stayBrowsing();
+    final operations = chain ?? [operation];
+    List<dynamic> document = _editor.document.toDelta().toJson();
+    var title = _title.text;
+    for (final op in operations) {
+      document = transformJournalDocument(document, op);
+      title = transformJournalText(title, op);
+    }
     final before = _current;
     _restoring = true;
     final previous = _editor.document;
@@ -350,8 +461,8 @@ class _JournalEditorPageState extends State<JournalEditorPage>
       quill.ChangeSource.local,
     );
     previous.close();
-    _title.text = transformJournalText(_title.text, operation);
-    if (operation == JournalOperation.removeBold) _titleBold = false;
+    _title.text = title;
+    if (operations.contains(JournalOperation.removeBold)) _titleBold = false;
     _restoring = false;
     _changed();
     if (_current == before) {
@@ -364,7 +475,9 @@ class _JournalEditorPageState extends State<JournalEditorPage>
       ..clearSnackBars()
       ..showSnackBar(
         SnackBar(
-          content: Text('已${operation.label}'),
+          content: Text(
+            chain == null ? '已${journalOperationName(operation)}' : '已完成连携操作',
+          ),
           duration: const Duration(seconds: 3),
           persist: false,
           behavior: SnackBarBehavior.floating,
@@ -375,8 +488,10 @@ class _JournalEditorPageState extends State<JournalEditorPage>
   }
 
   Future<void> _export() async {
+    _stayBrowsing();
     final choice = await showModalBottomSheet<String>(
       context: context,
+      requestFocus: false,
       builder: (context) => SafeArea(
         child: Column(
           mainAxisSize: MainAxisSize.min,
@@ -546,6 +661,12 @@ class _JournalEditorPageState extends State<JournalEditorPage>
               ],
               if (!keyboardVisible)
                 IconButton(
+                  tooltip: '页面设置',
+                  onPressed: _configurePage,
+                  icon: const Icon(Icons.tune),
+                ),
+              if (!keyboardVisible)
+                IconButton(
                   tooltip: '导出',
                   onPressed: _export,
                   icon: const JournalExportIcon(),
@@ -565,153 +686,236 @@ class _JournalEditorPageState extends State<JournalEditorPage>
                 PopupMenuButton<JournalOperation>(
                   tooltip: '操作',
                   icon: const Icon(Icons.more_horiz),
-                  onSelected: _operate,
-                  itemBuilder: (_) => [
-                    for (final operation in JournalOperation.values)
+                  onOpened: _stayBrowsing,
+                  requestFocus: false,
+                  onSelected: (operation) =>
+                      operation == JournalOperation.removeLeadingPunctuation
+                      ? _punctuationMenu()
+                      : _operate(operation),
+                  itemBuilder: (menuContext) => [
+                    for (final operation in JournalOperation.values.where(
+                      (op) => op != JournalOperation.addSentencePeriods,
+                    ))
                       PopupMenuItem(
                         value: operation,
                         child: Text(operation.label),
                       ),
+                    const PopupMenuDivider(),
+                    PopupMenuItem<JournalOperation>(
+                      enabled: false,
+                      child: Row(
+                        children: [
+                          Expanded(
+                            child: TextButton.icon(
+                              style: TextButton.styleFrom(
+                                backgroundColor: const Color(0xFFEDF1F4),
+                                foregroundColor: const Color(0xFF526778),
+                              ),
+                              icon: const Icon(Icons.playlist_play, size: 20),
+                              label: const Text('连携操作'),
+                              onPressed: () {
+                                Navigator.pop(menuContext);
+                                _runChain();
+                              },
+                            ),
+                          ),
+                          IconButton(
+                            tooltip: '编辑连携操作',
+                            icon: const Icon(Icons.edit_outlined, size: 20),
+                            onPressed: () {
+                              Navigator.pop(menuContext);
+                              _editChain();
+                            },
+                          ),
+                        ],
+                      ),
+                    ),
                   ],
                 ),
               const SizedBox(width: 8),
             ],
           ),
-          body: SafeArea(
-            top: false,
-            child: Column(
-              children: [
-                Expanded(
-                  child: SizedBox(
-                    key: _pageViewportKey,
-                    child: SingleChildScrollView(
-                      key: const ValueKey('record-page-scroll'),
-                      controller: _pageScroll,
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.stretch,
-                        children: [
-                          Padding(
-                            padding: const EdgeInsets.fromLTRB(24, 16, 24, 20),
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                TextField(
-                                  key: const ValueKey('record-title'),
-                                  controller: _title,
-                                  focusNode: _titleFocus,
-                                  style: TextStyle(
-                                    fontSize: 30,
-                                    fontWeight: _titleBold
-                                        ? FontWeight.w600
-                                        : FontWeight.w400,
-                                  ),
-                                  maxLines: null,
-                                  textInputAction: TextInputAction.next,
-                                  onSubmitted: (_) => _bodyFocus.requestFocus(),
-                                  decoration: const InputDecoration(
-                                    hintText: '标题',
-                                    hintStyle: TextStyle(
-                                      color: Color(0xFFCCCCCC),
+          body: Listener(
+            onPointerDown: (_) {
+              _titleFocus.canRequestFocus = true;
+              _bodyFocus.canRequestFocus = true;
+            },
+            child: SafeArea(
+              top: false,
+              child: Column(
+                children: [
+                  Expanded(
+                    child: SizedBox(
+                      key: _pageViewportKey,
+                      child: SingleChildScrollView(
+                        key: const ValueKey('record-page-scroll'),
+                        controller: _pageScroll,
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.stretch,
+                          children: [
+                            Padding(
+                              padding: EdgeInsets.fromLTRB(
+                                _pageStyle.sideMargin,
+                                _pageStyle.topMargin,
+                                _pageStyle.sideMargin,
+                                20,
+                              ),
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  TextField(
+                                    key: const ValueKey('record-title'),
+                                    controller: _title,
+                                    focusNode: _titleFocus,
+                                    style: TextStyle(
+                                      fontSize: _pageStyle.fontSize * 30 / 18,
+                                      letterSpacing: _pageStyle.letterSpacing,
+                                      fontWeight: _titleBold
+                                          ? FontWeight.w600
+                                          : FontWeight.w400,
                                     ),
-                                    border: InputBorder.none,
-                                    isDense: true,
-                                    contentPadding: EdgeInsets.zero,
+                                    maxLines: null,
+                                    textInputAction: TextInputAction.next,
+                                    onSubmitted: (_) =>
+                                        _bodyFocus.requestFocus(),
+                                    decoration: const InputDecoration(
+                                      hintText: '标题',
+                                      hintStyle: TextStyle(
+                                        color: Color(0xFFCCCCCC),
+                                      ),
+                                      border: InputBorder.none,
+                                      isDense: true,
+                                      contentPadding: EdgeInsets.zero,
+                                    ),
                                   ),
-                                ),
-                                const SizedBox(height: 22),
-                                Text(
-                                  '${DateFormat('M月d日 HH:mm').format(_updatedAt)}  |  ${_entry().wordCount}字',
-                                  key: const ValueKey('record-metadata'),
-                                  style: const TextStyle(
-                                    fontSize: 14,
-                                    color: Color(0xFF999999),
-                                  ),
-                                ),
-                                if (_tags.isNotEmpty) ...[
-                                  const SizedBox(height: 16),
-                                  JournalTags(tags: _tags),
+                                  if (!_pageStyle.hideMetadata)
+                                    const SizedBox(height: 22),
+                                  if (!_pageStyle.hideMetadata)
+                                    Text(
+                                      '${DateFormat('M月d日 HH:mm').format(_updatedAt)}  |  ${_entry().wordCount}字',
+                                      key: const ValueKey('record-metadata'),
+                                      style: const TextStyle(
+                                        fontSize: 14,
+                                        color: Color(0xFF999999),
+                                      ),
+                                    ),
+                                  if (_tags.isNotEmpty) ...[
+                                    const SizedBox(height: 16),
+                                    JournalTags(tags: _tags),
+                                  ],
                                 ],
-                              ],
+                              ),
                             ),
-                          ),
-                          quill.QuillEditor(
-                            controller: _editor,
-                            focusNode: _bodyFocus,
-                            scrollController: _bodyScroll,
-                            config: quill.QuillEditorConfig(
-                              editorKey: _renderEditorKey,
-                              placeholder: '开始书写',
-                              padding: const EdgeInsets.fromLTRB(24, 8, 24, 32),
-                              scrollable: false,
-                              minHeight: 180,
-                              showCursor:
-                                  _bodyFocus.hasPrimaryFocus &&
-                                  !_editor.onEmbedLine,
-                              // Pinned Quill APIs; shortcut handlers also process software-keyboard spaces.
-                              // ignore: experimental_member_use
-                              characterShortcutEvents:
-                                  quill.standardCharactersShortcutEvents,
-                              // ignore: experimental_member_use
-                              spaceShortcutEvents:
-                                  quill.standardSpaceShorcutEvents,
-                              textSpanBuilder: journalSpan,
-                              // IMEs may send a key event at offset zero instead of a text replacement.
-                              // ignore: experimental_member_use
-                              onKeyPressed: (event, _) {
-                                if (_bodyFocus.hasPrimaryFocus &&
-                                    (event is KeyDownEvent ||
-                                        event is KeyRepeatEvent) &&
-                                    event.logicalKey ==
-                                        LogicalKeyboardKey.backspace &&
-                                    (_editor.clearLeadingEmptyLines() ||
-                                        _editor.handleTableBackspace())) {
-                                  return KeyEventResult.handled;
-                                }
-                                return null;
-                              },
-                              // ignore: experimental_member_use
-                              customLeadingBlockBuilder: (node, config) =>
-                                  journalLeading(context, node, config),
-                              // Embedded cells own their caret; Quill must not reclaim focus on tap.
-                              onTapUp: (details, _) {
-                                final table = _hitTable(details.globalPosition);
-                                if (!table) _editor.skipRequestKeyboard = false;
-                                return table;
-                              },
-                              onTapOutsideEnabled: false,
-                              embedBuilders: [
-                                const JournalDividerBuilder(),
-                                JournalTableBuilder(
-                                  tableKeys: _tableKeys,
-                                  onChanged: _updateTable,
-                                  onDelete: _deleteTable,
-                                  onMoveDown: (id) => _editor.moveTableDown(id),
-                                  autofocusId: _newTableId,
-                                  selectedOffset: _editor.selection.isCollapsed
-                                      ? null
-                                      : _editor.pendingTable,
+                            quill.QuillEditor(
+                              controller: _editor,
+                              focusNode: _bodyFocus,
+                              scrollController: _bodyScroll,
+                              config: quill.QuillEditorConfig(
+                                editorKey: _renderEditorKey,
+                                placeholder: '开始书写',
+                                padding: EdgeInsets.fromLTRB(
+                                  _pageStyle.sideMargin,
+                                  8,
+                                  _pageStyle.sideMargin,
+                                  _pageStyle.bottomMargin,
                                 ),
-                              ],
-                              customStyles: journalStyles(),
+                                scrollable: false,
+                                minHeight: 180,
+                                showCursor:
+                                    _bodyFocus.hasPrimaryFocus &&
+                                    !_editor.onEmbedLine,
+                                // Pinned Quill APIs; shortcut handlers also process software-keyboard spaces.
+                                // ignore: experimental_member_use
+                                characterShortcutEvents:
+                                    quill.standardCharactersShortcutEvents,
+                                // ignore: experimental_member_use
+                                spaceShortcutEvents:
+                                    quill.standardSpaceShorcutEvents,
+                                textSpanBuilder: journalSpan,
+                                // IMEs may send a key event at offset zero instead of a text replacement.
+                                // ignore: experimental_member_use
+                                onKeyPressed: (event, _) {
+                                  if (_bodyFocus.hasPrimaryFocus &&
+                                      (event is KeyDownEvent ||
+                                          event is KeyRepeatEvent) &&
+                                      event.logicalKey ==
+                                          LogicalKeyboardKey.backspace &&
+                                      (_editor.clearLeadingEmptyLines() ||
+                                          _editor.handleTableBackspace())) {
+                                    return KeyEventResult.handled;
+                                  }
+                                  return null;
+                                },
+                                // ignore: experimental_member_use
+                                customLeadingBlockBuilder: (node, config) =>
+                                    journalLeading(
+                                      context,
+                                      node,
+                                      config,
+                                      textStyle:
+                                          journalBlock(
+                                            _pageStyle.fontSize,
+                                          ).style.copyWith(
+                                            letterSpacing:
+                                                _pageStyle.letterSpacing,
+                                            height: _pageStyle.lineHeight,
+                                          ),
+                                    ),
+                                // Embedded cells own their caret; Quill must not reclaim focus on tap.
+                                onTapUp: (details, _) {
+                                  final table = _hitTable(
+                                    details.globalPosition,
+                                  );
+                                  if (!table) {
+                                    _editor.skipRequestKeyboard = false;
+                                  }
+                                  return table;
+                                },
+                                onTapOutsideEnabled: false,
+                                embedBuilders: [
+                                  const JournalDividerBuilder(),
+                                  JournalTableBuilder(
+                                    tableKeys: _tableKeys,
+                                    fontSize: _pageStyle.fontSize,
+                                    letterSpacing: _pageStyle.letterSpacing,
+                                    lineHeight: _pageStyle.lineHeight,
+                                    onChanged: _updateTable,
+                                    onDelete: _deleteTable,
+                                    onMoveDown: (id) =>
+                                        _editor.moveTableDown(id),
+                                    autofocusId: _newTableId,
+                                    selectedOffset:
+                                        _editor.selection.isCollapsed
+                                        ? null
+                                        : _editor.pendingTable,
+                                  ),
+                                ],
+                                customStyles: journalStyles(
+                                  fontSize: _pageStyle.fontSize,
+                                  letterSpacing: _pageStyle.letterSpacing,
+                                  lineHeight: _pageStyle.lineHeight,
+                                  paragraphSpacing: _pageStyle.paragraphSpacing,
+                                ),
+                              ),
                             ),
-                          ),
-                        ],
+                          ],
+                        ),
                       ),
                     ),
                   ),
-                ),
-                if (keyboardVisible)
-                  JournalFormatBar(
-                    controller: _editor,
-                    onFormat: () => _bodyFocus.requestFocus(),
-                    onTable: _insertTable,
-                    titleBold: _titleFocus.hasFocus ? _titleBold : null,
-                    onTitleBold: () {
-                      _titleBold = !_titleBold;
-                      _changed();
-                    },
-                  ),
-              ],
+                  if (keyboardVisible)
+                    JournalFormatBar(
+                      controller: _editor,
+                      onFormat: () => _bodyFocus.requestFocus(),
+                      onTable: _insertTable,
+                      titleBold: _titleFocus.hasFocus ? _titleBold : null,
+                      onTitleBold: () {
+                        _titleBold = !_titleBold;
+                        _changed();
+                      },
+                    ),
+                ],
+              ),
             ),
           ),
         ),

@@ -1,5 +1,5 @@
 import 'dart:math' as math;
-import 'dart:ui' as ui;
+import '../utils/journal_image_capture.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
 import 'package:flutter/services.dart';
@@ -26,6 +26,7 @@ class _JournalImagePageState extends State<JournalImagePage> {
   final _scroll = ScrollController();
   late final quill.QuillController _controller;
   bool _busy = false;
+  bool _ready = false;
   JournalImageSettings _settings = JournalImageSettings();
 
   Future<void> _configure() async {
@@ -51,6 +52,21 @@ class _JournalImagePageState extends State<JournalImagePage> {
       document: quill.Document.fromJson(widget.entry.document),
       selection: const TextSelection.collapsed(offset: 0),
     )..readOnly = true;
+    _loadSettings();
+  }
+
+  Future<void> _loadSettings() async {
+    final settings = await JournalImageSettings.load();
+    if (!mounted) return;
+    final previous = _controller.document;
+    setState(() {
+      _settings = settings;
+      _controller.document = quill.Document.fromJson(
+        journalImageDocument(widget.entry.document, settings.indent),
+      );
+      _ready = true;
+    });
+    previous.close();
   }
 
   @override
@@ -62,35 +78,23 @@ class _JournalImagePageState extends State<JournalImagePage> {
   }
 
   Future<void> _export(bool share) async {
+    final pixelRatio = MediaQuery.devicePixelRatioOf(context);
     setState(() => _busy = true);
     try {
       await WidgetsBinding.instance.endOfFrame;
       final boundary =
           _capture.currentContext!.findRenderObject()! as RenderRepaintBoundary;
-      // Keep complete content while bounding pixel dimensions and peak memory.
-      final size = boundary.size;
-      final ratio = math.min(
-        2.0,
-        math.min(
-          16000 / size.height,
-          math.sqrt(24000000 / (size.width * size.height)),
-        ),
-      );
-      final image = await boundary.toImage(pixelRatio: ratio);
-      final bytes = await image.toByteData(format: ui.ImageByteFormat.png);
-      image.dispose();
-      if (bytes == null) throw StateError('图片生成失败');
+      final bytes = await captureJournalPng(boundary, pixelRatio);
       final result = await const MethodChannel('inch_light/note_export')
           .invokeMethod<bool>(share ? 'shareImage' : 'saveImage', {
-            'bytes': bytes.buffer.asUint8List(),
+            'bytes': bytes,
             'name': widget.entry.title.trim().isEmpty
                 ? '笔记'
                 : widget.entry.title.trim(),
           });
-      if (mounted && result == true && !share) {
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(const SnackBar(content: Text('图片已保存')));
+      if (result == true) {
+        await _settings.saveImage();
+        if (mounted) Navigator.of(context).pop();
       }
     } catch (_) {
       if (mounted) {
@@ -128,136 +132,140 @@ class _JournalImagePageState extends State<JournalImagePage> {
     context: context,
     locale: const Locale('zh'),
     delegates: quill.FlutterQuillLocalizations.localizationsDelegates,
-    child: Scaffold(
-      appBar: AppBar(
-        title: const Text('导出长图'),
-        actions: [
-          IconButton(
-            tooltip: '图片设置',
-            onPressed: _busy ? null : _configure,
-            icon: const Icon(Icons.tune),
-          ),
-          IconButton(
-            tooltip: '分享图片',
-            onPressed: _busy ? null : () => _export(true),
-            icon: const JournalActionIcon(JournalActionSymbol.share),
-          ),
-          IconButton(
-            tooltip: '保存图片',
-            onPressed: _busy ? null : () => _export(false),
-            icon: const JournalActionIcon(JournalActionSymbol.saveImage),
-          ),
-        ],
-      ),
-      body: Stack(
-        children: [
-          SingleChildScrollView(
-            scrollDirection: Axis.horizontal,
-            child: SizedBox(
-              width: _imageWidth(context),
-              child: SingleChildScrollView(
-                child: RepaintBoundary(
-                  key: _capture,
-                  child: ColoredBox(
-                    color: Colors.white,
-                    child: Padding(
-                      key: const ValueKey('image-page-padding'),
-                      padding: EdgeInsets.fromLTRB(
-                        _settings.sideMargin,
-                        _settings.topMargin,
-                        _settings.sideMargin,
-                        _settings.bottomMargin,
-                      ),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.stretch,
-                        children: [
-                          if (widget.entry.title.isNotEmpty) ...[
-                            Text(
-                              widget.entry.title,
-                              style: TextStyle(
-                                fontSize: _settings.fontSize * 30 / 18,
-                                letterSpacing: _settings.letterSpacing,
-                                height: 1.4,
-                                color: const Color(0xFF3D3D3D),
-                                fontWeight: widget.entry.titleBold
-                                    ? FontWeight.w600
-                                    : FontWeight.w400,
+    child: PopScope(
+      canPop: !_busy,
+      child: Scaffold(
+        appBar: AppBar(
+          title: const Text('导出长图'),
+          actions: [
+            IconButton(
+              tooltip: '图片设置',
+              onPressed: (_busy || !_ready) ? null : _configure,
+              icon: const Icon(Icons.tune),
+            ),
+            IconButton(
+              tooltip: '分享图片',
+              onPressed: (_busy || !_ready) ? null : () => _export(true),
+              icon: const JournalActionIcon(JournalActionSymbol.share),
+            ),
+            IconButton(
+              tooltip: '保存图片',
+              onPressed: (_busy || !_ready) ? null : () => _export(false),
+              icon: const JournalActionIcon(JournalActionSymbol.saveImage),
+            ),
+          ],
+        ),
+        body: Stack(
+          children: [
+            SingleChildScrollView(
+              scrollDirection: Axis.horizontal,
+              child: SizedBox(
+                width: _imageWidth(context),
+                child: SingleChildScrollView(
+                  child: RepaintBoundary(
+                    key: _capture,
+                    child: ColoredBox(
+                      color: Colors.white,
+                      child: Padding(
+                        key: const ValueKey('image-page-padding'),
+                        padding: EdgeInsets.fromLTRB(
+                          _settings.sideMargin,
+                          _settings.topMargin,
+                          _settings.sideMargin,
+                          _settings.bottomMargin,
+                        ),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.stretch,
+                          children: [
+                            if (widget.entry.title.isNotEmpty) ...[
+                              Text(
+                                widget.entry.title,
+                                style: TextStyle(
+                                  fontSize: _settings.fontSize * 30 / 18,
+                                  letterSpacing: _settings.letterSpacing,
+                                  height: 1.4,
+                                  color: const Color(0xFF3D3D3D),
+                                  fontWeight: widget.entry.titleBold
+                                      ? FontWeight.w600
+                                      : FontWeight.w400,
+                                ),
                               ),
-                            ),
+                              const SizedBox(height: 20),
+                            ],
+                            if (!_settings.hideMetadata)
+                              Text(
+                                '${DateFormat('M月d日 HH:mm').format(widget.entry.updatedAt)}  |  ${widget.entry.wordCount}字',
+                                key: const ValueKey('image-metadata'),
+                                style: const TextStyle(
+                                  fontSize: 14,
+                                  color: Color(0xFF999999),
+                                ),
+                              ),
+                            if (widget.entry.tags.isNotEmpty) ...[
+                              const SizedBox(height: 16),
+                              JournalTags(tags: widget.entry.tags),
+                            ],
                             const SizedBox(height: 20),
-                          ],
-                          if (!_settings.hideMetadata)
-                            Text(
-                              '${DateFormat('M月d日 HH:mm').format(widget.entry.updatedAt)}  |  ${widget.entry.wordCount}字',
-                              key: const ValueKey('image-metadata'),
-                              style: const TextStyle(
-                                fontSize: 14,
-                                color: Color(0xFF999999),
-                              ),
-                            ),
-                          if (widget.entry.tags.isNotEmpty) ...[
-                            const SizedBox(height: 16),
-                            JournalTags(tags: widget.entry.tags),
-                          ],
-                          const SizedBox(height: 20),
-                          quill.QuillEditor(
-                            controller: _controller,
-                            focusNode: _focus,
-                            scrollController: _scroll,
-                            config: quill.QuillEditorConfig(
-                              scrollable: false,
-                              padding: EdgeInsets.zero,
-                              showCursor: false,
-                              enableInteractiveSelection: false,
-                              customStyles: journalStyles(
-                                fontSize: _settings.fontSize,
-                                letterSpacing: _settings.letterSpacing,
-                                lineHeight: _settings.lineHeight,
-                                paragraphSpacing: _settings.paragraphSpacing,
-                              ),
-                              textSpanBuilder: journalSpan,
-                              // ignore: experimental_member_use
-                              customLeadingBlockBuilder: (node, config) =>
-                                  journalLeading(
-                                    context,
-                                    node,
-                                    config,
-                                    readOnly: true,
-                                    textStyle: journalBlock(_settings.fontSize)
-                                        .style
-                                        .copyWith(
-                                          letterSpacing:
-                                              _settings.letterSpacing,
-                                          height: _settings.lineHeight,
-                                        ),
-                                  ),
-                              embedBuilders: [
-                                const JournalDividerBuilder(),
-                                JournalTableBuilder(
-                                  onChanged: (_) {},
+                            quill.QuillEditor(
+                              controller: _controller,
+                              focusNode: _focus,
+                              scrollController: _scroll,
+                              config: quill.QuillEditorConfig(
+                                scrollable: false,
+                                padding: EdgeInsets.zero,
+                                showCursor: false,
+                                enableInteractiveSelection: false,
+                                customStyles: journalStyles(
                                   fontSize: _settings.fontSize,
                                   letterSpacing: _settings.letterSpacing,
                                   lineHeight: _settings.lineHeight,
+                                  paragraphSpacing: _settings.paragraphSpacing,
                                 ),
-                              ],
+                                textSpanBuilder: journalSpan,
+                                // ignore: experimental_member_use
+                                customLeadingBlockBuilder: (node, config) =>
+                                    journalLeading(
+                                      context,
+                                      node,
+                                      config,
+                                      readOnly: true,
+                                      textStyle:
+                                          journalBlock(
+                                            _settings.fontSize,
+                                          ).style.copyWith(
+                                            letterSpacing:
+                                                _settings.letterSpacing,
+                                            height: _settings.lineHeight,
+                                          ),
+                                    ),
+                                embedBuilders: [
+                                  const JournalDividerBuilder(),
+                                  JournalTableBuilder(
+                                    onChanged: (_) {},
+                                    fontSize: _settings.fontSize,
+                                    letterSpacing: _settings.letterSpacing,
+                                    lineHeight: _settings.lineHeight,
+                                  ),
+                                ],
+                              ),
                             ),
-                          ),
-                        ],
+                          ],
+                        ),
                       ),
                     ),
                   ),
                 ),
               ),
             ),
-          ),
-          if (_busy)
-            const Positioned.fill(
-              child: ColoredBox(
-                color: Color(0x66FFFFFF),
-                child: Center(child: CircularProgressIndicator()),
+            if (_busy)
+              const Positioned.fill(
+                child: ColoredBox(
+                  color: Color(0x66FFFFFF),
+                  child: Center(child: CircularProgressIndicator()),
+                ),
               ),
-            ),
-        ],
+          ],
+        ),
       ),
     ),
   );

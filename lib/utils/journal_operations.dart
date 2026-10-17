@@ -4,13 +4,14 @@ import '../models/journal_table.dart';
 
 enum JournalOperation {
   clearBlankLines('清除空行'),
+  normalizeSpaces('空格管理'),
+  removeLeadingPunctuation('标点管理'),
   removeBold('取消加粗'),
-  capitalize('首字母大写'),
-  shuffleBullets('打乱无序列表'),
   promoteHeadings('标题升级'),
   demoteHeadings('标题降级'),
-  normalizeSpaces('空格管理'),
-  removeLeadingPunctuation('去除异常标点');
+  capitalize('首字母大写'),
+  shuffleBullets('打乱无序列表'),
+  addSentencePeriods('补全句号');
 
   const JournalOperation(this.label);
   final String label;
@@ -73,6 +74,14 @@ bool _space(_Atom atom) =>
     atom.value is String && RegExp(r'^\s$').hasMatch(atom.value);
 
 List<_Atom> _normalize(List<_Atom> atoms) {
+  // Trim each logical line before spacing normalization, including Unicode
+  // whitespace and leading runs split across different rich-text styles.
+  atoms = atoms
+      .skipWhile(
+        (atom) =>
+            atom.value is String && (atom.value as String).trimLeft().isEmpty,
+      )
+      .toList();
   final out = <_Atom>[];
   for (var i = 0; i < atoms.length; i++) {
     final atom = atoms[i];
@@ -240,6 +249,23 @@ List<dynamic> transformJournalDocument(
           ...Map<String, dynamic>.from(value),
           'table': table.encode(),
         };
+      }
+    }
+    if (operation == JournalOperation.addSentencePeriods &&
+        !line.blank &&
+        line.atoms.every((a) => a.value is String) &&
+        ![
+          'header',
+          'code-block',
+          'blockquote',
+        ].any(line.attributes.containsKey)) {
+      final last = line.atoms.lastIndexWhere((a) => !_space(a));
+      if (last >= 0 &&
+          !RegExp(
+            r'^[\p{P}\p{S}]$',
+            unicode: true,
+          ).hasMatch(line.atoms[last].value)) {
+        line.atoms.insert(last + 1, _Atom('。', line.atoms[last].attributes));
       }
     }
     if (operation == JournalOperation.normalizeSpaces) {

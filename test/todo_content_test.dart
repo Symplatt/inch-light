@@ -8,6 +8,57 @@ import 'package:inch_light/providers/app_provider.dart';
 void main() {
   setUp(() => SharedPreferences.setMockInitialValues({}));
 
+  testWidgets(
+    'Task type selection keeps chip widths and horizontal positions fixed',
+    (tester) async {
+      tester.view.physicalSize = const Size(320, 844);
+      tester.view.devicePixelRatio = 1;
+      addTearDown(tester.view.resetPhysicalSize);
+      addTearDown(tester.view.resetDevicePixelRatio);
+      final provider = AppProvider();
+      await tester.runAsync(() => provider.ready);
+      await tester.pumpWidget(
+        ChangeNotifierProvider.value(value: provider, child: const MyApp()),
+      );
+      await tester.pumpAndSettle();
+      await tester.tap(find.byType(FloatingActionButton));
+      await tester.pumpAndSettle();
+      const labels = ['普通事项', '每日打卡', '合集'];
+      List<Rect> rects() => labels
+          .map(
+            (label) => tester.getRect(find.widgetWithText(ChoiceChip, label)),
+          )
+          .toList();
+      final before = rects();
+      for (final label in ['每日打卡', '合集', '普通事项', '每日打卡']) {
+        await tester.tap(find.widgetWithText(ChoiceChip, label));
+        for (final duration in [
+          Duration.zero,
+          const Duration(milliseconds: 16),
+          const Duration(milliseconds: 80),
+          const Duration(milliseconds: 200),
+        ]) {
+          await tester.pump(duration);
+          final after = rects();
+          for (var index = 0; index < before.length; index++) {
+            expect(after[index].left, before[index].left);
+            expect(after[index].width, before[index].width);
+            expect(after[index].height, before[index].height);
+          }
+        }
+        expect(
+          tester
+              .widget<ChoiceChip>(find.widgetWithText(ChoiceChip, label))
+              .selected,
+          true,
+        );
+        expect(tester.takeException(), isNull);
+      }
+      await tester.pumpWidget(const SizedBox());
+      provider.dispose();
+    },
+  );
+
   testWidgets('Loose tasks precede collections in both completion views', (
     tester,
   ) async {

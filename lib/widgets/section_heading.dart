@@ -6,11 +6,13 @@ class SectionHeading extends StatelessWidget {
     super.key,
     required this.title,
     this.count,
+    this.fontSize = 16,
     this.expanded,
     this.onTap,
   });
   final String title;
   final int? count;
+  final double fontSize;
   final bool? expanded;
   final VoidCallback? onTap;
 
@@ -22,7 +24,7 @@ class SectionHeading extends StatelessWidget {
         children: [
           Text(
             title,
-            style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w400),
+            style: TextStyle(fontSize: fontSize, fontWeight: FontWeight.w400),
           ),
           if (count != null) ...[
             const SizedBox(width: 8),

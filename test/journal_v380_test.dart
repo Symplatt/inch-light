@@ -31,6 +31,82 @@ JournalEntry entry(List<dynamic> ops) => JournalEntry(
 void main() {
   setUp(() => SharedPreferences.setMockInitialValues({}));
   test(
+    'Space management trims each line and cell while preserving rich structure',
+    () {
+      const operation = JournalOperation.normalizeSpaces;
+      for (final prefix in [' ', '\t', '　', '\u00a0', '\u0085', '\ufeff']) {
+        expect(
+          transformJournalText('$prefix标题\n${prefix}next line', operation),
+          '标题\nnext line',
+        );
+      }
+      var table = JournalTableData.empty(2, 2);
+      for (final row in table.rows) {
+        table = table
+            .edit(row.id, 0, '　\t 单元格\n\u0085next  line')
+            .edit(row.id, 1, '  表格hello  world');
+      }
+      final document = <dynamic>[
+        {
+          'insert': '　',
+          'attributes': {'bold': true},
+        },
+        {
+          'insert': '\u0085 \t',
+          'attributes': {'italic': true},
+        },
+        {
+          'insert': '标题',
+          'attributes': {'underline': true},
+        },
+        {
+          'insert': '\n',
+          'attributes': {'header': 2},
+        },
+        {'insert': '  正文hello  world\n'},
+        {'insert': '　列表项'},
+        {
+          'insert': '\n',
+          'attributes': {'list': 'bullet', 'indent': 1},
+        },
+        {'insert': ' \t　\n'},
+        {'insert': '  '},
+        {
+          'insert': {'table': table.encode()},
+        },
+        {'insert': '\n'},
+      ];
+      final original = document.toString();
+      final result = transformJournalDocument(document, operation);
+      expect(plain(result), '标题\n正文 hello world\n列表项\n\n\uFFFC\n');
+      expect(result.first['attributes']['underline'], true);
+      expect(result.any((op) => op['attributes']?['header'] == 2), true);
+      expect(
+        result.any(
+          (op) =>
+              op['attributes']?['list'] == 'bullet' &&
+              op['attributes']?['indent'] == 1,
+        ),
+        true,
+      );
+      final cleanedTable = JournalTableData.decode(
+        result.firstWhere((op) => op['insert'] is Map)['insert']['table'],
+      );
+      expect(cleanedTable.id, table.id);
+      expect(
+        cleanedTable.rows.map((row) => row.id),
+        table.rows.map((row) => row.id),
+      );
+      expect(
+        cleanedTable.rows.map((row) => row.cells),
+        everyElement(['单元格\nnext line', '表格 hello world']),
+      );
+      expect(document.toString(), original);
+      expect(transformJournalDocument(result, operation), result);
+    },
+  );
+
+  test(
     'Leading punctuation cleans title, paragraphs, lists and table cells while preserving quotes and styles',
     () {
       const op = JournalOperation.removeLeadingPunctuation;
@@ -481,6 +557,15 @@ void main() {
     expect(actions.map((r) => r.center.dy).toSet(), hasLength(1));
     await t.tap(find.byTooltip('操作'));
     await t.pumpAndSettle();
+    expect(
+      t
+          .widgetList<PopupMenuItem<JournalOperation>>(
+            find.byType(PopupMenuItem<JournalOperation>),
+          )
+          .where((item) => item.value != null)
+          .map((item) => (item.child! as Text).data),
+      ['清除空行', '空格管理', '标点管理', '取消加粗', '标题升级', '标题降级', '首字母大写', '打乱无序列表'],
+    );
     await t.tap(find.text('首字母大写'));
     await t.pumpAndSettle();
     final editor = t.widget<quill.QuillEditor>(find.byType(quill.QuillEditor));
@@ -659,11 +744,11 @@ void main() {
     await t.pumpAndSettle();
     expect(find.text('软件信息'), findsNothing);
     expect(find.text('一日千录'), findsOneWidget);
-    expect(find.text('版本 3.9.0（构建 31）'), findsOneWidget);
+    expect(find.text('版本 3.10.0（构建 35）'), findsOneWidget);
     expect(find.text('版权所有 © Symplatt'), findsOneWidget);
     final lefts = [
       '一日千录',
-      '版本 3.9.0（构建 31）',
+      '版本 3.10.0（构建 35）',
       '版权所有 © Symplatt',
       '数据保存在本机，可在设置中导出备份。',
     ].map((text) => t.getTopLeft(find.text(text)).dx).toSet();

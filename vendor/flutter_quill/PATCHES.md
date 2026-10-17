@@ -12,3 +12,5 @@
 - `quill_controller.dart`：清理图片缓存不再清空系统文本剪贴板，避免与刚完成的文本复制竞争。
 
 升级上游版本时需保留或重新验证这些差异；回归测试位于主项目 `test/journal_v32_test.dart` 、`test/journal_v33_test.dart` 、`test/journal_v34_test.dart` 、`test/journal_v341_test.dart` 和 `test/journal_v350_test.dart`。
+
+- `text_line.dart`：未指定对齐的正文与列表折行使用两端对齐，消除右侧不足一个字宽的额外空隙；标题、代码和显式对齐保持原样，不改文档数据。

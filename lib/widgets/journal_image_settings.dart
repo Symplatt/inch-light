@@ -1,3 +1,5 @@
+import 'dart:convert';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'package:flutter/material.dart';
 
 class JournalImageSettings {
@@ -5,13 +7,82 @@ class JournalImageSettings {
     this.fontSize = 18,
     this.letterSpacing = 0,
     this.lineHeight = 1.6,
-    this.paragraphSpacing = 8,
+    this.paragraphSpacing = 10,
     this.indent = false,
     this.hideMetadata = false,
     this.topMargin = 54,
     this.bottomMargin = 54,
     this.sideMargin = 24,
   });
+  Map<String, dynamic> toJson() => {
+    'fontSize': fontSize,
+    'letterSpacing': letterSpacing,
+    'lineHeight': lineHeight,
+    'paragraphSpacing': paragraphSpacing,
+    'indent': indent,
+    'hideMetadata': hideMetadata,
+    'topMargin': topMargin,
+    'bottomMargin': bottomMargin,
+    'sideMargin': sideMargin,
+  };
+  factory JournalImageSettings.fromJson(
+    Map<String, dynamic> json, {
+    bool page = false,
+  }) {
+    double number(String key, double fallback, double min, double max) =>
+        json[key] is num
+        ? (json[key] as num).toDouble().clamp(min, max)
+        : fallback;
+    return JournalImageSettings(
+      fontSize: number('fontSize', 18, 12, 32),
+      letterSpacing: number('letterSpacing', 0, 0, 6),
+      lineHeight: number('lineHeight', 1.6, 1, 2.5),
+      paragraphSpacing: number('paragraphSpacing', 10, 0, 40),
+      indent: !page && json['indent'] == true,
+      hideMetadata: json['hideMetadata'] == true,
+      topMargin: number('topMargin', page ? 16 : 54, 0, 120),
+      bottomMargin: number('bottomMargin', page ? 32 : 54, 0, 120),
+      sideMargin: number('sideMargin', 24, 0, 80),
+    );
+  }
+  static Future<JournalImageSettings> load({bool page = false}) async {
+    final prefs = await SharedPreferences.getInstance();
+    try {
+      final raw = prefs.getString(
+        page ? 'journal_page_style' : 'journal_image_style',
+      );
+      return JournalImageSettings.fromJson(
+        raw == null ? {} : jsonDecode(raw) as Map<String, dynamic>,
+        page: page,
+      );
+    } catch (_) {
+      return JournalImageSettings.fromJson({}, page: page);
+    }
+  }
+
+  Future<void> saveImage() async {
+    final prefs = await SharedPreferences.getInstance();
+    if (!await prefs.setString('journal_image_style', jsonEncode(toJson()))) {
+      throw StateError('无法保存图片设置');
+    }
+  }
+
+  Future<void> savePage(JournalImageSettings previous) async {
+    final prefs = await SharedPreferences.getInstance();
+    final image = (await load()).toJson();
+    final before = previous.toJson();
+    // Only A's changed fields replace B's remembered overrides.
+    for (final item in toJson().entries) {
+      if (item.key != 'indent' && item.value != before[item.key]) {
+        image[item.key] = item.value;
+      }
+    }
+    if (!await prefs.setString('journal_page_style', jsonEncode(toJson())) ||
+        !await prefs.setString('journal_image_style', jsonEncode(image))) {
+      throw StateError('无法保存页面设置');
+    }
+  }
+
   double fontSize;
   double letterSpacing;
   double lineHeight;
@@ -35,7 +106,12 @@ class JournalImageSettings {
 }
 
 class JournalImageSettingsDialog extends StatefulWidget {
-  const JournalImageSettingsDialog({super.key, required this.settings});
+  const JournalImageSettingsDialog({
+    super.key,
+    required this.settings,
+    this.page = false,
+  });
+  final bool page;
   final JournalImageSettings settings;
   @override
   State<JournalImageSettingsDialog> createState() =>
@@ -71,7 +147,7 @@ class _JournalImageSettingsDialogState
   );
   @override
   Widget build(BuildContext context) => AlertDialog(
-    title: const Text('图片设置'),
+    title: Text(widget.page ? '页面设置' : '图片设置'),
     content: SizedBox(
       width: 360,
       child: SingleChildScrollView(
@@ -135,12 +211,13 @@ class _JournalImageSettingsDialogState
               40,
               (v) => value.sideMargin = v,
             ),
-            SwitchListTile(
-              contentPadding: EdgeInsets.zero,
-              title: const Text('开头空两格'),
-              value: value.indent,
-              onChanged: (v) => setState(() => value.indent = v),
-            ),
+            if (!widget.page)
+              SwitchListTile(
+                contentPadding: EdgeInsets.zero,
+                title: const Text('开头空两格'),
+                value: value.indent,
+                onChanged: (v) => setState(() => value.indent = v),
+              ),
             SwitchListTile(
               contentPadding: EdgeInsets.zero,
               title: const Text('隐藏编辑时间与字数'),

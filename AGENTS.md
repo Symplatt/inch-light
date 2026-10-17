@@ -29,7 +29,7 @@
 5. 等待用户审核安装后的更新内容。需要修改时，重新执行开发、验证、更新 CHANGELOG、覆盖安装和审核。
 6. 用户明确审核通过后，再同步 README 等其余文档，检查待提交文件及项目配置、锁文件、应用显示、README、CHANGELOG 中的版本和行为一致性。功能、界面行为、使用、安装、配置、依赖、接口、目录结构或构建部署方式变化时必须更新 README；纯内部调整无需机械修改。
 7. 创建 Git commit，Push 到对应 GitHub 仓库，创建版本 Tag 并发布对应 GitHub Release；Release 内容与 CHANGELOG 一致。
-8. 将安装包交付到 D 盘，校验文件完整性，并核验远程代码、Tag、Release、发布资产、D 盘安装包及本地已安装版本一致。
+8. 校验安装包完整性，并核验远程代码、Tag、Release、发布资产、本地构建安装包及已安装版本一致；Android APK 不再默认复制到 D 盘，仅在用户明确要求时另行交付。
 
 不得省略 commit、Push、Tag 或 Release。版本号沿用项目原有格式，项目版本、Git Tag、Release 及安装包必须对应一致。
 
@@ -57,7 +57,7 @@
 ## 五、本地安装交付
 
 - 每次覆盖安装后，将该版本的 CHANGELOG 单独保存为 Markdown 文档，放到 `D:\` 根目录；自 3.9.0 起生效（含本次），不等待用户审核或正式发布。
-- 用户审核覆盖安装的版本通过后，再将新版本安装包放到 `D:\` 根目录，并校验文件完整性及其与 GitHub Release 资产的一致性。
+- Android APK 不再默认复制到 `D:\`；用户明确要求交付时，在审核通过后复制并校验其与 GitHub Release 资产的一致性。
 - Windows 桌面软件测试通过并写好 CHANGELOG 后，在用户当前电脑上覆盖更新已有软件，保留既有用户数据，并实际启动核验版本。
 - 检查桌面快捷方式；没有则创建一个指向已安装软件的快捷方式，并验证能够启动软件。
 - 本地安装包、Release 资产、Git Tag 和应用版本必须一致。
@@ -85,4 +85,4 @@
 - 每次发布同步更新 README 中的版本及受影响的功能说明，CHANGELOG 使用带日期的 Keep a Changelog 分类；Git 标签使用 vX.Y.Z，与 pubspec.yaml 的版本对应。
 - 发布前执行 dart format --output=none --set-exit-if-changed lib test、flutter analyze 和 flutter test，Android APK 使用 flutter build apk --release --split-per-abi 构建；核对各架构 APK 的版本名及实际 versionCode，保持包名和签名兼容。
 - 验证安装包生成并上传 Release 后再报告发布成功；不覆盖现有版本标签，不强推，不提交凭据、签名密钥或本机构建目录。
-- 连接手机用于本项目真机调试或用户要求真机调试时，测试通过并写好 CHANGELOG 后先覆盖安装，保留既有用户数据并实际启动核验版本；用户明确审核通过后再发布，并将与 Release 一致的 APK 放到 D:\ 根目录校验完整性。安装或验证受阻时说明具体原因，不越过审核进行后续交付。
+- 连接手机用于本项目真机调试或用户要求真机调试时，测试通过并写好 CHANGELOG 后先覆盖安装，保留既有用户数据并实际启动核验版本；用户明确审核通过后再发布；APK 仅在用户明确要求时另行交付并校验完整性。安装或验证受阻时说明具体原因，不越过审核进行后续交付。

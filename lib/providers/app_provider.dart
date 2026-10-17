@@ -743,6 +743,7 @@ class AppProvider with ChangeNotifier, WidgetsBindingObserver {
   void addNormalTask(
     String title, {
     DateTime? deadline,
+    bool deadlineBlue = false,
     String? collectionId,
     List<String> tags = const [],
   }) {
@@ -752,6 +753,7 @@ class AppProvider with ChangeNotifier, WidgetsBindingObserver {
         title: title,
         type: TaskType.normal,
         deadline: deadline,
+        deadlineBlue: deadlineBlue,
         collectionId: collectionId,
         tags: tags,
       ),
@@ -772,10 +774,12 @@ class AppProvider with ChangeNotifier, WidgetsBindingObserver {
     TaskItem task,
     String newTitle, {
     DateTime? newDeadline,
+    bool? deadlineBlue,
     List<String>? newTags,
   }) {
     task.title = newTitle;
     task.deadline = newDeadline;
+    if (deadlineBlue != null) task.deadlineBlue = deadlineBlue;
     if (newTags != null) {
       task.tags = newTags;
     }

@@ -36,6 +36,7 @@ class TaskItem {
   // 事项专用属性
   bool isCompleted;
   DateTime? deadline;
+  bool deadlineBlue;
   List<String> tags;
   DateTime? finishedAt;
   bool isPinned;
@@ -49,6 +50,7 @@ class TaskItem {
     required this.type,
     this.isCompleted = false,
     this.deadline,
+    this.deadlineBlue = false,
     this.tags = const [],
     this.finishedAt,
     this.isPinned = false,
@@ -63,6 +65,7 @@ class TaskItem {
     'type': type == TaskType.daily ? 1 : 2, // 保持已有数据的类型编号
     'isCompleted': isCompleted,
     'deadline': deadline?.toIso8601String(),
+    'deadlineBlue': deadlineBlue,
     'tags': tags,
     'finishedAt': finishedAt?.toIso8601String(),
     'isPinned': isPinned,
@@ -80,6 +83,7 @@ class TaskItem {
       deadline: json['deadline'] != null
           ? DateTime.parse(json['deadline'])
           : null,
+      deadlineBlue: json['deadlineBlue'] == true,
       tags: List<String>.from(json['tags'] ?? []),
       finishedAt: json['finishedAt'] != null
           ? DateTime.parse(json['finishedAt'])

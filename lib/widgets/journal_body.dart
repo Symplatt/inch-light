@@ -22,7 +22,7 @@ quill.DefaultStyles journalStyles({
   double fontSize = 18,
   double letterSpacing = 0,
   double lineHeight = 1.6,
-  double paragraphSpacing = 8,
+  double paragraphSpacing = 10,
 }) {
   quill.DefaultTextBlockStyle block(double size) =>
       journalBlock(size * fontSize / 18).copyWith(

@@ -284,7 +284,13 @@ class _TextLineState extends State<TextLine> {
     } else if (alignment == Attribute.justifyAlignment) {
       return TextAlign.justify;
     }
-    return TextAlign.start;
+    // Fill wrapped prose lines to both margins without altering stored deltas.
+    // Headings, code and explicit alignment retain their original layout.
+    final attrs = widget.line.style.attributes;
+    return attrs.containsKey(Attribute.header.key) ||
+            attrs.containsKey(Attribute.codeBlock.key)
+        ? TextAlign.start
+        : TextAlign.justify;
   }
 
   InlineSpan _buildTextSpan(
