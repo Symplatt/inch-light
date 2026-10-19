@@ -87,7 +87,7 @@ void main() {
         JournalOperation.addSentencePeriods,
       );
       final doc = quill.Document.fromJson(result);
-      expect(doc.toPlainText(), '标题\n正文。  \n列表。\n完成！\n括号）\n表情🙂\n\ncode\n');
+      expect(doc.toPlainText(), '标题\n正文。  \n列表。\n完成！\n括号）。\n表情🙂\n\ncode\n');
       expect(
         result.firstWhere(
           (op) => (op['insert'] as String).contains('正文'),

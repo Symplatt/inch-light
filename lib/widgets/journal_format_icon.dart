@@ -1,10 +1,13 @@
 import 'package:flutter/material.dart';
 
 enum JournalFormatSymbol {
+  headingUp,
+  headingDown,
   h1,
   h2,
   h3,
   bold,
+  boldWide,
   italic,
   strike,
   divider,
@@ -52,7 +55,26 @@ class _FormatPainter extends CustomPainter {
         canvas.drawLine(Offset(x1, y1), Offset(x2, y2), paint);
     void path(Path value) =>
         canvas.drawPath(value, paint..style = PaintingStyle.stroke);
-    if ([
+    if (symbol == JournalFormatSymbol.headingUp ||
+        symbol == JournalFormatSymbol.headingDown) {
+      // The H occupies the main glyph; the arrow is a lower-right subscript.
+      canvas.save();
+      canvas.translate(0, 1.25);
+      canvas.scale(1, .86);
+      line(3, 3, 3, 17);
+      line(12, 3, 12, 17);
+      line(3, 10, 12, 10);
+      paint.strokeWidth = 1.5;
+      line(19, 13, 19, 22);
+      if (symbol == JournalFormatSymbol.headingUp) {
+        line(16, 16, 19, 13);
+        line(19, 13, 22, 16);
+      } else {
+        line(16, 19, 19, 22);
+        line(19, 22, 22, 19);
+      }
+      canvas.restore();
+    } else if ([
       JournalFormatSymbol.h1,
       JournalFormatSymbol.h2,
       JournalFormatSymbol.h3,
@@ -84,7 +106,14 @@ class _FormatPainter extends CustomPainter {
         default:
           break;
       }
-    } else if (symbol == JournalFormatSymbol.bold) {
+    } else if (symbol == JournalFormatSymbol.bold ||
+        symbol == JournalFormatSymbol.boldWide) {
+      canvas.save();
+      if (symbol == JournalFormatSymbol.boldWide) {
+        // The menu glyph has a wider bowl but retains the same vertical grid.
+        canvas.translate(-4.8, 0);
+        canvas.scale(1.4, 1);
+      }
       paint.strokeWidth = 2.7;
       path(
         Path()
@@ -98,6 +127,7 @@ class _FormatPainter extends CustomPainter {
           ..moveTo(7, 4)
           ..lineTo(7, 20),
       );
+      canvas.restore();
     } else if (symbol == JournalFormatSymbol.italic) {
       line(10, 4, 19, 4);
       line(5, 20, 14, 20);

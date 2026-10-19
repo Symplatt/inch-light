@@ -1,3 +1,4 @@
+import '../constants/app_usage_guide.dart';
 import '../utils/clipboard.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/foundation.dart';
@@ -131,6 +132,7 @@ class _SettingsPageState extends State<SettingsPage> {
       backgroundColor: AppColors.bg,
       appBar: AppBar(
         title: const Text('设置'),
+        actionsPadding: const EdgeInsets.only(right: 8),
         actions: [
           IconButton(
             tooltip: '软件信息',
@@ -141,19 +143,23 @@ class _SettingsPageState extends State<SettingsPage> {
                 title: const Text('一日千录'),
                 content: const SizedBox(
                   width: double.maxFinite,
-                  child: Column(
-                    mainAxisSize: MainAxisSize.min,
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        '版本 3.10.0（构建 35）',
-                        style: TextStyle(color: AppColors.textGrey),
-                      ),
-                      SizedBox(height: 16),
-                      Text('版权所有 © Symplatt'),
-                      SizedBox(height: 16),
-                      Text('数据保存在本机，可在设置中导出备份。'),
-                    ],
+                  child: SingleChildScrollView(
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          '版本 3.12.1（构建 54）',
+                          style: TextStyle(color: AppColors.textGrey),
+                        ),
+                        SizedBox(height: 16),
+                        Text('版权所有 © Symplatt'),
+                        SizedBox(height: 16),
+                        Text('数据保存在本机，可在设置中导出备份。'),
+                        SizedBox(height: 16),
+                        Text(appUsageGuide),
+                      ],
+                    ),
                   ),
                 ),
                 actions: [
@@ -161,7 +167,7 @@ class _SettingsPageState extends State<SettingsPage> {
                     onPressed: () => showLicensePage(
                       context: dialogContext,
                       applicationName: '一日千录',
-                      applicationVersion: '3.10.0',
+                      applicationVersion: '3.12.1',
                       applicationLegalese: '版权所有 © Symplatt',
                     ),
                     child: const Text('开源许可'),

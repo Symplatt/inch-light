@@ -1,3 +1,5 @@
+import '../widgets/journal_operations_menu.dart';
+import '../widgets/journal_theme.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../widgets/journal_image_settings.dart';
 import '../widgets/journal_chain_dialog.dart';
@@ -27,16 +29,25 @@ import '../models/journal_table.dart';
 import '../widgets/journal_table.dart';
 import '../widgets/journal_format_icon.dart';
 
-class JournalEditorPage extends StatefulWidget {
+class JournalEditorPage extends StatelessWidget {
   const JournalEditorPage({super.key, this.entry, this.collectionId});
   final JournalEntry? entry;
   final String? collectionId;
-
   @override
-  State<JournalEditorPage> createState() => _JournalEditorPageState();
+  Widget build(BuildContext context) => JournalTheme(
+    child: _JournalEditorView(entry: entry, collectionId: collectionId),
+  );
 }
 
-class _JournalEditorPageState extends State<JournalEditorPage>
+class _JournalEditorView extends StatefulWidget {
+  const _JournalEditorView({this.entry, this.collectionId});
+  final JournalEntry? entry;
+  final String? collectionId;
+  @override
+  State<_JournalEditorView> createState() => _JournalEditorPageState();
+}
+
+class _JournalEditorPageState extends State<_JournalEditorView>
     with WidgetsBindingObserver {
   late final TextEditingController _title;
   late final JournalController _editor;
@@ -76,11 +87,11 @@ class _JournalEditorPageState extends State<JournalEditorPage>
     if (!mounted) return;
     setState(() {
       _pageStyle = style;
-      _chain = names
-          .expand(
-            (name) => JournalOperation.values.where((op) => op.name == name),
-          )
-          .toList();
+      _chain = normalizeJournalOperations(
+        names.expand(
+          (name) => JournalOperation.values.where((op) => op.name == name),
+        ),
+      );
     });
   }
 
@@ -133,27 +144,6 @@ class _JournalEditorPageState extends State<JournalEditorPage>
         context,
       ).showSnackBar(const SnackBar(content: Text('连携操作保存失败，请重试')));
     }
-  }
-
-  Future<void> _punctuationMenu() async {
-    _stayBrowsing();
-    final operation = await showDialog<JournalOperation>(
-      context: context,
-      builder: (ctx) => SimpleDialog(
-        title: const Text('标点管理'),
-        children: [
-          for (final op in [
-            JournalOperation.removeLeadingPunctuation,
-            JournalOperation.addSentencePeriods,
-          ])
-            SimpleDialogOption(
-              onPressed: () => Navigator.pop(ctx, op),
-              child: Text(journalOperationName(op)),
-            ),
-        ],
-      ),
-    );
-    if (mounted && operation != null) await _operate(operation);
   }
 
   Future<void> _runChain() async {
@@ -685,52 +675,33 @@ class _JournalEditorPageState extends State<JournalEditorPage>
               else
                 PopupMenuButton<JournalOperation>(
                   tooltip: '操作',
-                  icon: const Icon(Icons.more_horiz),
+                  icon: const Icon(Icons.auto_fix_high_outlined),
                   onOpened: _stayBrowsing,
                   requestFocus: false,
-                  onSelected: (operation) =>
-                      operation == JournalOperation.removeLeadingPunctuation
-                      ? _punctuationMenu()
-                      : _operate(operation),
-                  itemBuilder: (menuContext) => [
-                    for (final operation in JournalOperation.values.where(
-                      (op) => op != JournalOperation.addSentencePeriods,
-                    ))
-                      PopupMenuItem(
-                        value: operation,
-                        child: Text(operation.label),
-                      ),
-                    const PopupMenuDivider(),
-                    PopupMenuItem<JournalOperation>(
-                      enabled: false,
-                      child: Row(
-                        children: [
-                          Expanded(
-                            child: TextButton.icon(
-                              style: TextButton.styleFrom(
-                                backgroundColor: const Color(0xFFEDF1F4),
-                                foregroundColor: const Color(0xFF526778),
-                              ),
-                              icon: const Icon(Icons.playlist_play, size: 20),
-                              label: const Text('连携操作'),
-                              onPressed: () {
-                                Navigator.pop(menuContext);
-                                _runChain();
-                              },
+                  onSelected: _operate,
+                  color: Colors.white,
+                  surfaceTintColor: Colors.transparent,
+                  elevation: 4,
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(14),
+                    side: const BorderSide(color: Color(0xFFE5E5E5)),
+                  ),
+                  constraints: BoxConstraints.tightFor(
+                    width:
+                        (224 +
+                                (MediaQuery.textScalerOf(context).scale(15) -
+                                        15) *
+                                    6)
+                            .clamp(
+                              224.0,
+                              MediaQuery.sizeOf(context).width - 24,
                             ),
-                          ),
-                          IconButton(
-                            tooltip: '编辑连携操作',
-                            icon: const Icon(Icons.edit_outlined, size: 20),
-                            onPressed: () {
-                              Navigator.pop(menuContext);
-                              _editChain();
-                            },
-                          ),
-                        ],
-                      ),
-                    ),
-                  ],
+                  ),
+                  itemBuilder: (menuContext) => journalOperationsMenu(
+                    menuContext,
+                    runChain: _runChain,
+                    editChain: _editChain,
+                  ),
                 ),
               const SizedBox(width: 8),
             ],
@@ -776,8 +747,21 @@ class _JournalEditorPageState extends State<JournalEditorPage>
                                     ),
                                     maxLines: null,
                                     textInputAction: TextInputAction.next,
-                                    onSubmitted: (_) =>
-                                        _bodyFocus.requestFocus(),
+                                    onSubmitted: (_) {
+                                      if (_title.selection.isCollapsed &&
+                                          _title.selection.extentOffset ==
+                                              _title.text.length) {
+                                        _editor.replaceText(
+                                          0,
+                                          0,
+                                          '\n',
+                                          const TextSelection.collapsed(
+                                            offset: 0,
+                                          ),
+                                        );
+                                      }
+                                      _bodyFocus.requestFocus();
+                                    },
                                     decoration: const InputDecoration(
                                       hintText: '标题',
                                       hintStyle: TextStyle(
@@ -1037,7 +1021,7 @@ class JournalFormatBar extends StatelessWidget {
         color: Colors.white,
         child: DecoratedBox(
           decoration: const BoxDecoration(
-            border: Border(top: BorderSide(color: AppColors.divider)),
+            border: Border(top: BorderSide(color: Color(0xFFEBEBEB))),
           ),
           child: SingleChildScrollView(
             key: const ValueKey('record-format-scroll'),
@@ -1098,7 +1082,7 @@ class JournalFormatBar extends StatelessWidget {
                 button(
                   '高亮',
                   const JournalFormatIcon(JournalFormatSymbol.highlight),
-                  attribute: const quill.BackgroundAttribute('#FFF2B3'),
+                  attribute: const quill.BackgroundAttribute('#E6E6E6'),
                 ),
                 button(
                   '分隔线',

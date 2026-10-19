@@ -196,8 +196,9 @@ void main() {
       }
 
       await mount(const TodoPage());
-      await corners(find.byType(SwipeDeleteCard).first, -70);
-      await corners(find.byType(SwipeDeleteCard).last, -70);
+      await t.drag(find.byType(SwipeDeleteCard).first, const Offset(-70, 0));
+      await t.pumpAndSettle();
+      expect(p.normalTasks, isNotEmpty);
       await mount(const CyclePage());
       final dot = find.byKey(ValueKey('completed-${p.countdowns.single.id}'));
       final dotRect = t.getRect(dot);

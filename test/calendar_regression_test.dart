@@ -214,40 +214,40 @@ void main() {
   });
 
   for (final completed in [false, true]) {
-    testWidgets(
-      'Deleting collection from completed=$completed removes both states',
-      (tester) async {
-        final provider = AppProvider();
-        await tester.runAsync(() => provider.ready);
-        provider.addCollection('完整合集');
-        final id = provider.collections.single.id;
-        provider.addNormalTask('未完成项目', collectionId: id);
-        provider.addNormalTask('已完成项目', collectionId: id);
-        provider.toggleTaskCompletion(provider.normalTasks.last);
-        provider.addNormalTask('合集之外');
-        await tester.pumpWidget(
-          ChangeNotifierProvider.value(value: provider, child: const MyApp()),
-        );
+    testWidgets('Collection ignores left swipe in completed=$completed view', (
+      tester,
+    ) async {
+      final provider = AppProvider();
+      await tester.runAsync(() => provider.ready);
+      provider.addCollection('完整合集');
+      final id = provider.collections.single.id;
+      provider.addNormalTask('未完成项目', collectionId: id);
+      provider.addNormalTask('已完成项目', collectionId: id);
+      provider.toggleTaskCompletion(provider.normalTasks.last);
+      provider.addNormalTask('合集之外');
+      await tester.pumpWidget(
+        ChangeNotifierProvider.value(value: provider, child: const MyApp()),
+      );
+      await tester.pumpAndSettle();
+      if (completed) {
+        await tester.tap(find.byTooltip('查看已完成'));
         await tester.pumpAndSettle();
-        if (completed) {
-          await tester.tap(find.byTooltip('查看已完成'));
-          await tester.pumpAndSettle();
-        }
-        await tester.drag(find.text('完整合集'), const Offset(-700, 0));
-        await tester.pumpAndSettle();
-        expect(provider.collections, isEmpty);
-        expect(provider.normalTasks.single.title, '合集之外');
-        provider.addCollection('另一合集');
-        provider.addNormalTask(
-          '另一个项目',
-          collectionId: provider.collections.single.id,
-        );
-        provider.clearCollections();
-        expect(provider.normalTasks.single.title, '合集之外');
-        await tester.pumpWidget(const SizedBox());
-        provider.dispose();
-      },
-    );
+      }
+      await tester.drag(find.text('完整合集'), const Offset(-700, 0));
+      await tester.pumpAndSettle();
+      expect(provider.collections, hasLength(1));
+      expect(provider.normalTasks, hasLength(3));
+      provider.clearCollections();
+      provider.addCollection('另一合集');
+      provider.addNormalTask(
+        '另一个项目',
+        collectionId: provider.collections.single.id,
+      );
+      provider.clearCollections();
+      expect(provider.normalTasks.single.title, '合集之外');
+      await tester.pumpWidget(const SizedBox());
+      provider.dispose();
+    });
   }
 
   testWidgets('Today deadline works directly in create and edit', (

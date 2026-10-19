@@ -9,7 +9,7 @@ void main() {
   setUp(() => SharedPreferences.setMockInitialValues({}));
 
   testWidgets(
-    'Task type selection keeps chip widths and horizontal positions fixed',
+    'Task type chips stay left aligned without unused checkmark slots',
     (tester) async {
       tester.view.physicalSize = const Size(320, 844);
       tester.view.devicePixelRatio = 1;
@@ -41,8 +41,17 @@ void main() {
           await tester.pump(duration);
           final after = rects();
           for (var index = 0; index < before.length; index++) {
-            expect(after[index].left, before[index].left);
-            expect(after[index].width, before[index].width);
+            expect(after.first.left, before.first.left);
+            expect(
+              find.descendant(
+                of: find.widgetWithText(ChoiceChip, labels[index]),
+                matching: find.byIcon(Icons.check),
+              ),
+              labels[index] == label ? findsOneWidget : findsNothing,
+            );
+            if (index == 0 && label != labels[0]) {
+              expect(after[index].width, lessThan(before[index].width));
+            }
             expect(after[index].height, before[index].height);
           }
         }
@@ -58,6 +67,84 @@ void main() {
       provider.dispose();
     },
   );
+
+  test(
+    'Completed collections disappear but completed tasks and empty collections remain',
+    () async {
+      final provider = AppProvider();
+      await provider.ready;
+      provider.addCollection('空合集');
+      provider.addCollection('完成后移除');
+      final id = provider.collections.last.id;
+      provider.addNormalTask('第一项', collectionId: id);
+      provider.addNormalTask('第二项', collectionId: id);
+      provider.toggleTaskCompletion(provider.normalTasks.first);
+      expect(provider.collections, hasLength(2));
+      provider.toggleTaskCompletion(provider.normalTasks.last);
+      expect(provider.collections.single.title, '空合集');
+      expect(provider.normalTasks, hasLength(2));
+      expect(
+        provider.normalTasks.every(
+          (t) => t.isCompleted && t.collectionId == null,
+        ),
+        true,
+      );
+      provider.addCollection('批量完成');
+      final batch = provider.collections.last.id;
+      provider.addNormalTask('批量事项', collectionId: batch);
+      provider.completeCollection(batch);
+      expect(provider.collections.single.title, '空合集');
+      expect(
+        provider.normalTasks.every(
+          (t) => t.isCompleted && t.collectionId == null,
+        ),
+        true,
+      );
+      provider.dispose();
+    },
+  );
+
+  testWidgets('Last task fades before its collection finishes disappearing', (
+    t,
+  ) async {
+    final provider = AppProvider();
+    await t.runAsync(() => provider.ready);
+    provider.addCollection('同步消失合集');
+    provider.addNormalTask(
+      '最后事项',
+      collectionId: provider.collections.single.id,
+    );
+    await t.pumpWidget(
+      ChangeNotifierProvider.value(value: provider, child: const MyApp()),
+    );
+    await t.pumpAndSettle();
+    final circle = find.byWidgetPredicate(
+      (w) => w is GestureDetector && w.child is AnimatedContainer,
+    );
+    await t.tap(circle.last);
+    await t.pump();
+    await t.pump(const Duration(milliseconds: 120));
+    expect(find.text('最后事项'), findsOneWidget);
+    expect(find.text('同步消失合集'), findsOneWidget);
+    expect(provider.normalTasks.single.isCompleted, false);
+    expect(
+      t
+          .widgetList<AnimatedOpacity>(find.byType(AnimatedOpacity))
+          .where((w) => w.opacity == 0),
+      hasLength(1),
+    );
+    await t.pump(const Duration(milliseconds: 220));
+    expect(find.text('同步消失合集'), findsOneWidget);
+    expect(provider.normalTasks.single.isCompleted, false);
+    await t.pump(const Duration(milliseconds: 540));
+    await t.pumpAndSettle();
+    expect(find.text('最后事项'), findsNothing);
+    expect(find.text('同步消失合集'), findsNothing);
+    expect(provider.normalTasks.single.isCompleted, true);
+    expect(provider.collections, isEmpty);
+    await t.pumpWidget(const SizedBox());
+    provider.dispose();
+  });
 
   testWidgets('Loose tasks precede collections in both completion views', (
     tester,

@@ -1,3 +1,4 @@
+import '../widgets/todo_visibility_dialog.dart';
 import '../widgets/position_border.dart';
 import '../widgets/section_heading.dart';
 import '../widgets/task_action_dialog.dart';
@@ -23,7 +24,47 @@ class TodoPage extends StatefulWidget {
 class _TodoPageState extends State<TodoPage> {
   // 视图状态 (默认显示未完成)
   bool _showCompleted = false;
-  bool _collectionsExpanded = true;
+  static const _completionDuration = Duration(milliseconds: 320);
+  static const _collectionCompletionDuration = Duration(milliseconds: 520);
+  final Set<String> _completing = {};
+  final Set<String> _completingCollections = {};
+
+  Future<void> _completeTask(TaskItem task, AppProvider provider) async {
+    if (_completing.contains(task.id)) return;
+    if (task.isCompleted) {
+      provider.toggleTaskCompletion(task);
+      return;
+    }
+    final collectionId = task.collectionId;
+    var completesCollection = false;
+    setState(() {
+      _completing.add(task.id);
+      if (collectionId != null &&
+          !provider.collections
+              .firstWhere((c) => c.id == collectionId)
+              .isFixed &&
+          provider.normalTasks
+              .where((item) => item.collectionId == collectionId)
+              .every(
+                (item) => item.isCompleted || _completing.contains(item.id),
+              )) {
+        completesCollection = true;
+      }
+    });
+    await Future<void>.delayed(_completionDuration);
+    if (!mounted) return;
+    // Keep the last completed item pending until the collection has faded out.
+    if (completesCollection) {
+      setState(() => _completingCollections.add(collectionId!));
+      await Future<void>.delayed(_collectionCompletionDuration);
+    }
+    if (!mounted) return;
+    provider.toggleTaskCompletion(task);
+    setState(() {
+      _completing.remove(task.id);
+      if (completesCollection) _completingCollections.remove(collectionId);
+    });
+  }
 
   Future<void> _chooseVisible(AppProvider provider) async {
     final selected = provider.collections
@@ -32,48 +73,14 @@ class _TodoPageState extends State<TodoPage> {
         .toSet();
     final result = await showDialog<Set<String>>(
       context: context,
-      builder: (ctx) => StatefulBuilder(
-        builder: (ctx, update) => AlertDialog(
-          title: const Text('请勾选需要显示的合集'),
-          titlePadding: const EdgeInsets.fromLTRB(24, 24, 24, 12),
-          content: SizedBox(
-            width: double.maxFinite,
-            child: ListView(
-              shrinkWrap: true,
-              children: [
-                for (final collection in provider.orderedCollections)
-                  CheckboxListTile(
-                    contentPadding: EdgeInsets.zero,
-                    title: Text(collection.title, textAlign: TextAlign.left),
-                    value: selected.contains(collection.id),
-                    onChanged: (value) => update(() {
-                      if (value == true) {
-                        selected.add(collection.id);
-                      } else {
-                        selected.remove(collection.id);
-                      }
-                    }),
-                  ),
-              ],
-            ),
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(ctx),
-              child: const Text('取消'),
-            ),
-            TextButton(
-              onPressed: () => Navigator.pop(ctx, selected),
-              child: const Text('确定'),
-            ),
-          ],
-        ),
+      builder: (ctx) => TodoVisibilityDialog(
+        collections: provider.orderedCollections,
+        visible: selected,
       ),
     );
     if (!mounted || result == null) return;
     await provider.setVisibleTodoCollections(result);
     if (!mounted) return;
-    setState(() => _collectionsExpanded = true);
   }
 
   @override
@@ -102,48 +109,39 @@ class _TodoPageState extends State<TodoPage> {
                     title: '事项合集',
                     fontSize: 18,
                     count: collections.length,
-                    onTap: () => setState(
-                      () => _collectionsExpanded = !_collectionsExpanded,
-                    ),
                   ),
                 ),
                 IconButton(
                   tooltip: '部分显示',
-                  icon: const Icon(
+                  padding: EdgeInsets.zero,
+                  alignment: Alignment.centerRight,
+                  icon: Icon(
                     Icons.filter_list,
-                    color: AppColors.textGrey,
+                    color:
+                        collections.any(
+                          (c) => !provider.isTodoCollectionVisible(c.id),
+                        )
+                        ? AppColors.textGrey
+                        : const Color(0xFF989BA1),
                   ),
                   onPressed: () => _chooseVisible(provider),
                 ),
-                IconButton(
-                  tooltip: _collectionsExpanded ? '折叠' : '展开',
-                  icon: Icon(
-                    _collectionsExpanded
-                        ? Icons.expand_less
-                        : Icons.expand_more,
-                    color: AppColors.textGrey,
-                  ),
-                  onPressed: () => setState(
-                    () => _collectionsExpanded = !_collectionsExpanded,
-                  ),
-                ),
               ],
             ),
-            if (_collectionsExpanded)
-              ...collections
-                  .where((c) => provider.isTodoCollectionVisible(c.id))
-                  .map((collection) {
-                    final tasks = provider.getTasksInCollection(
-                      collection.id,
-                      isCompleted: _showCompleted,
-                    );
-                    return _buildCollectionCard(
-                      context,
-                      collection,
-                      tasks,
-                      provider,
-                    );
-                  }),
+            ...collections
+                .where((c) => provider.isTodoCollectionVisible(c.id))
+                .map((collection) {
+                  final tasks = provider.getTasksInCollection(
+                    collection.id,
+                    isCompleted: _showCompleted,
+                  );
+                  return _buildCollectionCard(
+                    context,
+                    collection,
+                    tasks,
+                    provider,
+                  );
+                }),
             const SizedBox(height: 20),
           ],
         ];
@@ -151,6 +149,7 @@ class _TodoPageState extends State<TodoPage> {
         return Scaffold(
           backgroundColor: AppColors.bg,
           appBar: AppBar(
+            actionsPadding: const EdgeInsets.only(right: 8),
             backgroundColor: AppColors.bg,
             elevation: 0,
             centerTitle: false,
@@ -270,96 +269,106 @@ class _TodoPageState extends State<TodoPage> {
     AppProvider provider,
   ) {
     final nearest = provider.nearestDeadline(collection.id);
-    return GestureDetector(
-      onLongPress: () => _showCollectionActions(context, collection, provider),
-      child: SwipeDeleteCard(
-        key: Key(collection.id),
-        id: collection.id,
-        bottomMargin: 16,
-        direction: DismissDirection.horizontal,
-        onSwipedRight: () async {
-          await provider.setVisibleTodoCollections({
-            for (final item in provider.collections)
-              if (item.id != collection.id &&
-                  provider.isTodoCollectionVisible(item.id))
-                item.id,
-          });
-          if (!context.mounted) return;
-          ScaffoldMessenger.of(context)
-            ..clearSnackBars()
-            ..showSnackBar(const SnackBar(content: Text('已取消显示')));
-        },
-        onDeleted: () => provider.removeCollection(collection.id),
-        child: Container(
-          decoration: BoxDecoration(
-            color: AppColors.surface,
-            borderRadius: BorderRadius.circular(16),
-            border: Border.all(color: AppColors.divider),
-          ),
-          child: Material(
-            clipBehavior: Clip.antiAlias,
-            color: AppColors.surface,
-            borderRadius: BorderRadius.circular(16),
-            child: Theme(
-              data: Theme.of(
-                context,
-              ).copyWith(dividerColor: Colors.transparent),
-              child: ExpansionTile(
-                key: ValueKey('${collection.id}-${collection.isExpanded}'),
-                initiallyExpanded: collection.isExpanded,
-                onExpansionChanged: (_) =>
-                    provider.toggleCollectionExpand(collection.id),
-                tilePadding: const EdgeInsets.symmetric(
-                  horizontal: 16,
-                  vertical: 4,
-                ),
-                subtitle: nearest == null
-                    ? null
-                    : DeadlineLabel(
-                        deadline: nearest,
-                        pattern: 'yyyy-MM-dd HH:mm',
-                      ),
-                title: Text(
-                  collection.title,
-                  style: const TextStyle(
-                    fontWeight: FontWeight.w400,
-                    fontSize: 16,
+    return AnimatedOpacity(
+      opacity: _completingCollections.contains(collection.id) ? 0 : 1,
+      duration: _collectionCompletionDuration,
+      child: GestureDetector(
+        onLongPress: () =>
+            _showCollectionActions(context, collection, provider),
+        child: SwipeDeleteCard(
+          key: Key(collection.id),
+          id: collection.id,
+          bottomMargin: 16,
+          direction: DismissDirection.startToEnd,
+          onSwipedRight: () async {
+            await provider.setVisibleTodoCollections({
+              for (final item in provider.collections)
+                if (item.id != collection.id &&
+                    provider.isTodoCollectionVisible(item.id))
+                  item.id,
+            });
+            if (!context.mounted) return;
+            ScaffoldMessenger.of(context)
+              ..clearSnackBars()
+              ..showSnackBar(const SnackBar(content: Text('已取消显示')));
+          },
+          onDeleted: () => provider.removeCollection(collection.id),
+          child: Container(
+            decoration: BoxDecoration(
+              color: AppColors.surface,
+              borderRadius: BorderRadius.circular(16),
+              border: Border.all(color: AppColors.divider),
+            ),
+            child: Material(
+              clipBehavior: Clip.antiAlias,
+              color: AppColors.surface,
+              borderRadius: BorderRadius.circular(16),
+              child: Theme(
+                data: Theme.of(
+                  context,
+                ).copyWith(dividerColor: Colors.transparent),
+                child: ExpansionTile(
+                  key: ValueKey('${collection.id}-${collection.isExpanded}'),
+                  initiallyExpanded: collection.isExpanded,
+                  onExpansionChanged: (_) =>
+                      provider.toggleCollectionExpand(collection.id),
+                  tilePadding: const EdgeInsets.symmetric(
+                    horizontal: 16,
+                    vertical: 4,
                   ),
-                ),
-                trailing: IconButton(
-                  icon: const Icon(
-                    Icons.add,
-                    size: 24,
-                    color: AppColors.primary,
-                  ),
-                  onPressed: () =>
-                      _showAddTaskDialog(context, collectionId: collection.id),
-                ),
-                children: [
-                  const Divider(
-                    height: 1,
-                    thickness: 0.5,
-                    color: Color(0xFFEEEEEE),
-                    indent: 16,
-                    endIndent: 16,
-                  ),
-                  for (var i = 0; i < tasks.length; i++) ...[
-                    if (i > 0)
-                      const Divider(
-                        height: 1,
-                        thickness: 0.5,
-                        color: AppColors.divider,
-                        indent: 16,
-                        endIndent: 16,
-                      ),
-                    _buildTaskItem(
-                      context,
-                      tasks[i],
-                      provider,
-                      inCollection: true,
+                  subtitle: nearest == null
+                      ? null
+                      : DeadlineLabel(
+                          deadline: nearest,
+                          pattern: 'yyyy-MM-dd HH:mm',
+                        ),
+                  title: Text(
+                    collection.title,
+                    style: TextStyle(
+                      fontWeight: FontWeight.w400,
+                      fontSize: 16,
+                      decoration: _completingCollections.contains(collection.id)
+                          ? TextDecoration.lineThrough
+                          : null,
                     ),
+                  ),
+                  trailing: IconButton(
+                    icon: const Icon(
+                      Icons.add,
+                      size: 24,
+                      color: AppColors.primary,
+                    ),
+                    onPressed: () => _showAddTaskDialog(
+                      context,
+                      collectionId: collection.id,
+                    ),
+                  ),
+                  children: [
+                    const Divider(
+                      height: 1,
+                      thickness: 0.5,
+                      color: Color(0xFFEEEEEE),
+                      indent: 16,
+                      endIndent: 16,
+                    ),
+                    for (var i = 0; i < tasks.length; i++) ...[
+                      if (i > 0)
+                        const Divider(
+                          height: 1,
+                          thickness: 0.5,
+                          color: AppColors.divider,
+                          indent: 16,
+                          endIndent: 16,
+                        ),
+                      _buildTaskItem(
+                        context,
+                        tasks[i],
+                        provider,
+                        inCollection: true,
+                      ),
+                    ],
                   ],
-                ],
+                ),
               ),
             ),
           ),
@@ -436,120 +445,119 @@ class _TodoPageState extends State<TodoPage> {
     AppProvider provider, {
     bool inCollection = false,
   }) {
-    return SwipeDeleteCard(
-      key: ValueKey('task-card-${task.id}'),
-      id: task.id,
-      radius: inCollection ? 0 : 16,
-      bottomMargin: inCollection ? 0 : 12,
-      onDeleted: () => provider.removeTask(task),
-      child: Container(
-        decoration: inCollection
-            ? const BoxDecoration(color: AppColors.surface)
-            : ShapeDecoration(
-                color: AppColors.surface,
-                shape: PositionBorder(
-                  pinned: task.isPinned,
-                  bottom: task.isBottom,
-                  radius: inCollection ? 0 : 16,
-                ),
-              ),
-        child: InkWell(
-          onLongPress: () => _showEditTaskDialog(context, task),
-          borderRadius: BorderRadius.circular(inCollection ? 0 : 16),
-          child: ListTile(
-            contentPadding: const EdgeInsets.symmetric(
-              horizontal: 16,
-              vertical: 8,
-            ),
-            leading: GestureDetector(
-              onTap: () => provider.toggleTaskCompletion(task),
-              child: AnimatedContainer(
-                duration: const Duration(milliseconds: 200),
-                width: 24,
-                height: 24,
-                decoration: BoxDecoration(
-                  color: task.isCompleted
-                      ? AppColors.primary
-                      : Colors.transparent,
-                  shape: BoxShape.circle,
-                  border: Border.all(
-                    color: task.isCompleted
-                        ? AppColors.primary
-                        : AppColors.textGrey,
-                    width: 1.4,
+    final completing = _completing.contains(task.id);
+    final checked = task.isCompleted || completing;
+    return AnimatedOpacity(
+      opacity: completing ? 0 : 1,
+      duration: _completionDuration,
+      child: SwipeDeleteCard(
+        key: ValueKey('task-card-${task.id}'),
+        enabled: false,
+        id: task.id,
+        radius: inCollection ? 0 : 16,
+        bottomMargin: inCollection ? 0 : 12,
+        onDeleted: () => provider.removeTask(task),
+        child: Container(
+          decoration: inCollection
+              ? const BoxDecoration(color: AppColors.surface)
+              : ShapeDecoration(
+                  color: AppColors.surface,
+                  shape: PositionBorder(
+                    pinned: task.isPinned,
+                    bottom: task.isBottom,
+                    radius: inCollection ? 0 : 16,
                   ),
                 ),
-                child: task.isCompleted
-                    ? const Icon(Icons.check, size: 16, color: Colors.white)
-                    : null,
+          child: InkWell(
+            onLongPress: () => _showEditTaskDialog(context, task),
+            borderRadius: BorderRadius.circular(inCollection ? 0 : 16),
+            child: ListTile(
+              contentPadding: const EdgeInsets.symmetric(
+                horizontal: 16,
+                vertical: 8,
               ),
-            ),
-            trailing: task.isPinned || task.isBottom
-                ? Icon(
-                    task.isPinned
-                        ? Icons.vertical_align_top
-                        : Icons.vertical_align_bottom,
-                    size: 18,
-                    color: AppColors.textGrey,
-                  )
-                : null,
-            titleAlignment: ListTileTitleAlignment.center,
-            title: Text(
-              task.title,
-              style: TextStyle(
-                fontSize: 16,
-                fontWeight: FontWeight.w400,
-                decoration: task.isCompleted
-                    ? TextDecoration.lineThrough
-                    : null,
-                color: task.isCompleted
-                    ? AppColors.textGrey
-                    : AppColors.textDark,
+              leading: GestureDetector(
+                onTap: () => _completeTask(task, provider),
+                child: AnimatedContainer(
+                  duration: const Duration(milliseconds: 200),
+                  width: 24,
+                  height: 24,
+                  decoration: BoxDecoration(
+                    color: checked ? AppColors.primary : Colors.transparent,
+                    shape: BoxShape.circle,
+                    border: Border.all(
+                      color: checked ? AppColors.primary : AppColors.textGrey,
+                      width: 1.4,
+                    ),
+                  ),
+                  child: checked
+                      ? const Icon(Icons.check, size: 16, color: Colors.white)
+                      : null,
+                ),
               ),
-            ),
-            subtitle: (task.deadline == null && task.tags.isEmpty)
-                ? null
-                : Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      if (task.deadline != null)
-                        Padding(
-                          padding: const EdgeInsets.only(top: 4),
-                          child: DeadlineLabel(
-                            deadline: task.deadline!,
-                            blue: task.deadlineBlue,
+              trailing: task.isPinned || task.isBottom
+                  ? Icon(
+                      task.isPinned
+                          ? Icons.vertical_align_top
+                          : Icons.vertical_align_bottom,
+                      size: 18,
+                      color: AppColors.textGrey,
+                    )
+                  : null,
+              titleAlignment: ListTileTitleAlignment.center,
+              title: Text(
+                task.title,
+                style: TextStyle(
+                  fontSize: 16,
+                  fontWeight: FontWeight.w400,
+                  decoration: checked ? TextDecoration.lineThrough : null,
+                  color: checked ? AppColors.textGrey : AppColors.textDark,
+                ),
+              ),
+              subtitle: (task.deadline == null && task.tags.isEmpty)
+                  ? null
+                  : Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        if (task.deadline != null)
+                          Padding(
+                            padding: const EdgeInsets.only(top: 4),
+                            child: DeadlineLabel(
+                              deadline: task.deadline!,
+                              blue: task.deadlineBlue,
+                            ),
                           ),
-                        ),
-                      if (task.tags.isNotEmpty)
-                        Padding(
-                          padding: const EdgeInsets.only(top: 6),
-                          child: Wrap(
-                            spacing: 6,
-                            children: task.tags
-                                .map(
-                                  (tag) => Container(
-                                    padding: const EdgeInsets.symmetric(
-                                      horizontal: 6,
-                                      vertical: 2,
-                                    ),
-                                    decoration: BoxDecoration(
-                                      color: const Color(0xFFF8F8FA),
-                                      borderRadius: BorderRadius.circular(4),
-                                    ),
-                                    child: Text(
-                                      tag,
-                                      style: const TextStyle(
-                                        fontSize: 10,
-                                        color: Color(0xFF9699A0),
+                        if (task.tags.isNotEmpty)
+                          Padding(
+                            padding: const EdgeInsets.only(top: 6),
+                            child: Wrap(
+                              spacing: 6,
+                              children: task.tags
+                                  .map(
+                                    (tag) => Container(
+                                      padding: const EdgeInsets.symmetric(
+                                        horizontal: 6,
+                                        vertical: 2,
+                                      ),
+                                      decoration: BoxDecoration(
+                                        color: const Color(0xFFF8F8FA),
+                                        borderRadius: BorderRadius.circular(4),
+                                      ),
+                                      child: Text(
+                                        tag,
+                                        style: const TextStyle(
+                                          fontSize: 10,
+                                          color: Color(0xFF9699A0),
+                                        ),
                                       ),
                                     ),
-                                  ),
-                                )
-                                .toList(),
+                                  )
+                                  .toList(),
+                            ),
                           ),
-                        ),
-                    ],
-                  ),
+                      ],
+                    ),
+            ),
           ),
         ),
       ),
@@ -577,10 +585,9 @@ class _TodoPageState extends State<TodoPage> {
           onTap: () => provider.completeCollection(collection.id),
         ),
         TaskAction(
-          label: '一键删除所有事项',
-          icon: Icons.delete_outline_rounded,
-          destructive: true,
-          onTap: () => provider.clearCollectionTasks(collection.id),
+          label: collection.isFixed ? '取消固定' : '固定合集',
+          icon: Icons.push_pin_outlined,
+          onTap: () => provider.toggleCollectionFixed(collection.id),
         ),
       ],
     );
@@ -822,38 +829,31 @@ class _TodoPageState extends State<TodoPage> {
     );
   }
 
-  Widget _taskTypeChip(
-    String label,
-    bool selected,
-    VoidCallback onSelected,
-  ) => ChoiceChip(
-    padding: const EdgeInsets.symmetric(horizontal: 4),
-    labelPadding: const EdgeInsets.symmetric(horizontal: 4),
-    showCheckmark: false,
-    pressElevation: 0,
-    chipAnimationStyle: ChipAnimationStyle(
-      enableAnimation: AnimationStyle.noAnimation,
-      selectAnimation: AnimationStyle.noAnimation,
-      avatarDrawerAnimation: AnimationStyle.noAnimation,
-      deleteDrawerAnimation: AnimationStyle.noAnimation,
-    ),
-    // Keep the checkmark slot present so selection never moves nearby chips.
-    label: Row(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        SizedBox.square(
-          dimension: 18,
-          child: selected
-              ? const Icon(Icons.check, size: 18, color: Color(0xFF404040))
-              : null,
+  Widget _taskTypeChip(String label, bool selected, VoidCallback onSelected) =>
+      ChoiceChip(
+        padding: const EdgeInsets.symmetric(horizontal: 4),
+        labelPadding: const EdgeInsets.symmetric(horizontal: 4),
+        showCheckmark: false,
+        pressElevation: 0,
+        chipAnimationStyle: ChipAnimationStyle(
+          enableAnimation: AnimationStyle.noAnimation,
+          selectAnimation: AnimationStyle.noAnimation,
+          avatarDrawerAnimation: AnimationStyle.noAnimation,
+          deleteDrawerAnimation: AnimationStyle.noAnimation,
         ),
-        const SizedBox(width: 4),
-        Text(label),
-      ],
-    ),
-    selected: selected,
-    onSelected: (_) => onSelected(),
-  );
+        label: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            if (selected) ...[
+              const Icon(Icons.check, size: 18, color: Color(0xFF404040)),
+              const SizedBox(width: 4),
+            ],
+            Text(label),
+          ],
+        ),
+        selected: selected,
+        onSelected: (_) => onSelected(),
+      );
 
   void _showAddTaskDialog(BuildContext context, {String? collectionId}) {
     final titleController = TextEditingController();

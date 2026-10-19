@@ -4,6 +4,7 @@ import 'package:flutter/rendering.dart';
 import 'package:flutter/widgets.dart';
 
 import 'box.dart';
+import 'inline_code_padding.dart';
 
 class BaselineProxy extends SingleChildRenderObjectWidget {
   const BaselineProxy({super.key, super.child, this.textStyle, this.padding});
@@ -139,6 +140,7 @@ class RichTextProxy extends SingleChildRenderObjectWidget {
     required this.textScaler,
     this.textWidthBasis = TextWidthBasis.parent,
     this.textHeightBehavior,
+    this.inlineCodeOffsets = const InlineCodeOffsetMapping(),
     super.key,
   });
 
@@ -150,6 +152,7 @@ class RichTextProxy extends SingleChildRenderObjectWidget {
   final StrutStyle strutStyle;
   final TextWidthBasis textWidthBasis;
   final TextHeightBehavior? textHeightBehavior;
+  final InlineCodeOffsetMapping inlineCodeOffsets;
 
   @override
   RenderParagraphProxy createRenderObject(BuildContext context) {
@@ -163,7 +166,7 @@ class RichTextProxy extends SingleChildRenderObjectWidget {
       locale,
       textWidthBasis,
       textHeightBehavior,
-    );
+    )..inlineCodeOffsets = inlineCodeOffsets;
   }
 
   @override
@@ -179,12 +182,14 @@ class RichTextProxy extends SingleChildRenderObjectWidget {
       ..locale = locale
       ..strutStyle = strutStyle
       ..textWidthBasis = textWidthBasis
-      ..textHeightBehavior = textHeightBehavior;
+      ..textHeightBehavior = textHeightBehavior
+      ..inlineCodeOffsets = inlineCodeOffsets;
   }
 }
 
 class RenderParagraphProxy extends RenderProxyBox
     implements RenderContentProxyBox {
+  InlineCodeOffsetMapping inlineCodeOffsets = const InlineCodeOffsetMapping();
   RenderParagraphProxy(
     RenderParagraph? super.child,
     TextStyle textStyle,
@@ -280,23 +285,51 @@ class RenderParagraphProxy extends RenderProxyBox
 
   @override
   Offset getOffsetForCaret(TextPosition position, Rect caretPrototype) =>
-      child!.getOffsetForCaret(position, caretPrototype);
+      child!.getOffsetForCaret(
+        inlineCodeOffsets.layoutPosition(position),
+        caretPrototype,
+      );
 
   @override
   TextPosition getPositionForOffset(Offset offset) =>
-      child!.getPositionForOffset(offset);
+      inlineCodeOffsets.documentPosition(child!.getPositionForOffset(offset));
 
   @override
   double? getFullHeightForCaret(TextPosition position) =>
-      child!.getFullHeightForCaret(position);
+      child!.getFullHeightForCaret(inlineCodeOffsets.layoutPosition(position));
 
   @override
-  TextRange getWordBoundary(TextPosition position) =>
-      child!.getWordBoundary(position);
+  TextRange getWordBoundary(TextPosition position) {
+    final range = child!.getWordBoundary(
+      inlineCodeOffsets.layoutPosition(position),
+    );
+    return TextRange(
+      start: inlineCodeOffsets.toDocument(range.start),
+      end: inlineCodeOffsets.toDocument(range.end),
+    );
+  }
 
   @override
-  List<TextBox> getBoxesForSelection(TextSelection selection) => child!
-      .getBoxesForSelection(selection, boxHeightStyle: BoxHeightStyle.max);
+  List<TextBox> getBoxesForSelection(TextSelection selection) =>
+      child!.getBoxesForSelection(
+        inlineCodeOffsets.layoutSelection(selection),
+        boxHeightStyle: BoxHeightStyle.max,
+      );
+
+  List<TextBox> getInlineCodeBoxes(TextRange range) =>
+      child!.getBoxesForSelection(
+        TextSelection(
+          baseOffset: inlineCodeOffsets.toLayout(
+            range.start,
+            includePadding: false,
+          ),
+          extentOffset: inlineCodeOffsets.toLayout(
+            range.end,
+            includePadding: true,
+          ),
+        ),
+        boxHeightStyle: BoxHeightStyle.max,
+      );
 
   @override
   void performLayout() {

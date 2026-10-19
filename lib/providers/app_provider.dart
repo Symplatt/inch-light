@@ -564,6 +564,10 @@ class AppProvider with ChangeNotifier, WidgetsBindingObserver {
     await prefs.setString('normal_tasks', encode(_normalTasks));
     await prefs.setString('cycle_tasks', encode(_cycleTasks));
     await prefs.setString('collections_data', encode(_collections));
+    await prefs.setStringList(
+      'hidden_todo_collections',
+      _hiddenTodoCollections.toList(),
+    );
     await prefs.setString('calendar_countdowns', encode(_countdowns));
   }
 
@@ -690,6 +694,15 @@ class AppProvider with ChangeNotifier, WidgetsBindingObserver {
   void removeCollection(String collectionId) {
     _normalTasks.removeWhere((task) => task.collectionId == collectionId);
     _collections.removeWhere((c) => c.id == collectionId);
+    _saveData();
+    notifyListeners();
+  }
+
+  void toggleCollectionFixed(String id) {
+    final index = _collections.indexWhere((collection) => collection.id == id);
+    if (index < 0) return;
+    _collections[index].isFixed = !_collections[index].isFixed;
+    _removeCompletedCollections();
     _saveData();
     notifyListeners();
   }
@@ -877,6 +890,7 @@ class AppProvider with ChangeNotifier, WidgetsBindingObserver {
       task.isCompleted = true;
       task.finishedAt = now;
     }
+    _removeCompletedCollections();
     _saveData();
     notifyListeners();
   }
@@ -941,13 +955,37 @@ class AppProvider with ChangeNotifier, WidgetsBindingObserver {
         cyclesChanged = true;
       }
     }
-    if (changed || cyclesChanged) _saveData();
+    final collectionsChanged = _removeCompletedCollections();
+    if (changed || cyclesChanged || collectionsChanged) _saveData();
     notifyListeners();
+  }
+
+  // Remove completed groups without discarding their completed task history.
+  bool _removeCompletedCollections() {
+    final completed = _collections
+        .where((collection) {
+          final tasks = _normalTasks.where(
+            (task) => task.collectionId == collection.id,
+          );
+          return !collection.isFixed &&
+              tasks.isNotEmpty &&
+              tasks.every((task) => task.isCompleted);
+        })
+        .map((collection) => collection.id)
+        .toSet();
+    if (completed.isEmpty) return false;
+    for (final task in _normalTasks) {
+      if (completed.contains(task.collectionId)) task.collectionId = null;
+    }
+    _collections.removeWhere((collection) => completed.contains(collection.id));
+    _hiddenTodoCollections.removeAll(completed);
+    return true;
   }
 
   void toggleTaskCompletion(TaskItem task) {
     task.isCompleted = !task.isCompleted;
     task.finishedAt = task.isCompleted ? DateTime.now() : null;
+    _removeCompletedCollections();
     _saveData();
     notifyListeners();
   }

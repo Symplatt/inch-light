@@ -95,7 +95,7 @@ class _JournalCollectionDialogState extends State<JournalCollectionDialog> {
           style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w400),
           decoration: InputDecoration(
             filled: true,
-            fillColor: const Color(0xFFF5F6F7),
+            fillColor: const Color(0xFFF5F5F5),
             contentPadding: const EdgeInsets.symmetric(
               horizontal: 16,
               vertical: 16,
@@ -106,7 +106,7 @@ class _JournalCollectionDialogState extends State<JournalCollectionDialog> {
             ),
             focusedBorder: OutlineInputBorder(
               borderRadius: BorderRadius.circular(12),
-              borderSide: const BorderSide(color: Color(0xFFB8BDC4)),
+              borderSide: const BorderSide(color: Color(0xFFBDBDBD)),
             ),
           ),
         ),
@@ -160,7 +160,7 @@ class JournalDeleteCollectionDialog extends StatelessWidget {
     }) => Padding(
       padding: const EdgeInsets.only(top: 12),
       child: Material(
-        color: delete ? const Color(0xFFFAF4F3) : const Color(0xFFF5F6F7),
+        color: delete ? const Color(0xFFF3F3F3) : const Color(0xFFF5F5F5),
         borderRadius: BorderRadius.circular(12),
         child: InkWell(
           borderRadius: BorderRadius.circular(12),

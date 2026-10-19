@@ -33,12 +33,16 @@ quill.DefaultStyles journalStyles({
       );
   quill.DefaultTextBlockStyle heading(double size, double top) =>
       block(size).copyWith(
-        style: block(size).style.copyWith(fontWeight: FontWeight.w600),
+        style: block(size).style.copyWith(fontWeight: FontWeight.w700),
         verticalSpacing: quill.VerticalSpacing(top, paragraphSpacing),
       );
   return quill.DefaultStyles(
     paragraph: block(18),
     quote: block(18).copyWith(
+      lineSpacing: quill.VerticalSpacing(
+        0,
+        paragraphSpacing.clamp(4, double.infinity),
+      ),
       style: block(18).style.copyWith(color: const Color(0xFF898989)),
       horizontalSpacing: const quill.HorizontalSpacing(0, 0),
       decoration: const BoxDecoration(
@@ -73,10 +77,10 @@ InlineSpan journalSpan(
   GestureRecognizer? recognizer,
 ) {
   final line = node is quill.Line ? node : node.parent;
-  if (node.style.attributes['bold']?.value == false) {
+  if (line?.style.attributes['header'] != null) {
+    style = style?.copyWith(fontWeight: FontWeight.w700);
+  } else if (node.style.attributes['bold']?.value == false) {
     style = style?.copyWith(fontWeight: FontWeight.w400);
-  } else if (line?.style.attributes['header'] != null) {
-    style = style?.copyWith(fontWeight: FontWeight.w600);
   }
   return TextSpan(text: text, recognizer: recognizer, style: style);
 }

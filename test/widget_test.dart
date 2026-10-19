@@ -185,8 +185,12 @@ void main() {
       expect(provider.normalTasks.last.isCompleted, isFalse);
       expect(provider.nearestDeadline(id), isNull);
       provider.clearCollectionTasks(id);
-      expect(provider.normalTasks.single.title, '合集之外');
-      expect(provider.collections.length, 1);
+      expect(provider.normalTasks, hasLength(3));
+      expect(
+        provider.normalTasks.where((task) => task.isCompleted),
+        hasLength(2),
+      );
+      expect(provider.collections, isEmpty);
     },
   );
 

@@ -40,13 +40,11 @@ void main() {
       expect(provider.orderedCollections.map((c) => c.title), [
         '截止丁',
         '普通甲',
-        '截止乙',
         '普通丙',
       ]);
       provider.toggleTaskCompletion(provider.normalTasks.first);
       provider.updateTask(provider.normalTasks.last, '取消截止');
       expect(provider.orderedCollections.map((c) => c.title), [
-        '截止乙',
         '普通甲',
         '普通丙',
         '截止丁',

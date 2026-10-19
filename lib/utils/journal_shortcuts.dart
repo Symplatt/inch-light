@@ -47,7 +47,7 @@ bool _inlineShortcut(
     ('**', [quill.Attribute.bold]),
     ('__', [quill.Attribute.bold]),
     ('~~', [quill.Attribute.strikeThrough]),
-    ('==', [const quill.BackgroundAttribute('#FFF2B3')]),
+    ('==', [const quill.BackgroundAttribute('#E6E6E6')]),
     ('*', [quill.Attribute.italic]),
     ('_', [quill.Attribute.italic]),
     ('`', [quill.Attribute.inlineCode]),

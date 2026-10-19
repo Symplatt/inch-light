@@ -6,17 +6,20 @@ class TaskCollection {
   String id;
   String title;
   bool isExpanded;
+  bool isFixed;
 
   TaskCollection({
     required this.id,
     required this.title,
     this.isExpanded = true,
+    this.isFixed = false,
   });
 
   Map<String, dynamic> toJson() => {
     'id': id,
     'title': title,
     'isExpanded': isExpanded,
+    'isFixed': isFixed,
   };
 
   factory TaskCollection.fromJson(Map<String, dynamic> json) {
@@ -24,6 +27,7 @@ class TaskCollection {
       id: json['id'],
       title: json['title'],
       isExpanded: json['isExpanded'] ?? true,
+      isFixed: json['isFixed'] == true,
     );
   }
 }

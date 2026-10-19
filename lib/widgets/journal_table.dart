@@ -1,7 +1,6 @@
 import '../utils/clipboard.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import '../constants/app_colors.dart';
 import '../models/journal_table.dart';
 import '../utils/journal_markdown.dart';
 
@@ -117,7 +116,7 @@ class _TableSizeDialogState extends State<_TableSizeDialog> {
           ),
         ),
         if (_error != null)
-          Text(_error!, style: const TextStyle(color: AppColors.danger)),
+          Text(_error!, style: const TextStyle(color: Color(0xFF606060))),
       ],
     ),
     actions: [
@@ -351,7 +350,7 @@ class _JournalTableState extends State<JournalTable> {
                       c: FixedColumnWidth(widths[c]),
                   },
                   defaultVerticalAlignment: TableCellVerticalAlignment.middle,
-                  border: TableBorder.all(color: const Color(0xFFDADDE1)),
+                  border: TableBorder.all(color: const Color(0xFFDDDDDD)),
                   children: [
                     for (var r = 0; r < _data.rows.length; r++)
                       TableRow(

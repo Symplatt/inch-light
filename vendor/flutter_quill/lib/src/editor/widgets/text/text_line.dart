@@ -18,6 +18,7 @@ import '../../../document/nodes/leaf.dart' as leaf;
 import '../box.dart';
 import '../delegate.dart';
 import '../keyboard_listener.dart';
+import '../inline_code_padding.dart';
 import '../proxy.dart';
 import 'text_selection.dart';
 
@@ -65,6 +66,7 @@ class _TextLineState extends State<TextLine> {
   UniqueKey _richTextKey = UniqueKey();
 
   final _linkRecognizers = <Node, GestureRecognizer>{};
+  var _inlineCodeOffsets = const InlineCodeOffsetMapping();
 
   QuillPressedKeys? _pressedKeys;
 
@@ -169,6 +171,21 @@ class _TextLineState extends State<TextLine> {
         );
       }
     }
+    final padding = <InlineCodePadding>[];
+    var offset = 0;
+    var inCode = false;
+    for (final node in widget.line.children) {
+      final code =
+          node is leaf.QuillText &&
+          node.style.attributes[Attribute.inlineCode.key]?.value == true;
+      if (code != inCode) {
+        padding.add(InlineCodePadding(offset, leading: code));
+        inCode = code;
+      }
+      offset += node.length;
+    }
+    if (inCode) padding.add(InlineCodePadding(offset, leading: false));
+    _inlineCodeOffsets = InlineCodeOffsetMapping(padding);
     final textSpan = _getTextSpanForWholeLine();
     final strutStyle = StrutStyle.fromTextStyle(
       textSpan.style ?? const TextStyle(),
@@ -189,6 +206,7 @@ class _TextLineState extends State<TextLine> {
       strutStyle: strutStyle,
       locale: Localizations.localeOf(context),
       textScaler: MediaQuery.textScalerOf(context),
+      inlineCodeOffsets: _inlineCodeOffsets,
       child: child,
     );
   }
@@ -207,6 +225,8 @@ class _TextLineState extends State<TextLine> {
     // The line could contain more than one Embed & more than one Text
     final textSpanChildren = <InlineSpan>[];
     var textNodes = LinkedList<Node>();
+    var fragmentOffset = 0;
+    var nodeOffset = 0;
     for (var child in widget.line.children) {
       if (child is Embed) {
         if (textNodes.isNotEmpty) {
@@ -216,6 +236,7 @@ class _TextLineState extends State<TextLine> {
               textNodes,
               lineStyle,
               widget.textSpanBuilder,
+              lineOffset: fragmentOffset,
             ),
           );
           textNodes = LinkedList<Node>();
@@ -252,11 +273,14 @@ class _TextLineState extends State<TextLine> {
         );
         final embed = embedBuilder.buildWidgetSpan(embedWidget);
         textSpanChildren.add(embed);
+        nodeOffset += child.length;
+        fragmentOffset = nodeOffset;
         continue;
       }
 
       // here child is Text node and its value is cloned
       textNodes.add(child.clone());
+      nodeOffset += child.length;
     }
 
     if (textNodes.isNotEmpty) {
@@ -266,6 +290,7 @@ class _TextLineState extends State<TextLine> {
           textNodes,
           lineStyle,
           widget.textSpanBuilder,
+          lineOffset: fragmentOffset,
         ),
       );
     }
@@ -297,8 +322,9 @@ class _TextLineState extends State<TextLine> {
     DefaultStyles defaultStyles,
     LinkedList<Node> nodes,
     TextStyle lineStyle,
-    TextSpanBuilder textSpanBuilder,
-  ) {
+    TextSpanBuilder textSpanBuilder, {
+    int lineOffset = 0,
+  }) {
     if (nodes.isEmpty && kIsWeb) {
       nodes = LinkedList<Node>()..add(leaf.QuillText());
     }
@@ -310,39 +336,54 @@ class _TextLineState extends State<TextLine> {
             widget.composingRange.end >
                 widget.line.documentOffset + widget.line.length);
 
-    if (isComposingRangeOutOfLine) {
-      final children = nodes
-          .map(
-            (node) => _getTextSpanFromNode(
-              defaultStyles,
-              node,
-              widget.line.style,
-              textSpanBuilder,
-            ),
-          )
-          .toList(growable: false);
-      return TextSpan(children: children, style: lineStyle);
+    final children = <InlineSpan>[];
+    var offset = lineOffset;
+    void addPadding(int position, bool leading) {
+      if (!_inlineCodeOffsets.padding.any(
+        (item) => item.offset == position && item.leading == leading,
+      ))
+        return;
+      // A nonbreaking, invisible layout glyph reserves 7px of background
+      // padding plus a 3px outside gap. The proxy maps it out of all editing
+      // coordinates; storage, copying and IME text remain unchanged.
+      final size = lineStyle.fontSize ?? 18;
+      final scale = MediaQuery.textScalerOf(context).scale(size) / size;
+      children.add(
+        TextSpan(
+          text: '\u00a0',
+          semanticsLabel: '',
+          style: TextStyle(
+            fontSize: 0,
+            letterSpacing: 10 * scale,
+            wordSpacing: 0,
+            color: Colors.transparent,
+            backgroundColor: Colors.transparent,
+            decoration: TextDecoration.none,
+          ),
+        ),
+      );
     }
 
-    final children = nodes
-        .expand((node) {
-          final child = _getTextSpanFromNode(
-            defaultStyles,
-            node,
-            widget.line.style,
-            textSpanBuilder,
-          );
-          final isNodeInComposingRange =
-              node.documentOffset <= widget.composingRange.start &&
-              widget.composingRange.end <= node.documentOffset + node.length;
-          if (isNodeInComposingRange) {
-            return _splitAndApplyComposingStyle(node, child, textSpanBuilder);
-          } else {
-            return [child];
-          }
-        })
-        .toList(growable: false);
-
+    for (final node in nodes) {
+      addPadding(offset, true);
+      final child = _getTextSpanFromNode(
+        defaultStyles,
+        node,
+        widget.line.style,
+        textSpanBuilder,
+      );
+      final isNodeInComposingRange =
+          !isComposingRangeOutOfLine &&
+          node.documentOffset <= widget.composingRange.start &&
+          widget.composingRange.end <= node.documentOffset + node.length;
+      children.addAll(
+        isNodeInComposingRange
+            ? _splitAndApplyComposingStyle(node, child, textSpanBuilder)
+            : [child],
+      );
+      offset += node.length;
+      addPadding(offset, false);
+    }
     return TextSpan(children: children, style: lineStyle);
   }
 
@@ -1450,32 +1491,69 @@ class RenderEditableTextLine extends RenderEditableBox {
       final effectiveOffset = offset + parentData.offset;
 
       if (inlineCodeStyle.backgroundColor != null) {
+        final ranges = <TextRange>[];
         for (final item in line.children) {
           if (item is! leaf.QuillText ||
-              !item.style.containsKey(Attribute.inlineCode.key)) {
+              item.style.attributes[Attribute.inlineCode.key]?.value != true) {
             continue;
           }
-          final textRange = TextSelection(
-            baseOffset: item.offset,
-            extentOffset: item.offset + item.length,
-          );
-          final rects = _body!.getBoxesForSelection(textRange);
+          if (ranges.isNotEmpty && ranges.last.end == item.offset) {
+            ranges[ranges.length - 1] = TextRange(
+              start: ranges.last.start,
+              end: item.offset + item.length,
+            );
+          } else {
+            ranges.add(
+              TextRange(start: item.offset, end: item.offset + item.length),
+            );
+          }
+        }
+        for (final range in ranges) {
+          final boxes = _body is RenderParagraphProxy
+              ? (_body! as RenderParagraphProxy).getInlineCodeBoxes(range)
+              : _body!.getBoxesForSelection(
+                  TextSelection(
+                    baseOffset: range.start,
+                    extentOffset: range.end,
+                  ),
+                );
+          final rects = <Rect>[];
+          for (final box in boxes) {
+            final rect = box.toRect();
+            if (rects.isNotEmpty &&
+                (rects.last.top - rect.top).abs() < .1 &&
+                (rects.last.bottom - rect.bottom).abs() < .1 &&
+                (rects.last.right - rect.left).abs() < .1) {
+              rects[rects.length - 1] = rects.last.expandToInclude(rect);
+            } else {
+              rects.add(rect);
+            }
+          }
           final paint = Paint()..color = inlineCodeStyle.backgroundColor!;
-          for (final box in rects) {
-            final rect = box.toRect().translate(0, 1).shift(effectiveOffset);
+          final paragraph = _body is RenderParagraphProxy
+              ? (_body! as RenderParagraphProxy).child
+              : null;
+          final fontSize = paragraph?.text.style?.fontSize ?? 18;
+          final gap = paragraph == null
+              ? 3.0
+              : 3 * paragraph.textScaler.scale(fontSize) / fontSize;
+          for (var index = 0; index < rects.length; index++) {
+            final rect = rects[index].translate(0, 1).shift(effectiveOffset);
+            final left = rect.left + (index == 0 ? gap : 0);
+            final right = rect.right - (index == rects.length - 1 ? gap : 0);
             if (inlineCodeStyle.radius == null) {
               final paintRect = Rect.fromLTRB(
-                rect.left - 2,
+                left,
                 rect.top,
-                rect.right + 2,
+                right,
                 rect.bottom,
               );
               context.canvas.drawRect(paintRect, paint);
             } else {
               final paintRect = RRect.fromLTRBR(
-                rect.left - 2,
+                left,
                 rect.top,
-                rect.right + 2,
+                right,
                 rect.bottom,
                 inlineCodeStyle.radius!,
               );

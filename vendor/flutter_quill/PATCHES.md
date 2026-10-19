@@ -2,6 +2,8 @@
 
 来源：flutter_quill 11.6.0，保留原 MIT LICENSE；仅包含运行所需源码。
 
+- `text_line.dart`、`proxy.dart`、`inline_code_padding.dart`：行内代码两侧分别预留 7 逻辑像素内边距与 3 逻辑像素外间隔，底色只绘制在实际占位范围内；布局占位与文档偏移双向映射，正文、复制内容和输入法文本不增加空格，连续代码跨富文本片段共用两侧间距。
+
 - `heading_spacing.dart`：首行标题不加上间距；非首行一级标题始终使用配置间距，二、三级标题仅正文之后增加间距。
 - `raw_editor_state.dart`、`text_block.dart`：普通标题和块内标题共用以上间距规则，不向用户文档插入空行或额外格式。
 - `text_line.dart`：有序／无序列表标记按实际正文首行基线定位，避免中文字体回退或行内字号变化造成偏移。

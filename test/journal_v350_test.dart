@@ -1,3 +1,4 @@
+import 'package:inch_light/constants/app_colors.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -16,7 +17,6 @@ import 'package:inch_light/utils/journal_markdown.dart';
 import 'package:inch_light/utils/journal_table_markdown.dart';
 import 'package:inch_light/utils/clipboard.dart';
 import 'package:inch_light/widgets/journal_table.dart';
-import 'package:inch_light/constants/app_colors.dart';
 
 void main() {
   setUp(() => SharedPreferences.setMockInitialValues({}));
@@ -214,7 +214,7 @@ void main() {
   );
 
   testWidgets(
-    'Todo and journal have identical drag, rebound and exit trajectories',
+    'Todo ignores left swipe while journal retains drag and deletion',
     (t) async {
       t.view.physicalSize = const Size(400, 900);
       t.view.devicePixelRatio = 1;
@@ -251,6 +251,14 @@ void main() {
           ),
         );
         await t.pumpAndSettle();
+        if (!journal) {
+          await t.drag(find.text('测试'), const Offset(-600, 0));
+          await t.pumpAndSettle();
+          expect(p.normalTasks, hasLength(1));
+          await t.pumpWidget(const SizedBox());
+          p.dispose();
+          continue;
+        }
         final dismiss = find.byType(Dismissible).first;
         final slide = find
             .descendant(of: dismiss, matching: find.byType(SlideTransition))
@@ -288,7 +296,7 @@ void main() {
         await t.pumpWidget(const SizedBox());
         p.dispose();
       }
-      expect(traces[0], orderedEquals(traces[1]));
+      expect(traces, hasLength(1));
     },
   );
 

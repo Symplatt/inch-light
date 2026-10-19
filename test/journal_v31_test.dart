@@ -212,7 +212,7 @@ void main() {
                 null,
               )
               as TextSpan;
-      expect(span.style!.fontWeight, FontWeight.w600);
+      expect(span.style!.fontWeight, FontWeight.w700);
       expect(editor.config.customStyles!.paragraph!.style.fontSize, 18);
       expect(
         editor.config.customStyles!.quote!.verticalSpacing,

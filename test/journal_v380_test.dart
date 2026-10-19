@@ -172,7 +172,7 @@ void main() {
         },
         {'insert': '\n'},
       ], op);
-      expect(plain(result), startsWith('正文，保留。\n列表\n'));
+      expect(plain(result), startsWith('正文，保留。\n列表。\n'));
       expect(result.first['attributes']['italic'], true);
       expect(result.any((a) => a['attributes']?['header'] == 2), true);
       expect(
@@ -432,7 +432,7 @@ void main() {
   );
 
   testWidgets(
-    'Visible collection selection persists and section fold keeps filtering',
+    'Partial display supports bulk selection and persists without section folding',
     (t) async {
       final p = AppProvider();
       await t.runAsync(() => p.ready);
@@ -449,14 +449,11 @@ void main() {
         ),
       );
       await t.pumpAndSettle();
-      expect(
-        t.getCenter(find.byTooltip('部分显示')).dx,
-        lessThan(t.getCenter(find.byTooltip('折叠')).dx),
-      );
+      expect(find.byTooltip('折叠'), findsNothing);
       await t.tap(find.byTooltip('部分显示'));
       await t.pumpAndSettle();
       expect(
-        t.getTopLeft(find.text('请勾选需要显示的合集')).dx,
+        t.getTopLeft(find.text('部分显示')).dx,
         t
             .getTopLeft(
               find.descendant(
@@ -491,15 +488,27 @@ void main() {
       await t.tap(find.widgetWithText(CheckboxListTile, '乙'));
       await t.tap(find.text('确定'));
       await t.pumpAndSettle();
-      await t.tap(find.byKey(const ValueKey('section-事项合集')));
-      await t.pumpAndSettle();
-      expect(find.text('甲'), findsNothing);
-      expect(find.text('乙'), findsNothing);
-      await t.tap(find.byKey(const ValueKey('section-事项合集')));
-      await t.pumpAndSettle();
-      expect(find.text('甲'), findsNothing);
-      expect(find.text('甲事项'), findsNothing);
       expect(find.text('乙事项'), findsOneWidget);
+      await t.tap(find.byTooltip('部分显示'));
+      await t.pumpAndSettle();
+      await t.tap(find.text('全选'));
+      await t.pump();
+      expect(
+        t
+            .widgetList<CheckboxListTile>(find.byType(CheckboxListTile))
+            .every((w) => w.value == true),
+        true,
+      );
+      await t.tap(find.text('全不选'));
+      await t.pump();
+      expect(
+        t
+            .widgetList<CheckboxListTile>(find.byType(CheckboxListTile))
+            .every((w) => w.value == false),
+        true,
+      );
+      await t.tap(find.text('取消'));
+      await t.pumpAndSettle();
       await t.pumpWidget(const SizedBox());
       final reloaded = AppProvider();
       await t.runAsync(() => reloaded.ready);
@@ -563,8 +572,8 @@ void main() {
             find.byType(PopupMenuItem<JournalOperation>),
           )
           .where((item) => item.value != null)
-          .map((item) => (item.child! as Text).data),
-      ['清除空行', '空格管理', '标点管理', '取消加粗', '标题升级', '标题降级', '首字母大写', '打乱无序列表'],
+          .map((item) => item.value!.label),
+      ['标点管理', '空格管理', '清除空行', '打乱无序列表', '标题升级', '标题降级', '取消加粗', '首字母大写'],
     );
     await t.tap(find.text('首字母大写'));
     await t.pumpAndSettle();
@@ -639,7 +648,7 @@ void main() {
   });
 
   testWidgets(
-    'Remove bold renders headings and table headers in normal weight after reload',
+    'Remove bold preserves heading weight and clears table header bold after reload',
     (t) async {
       final table = JournalTableData.empty(1, 1);
       final ops = transformJournalDocument([
@@ -679,7 +688,7 @@ void main() {
                 null,
               )
               as TextSpan;
-      expect(span.style!.fontWeight, FontWeight.w400);
+      expect(span.style!.fontWeight, FontWeight.w700);
       final decoded = JournalTableData.decode(
         ops.firstWhere((op) => op['insert'] is Map)['insert']['table'],
       );
@@ -744,11 +753,11 @@ void main() {
     await t.pumpAndSettle();
     expect(find.text('软件信息'), findsNothing);
     expect(find.text('一日千录'), findsOneWidget);
-    expect(find.text('版本 3.10.0（构建 35）'), findsOneWidget);
+    expect(find.text('版本 3.12.1（构建 54）'), findsOneWidget);
     expect(find.text('版权所有 © Symplatt'), findsOneWidget);
     final lefts = [
       '一日千录',
-      '版本 3.10.0（构建 35）',
+      '版本 3.12.1（构建 54）',
       '版权所有 © Symplatt',
       '数据保存在本机，可在设置中导出备份。',
     ].map((text) => t.getTopLeft(find.text(text)).dx).toSet();

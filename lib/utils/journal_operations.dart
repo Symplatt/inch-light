@@ -17,6 +17,26 @@ enum JournalOperation {
   final String label;
 }
 
+// Fold the two legacy punctuation chain entries into one operation at the
+// first existing position, so saved chains keep their surrounding order.
+List<JournalOperation> normalizeJournalOperations(
+  Iterable<JournalOperation> operations,
+) {
+  final result = <JournalOperation>[];
+  var punctuationAdded = false;
+  for (var operation in operations) {
+    if (operation == JournalOperation.addSentencePeriods) {
+      operation = JournalOperation.removeLeadingPunctuation;
+    }
+    if (operation == JournalOperation.removeLeadingPunctuation) {
+      if (punctuationAdded) continue;
+      punctuationAdded = true;
+    }
+    result.add(operation);
+  }
+  return result;
+}
+
 class _Atom {
   _Atom(this.value, Map<String, dynamic>? attributes)
     : attributes = Map<String, dynamic>.from(attributes ?? {});
@@ -73,6 +93,9 @@ bool _han(dynamic value) {
 bool _space(_Atom atom) =>
     atom.value is String && RegExp(r'^\s$').hasMatch(atom.value);
 
+bool _spacedSymbol(dynamic value) =>
+    value is String && RegExp(r'^[+\-×÷/@\\]$').hasMatch(value);
+
 List<_Atom> _normalize(List<_Atom> atoms) {
   // Trim each logical line before spacing normalization, including Unicode
   // whitespace and leading runs split across different rich-text styles.
@@ -100,7 +123,9 @@ List<_Atom> _normalize(List<_Atom> atoms) {
         final rightEnglish =
             _english(right) ||
             (right is String && RegExp(r"^[\(\[\{'‘]$").hasMatch(right));
-        if ((leftEnglish && rightEnglish) ||
+        if (_spacedSymbol(left) ||
+            _spacedSymbol(right) ||
+            (leftEnglish && rightEnglish) ||
             (_han(left) && _english(right)) ||
             (_english(left) && _han(right))) {
           out.add(_Atom(' ', atom.attributes));
@@ -110,7 +135,10 @@ List<_Atom> _normalize(List<_Atom> atoms) {
       continue;
     }
     if (out.isNotEmpty &&
-        ((_han(out.last.value) && _english(atom.value)) ||
+        !_space(out.last) &&
+        (_spacedSymbol(out.last.value) ||
+            _spacedSymbol(atom.value) ||
+            (_han(out.last.value) && _english(atom.value)) ||
             (_english(out.last.value) && _han(atom.value)))) {
       out.add(_Atom(' ', atom.attributes));
     }
@@ -220,7 +248,8 @@ List<dynamic> transformJournalDocument(
     }
     var inWord = false;
     for (final atom in line.atoms) {
-      if (operation == JournalOperation.removeBold) {
+      if (operation == JournalOperation.removeBold &&
+          !line.attributes.containsKey('header')) {
         atom.attributes['bold'] = false;
       }
       if (operation == JournalOperation.capitalize) {
@@ -251,28 +280,29 @@ List<dynamic> transformJournalDocument(
         };
       }
     }
-    if (operation == JournalOperation.addSentencePeriods &&
+    if (operation == JournalOperation.removeLeadingPunctuation) {
+      line.atoms = _removeLeadingPunctuation(line.atoms);
+    }
+    if ((operation == JournalOperation.addSentencePeriods ||
+            operation == JournalOperation.removeLeadingPunctuation) &&
         !line.blank &&
         line.atoms.every((a) => a.value is String) &&
-        ![
-          'header',
-          'code-block',
-          'blockquote',
-        ].any(line.attributes.containsKey)) {
+        !['header', 'code-block'].any(line.attributes.containsKey)) {
       final last = line.atoms.lastIndexWhere((a) => !_space(a));
       if (last >= 0 &&
-          !RegExp(
-            r'^[\p{P}\p{S}]$',
-            unicode: true,
-          ).hasMatch(line.atoms[last].value)) {
+          (RegExp(
+                r'''^[\p{Pe}\p{Pf}"'＂＇」』]$''',
+                unicode: true,
+              ).hasMatch(line.atoms[last].value) ||
+              !RegExp(
+                r'^[\p{P}\p{S}]$',
+                unicode: true,
+              ).hasMatch(line.atoms[last].value))) {
         line.atoms.insert(last + 1, _Atom('。', line.atoms[last].attributes));
       }
     }
     if (operation == JournalOperation.normalizeSpaces) {
       line.atoms = _normalize(line.atoms);
-    }
-    if (operation == JournalOperation.removeLeadingPunctuation) {
-      line.atoms = _removeLeadingPunctuation(line.atoms);
     }
   }
   if (operation == JournalOperation.shuffleBullets) {

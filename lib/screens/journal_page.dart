@@ -14,15 +14,22 @@ import '../widgets/swipe_delete_card.dart';
 import '../utils/journal_markdown.dart';
 import 'journal_editor_page.dart';
 
-class JournalPage extends StatefulWidget {
+class JournalPage extends StatelessWidget {
   const JournalPage({super.key, this.collectionId});
   final String? collectionId;
-
   @override
-  State<JournalPage> createState() => _JournalPageState();
+  Widget build(BuildContext context) =>
+      _JournalView(collectionId: collectionId);
 }
 
-class _JournalPageState extends State<JournalPage> {
+class _JournalView extends StatefulWidget {
+  const _JournalView({this.collectionId});
+  final String? collectionId;
+  @override
+  State<_JournalView> createState() => _JournalPageState();
+}
+
+class _JournalPageState extends State<_JournalView> {
   String _query = '';
   bool _selecting = false;
   bool _batchBusy = false;
@@ -102,9 +109,13 @@ class _JournalPageState extends State<JournalPage> {
     onPointerUp: (_) => _swipeStart = null,
     onPointerCancel: (_) => _swipeStart = null,
     onPointerMove: (event) {
-      if (_selecting || _swipeStart == null) return;
+      if (_batchBusy || _swipeStart == null) return;
       final delta = event.position - _swipeStart!;
-      if (delta.dx > 24 && delta.dx > delta.dy.abs()) {
+      if (_selecting && delta.dx < -24 && -delta.dx > delta.dy.abs()) {
+        _swipeStart = null;
+        _exitSelection();
+      } else if (!_selecting && delta.dx > 24 && delta.dx > delta.dy.abs()) {
+        _swipeStart = null;
         setState(() => _selecting = true);
       }
     },
@@ -483,7 +494,7 @@ class _JournalPageState extends State<JournalPage> {
       color: _selectedCollection == id ? const Color(0xFFE8EAED) : Colors.white,
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(10),
-        side: BorderSide(color: AppColors.divider),
+        side: BorderSide(color: const Color(0xFFEBEBEB)),
       ),
       child: InkWell(
         borderRadius: BorderRadius.circular(10),
@@ -566,7 +577,7 @@ class _JournalPageState extends State<JournalPage> {
                               ? Icons.vertical_align_top
                               : Icons.vertical_align_bottom,
                           size: 18,
-                          color: AppColors.textGrey,
+                          color: const Color(0xFF606060),
                         )
                       : null,
                 ),
@@ -596,7 +607,7 @@ class _JournalPageState extends State<JournalPage> {
                           overflow: TextOverflow.ellipsis,
                           style: const TextStyle(
                             fontSize: 12,
-                            color: AppColors.textGrey,
+                            color: Color(0xFF606060),
                           ),
                         ),
                       ),
@@ -637,6 +648,7 @@ class _JournalPageState extends State<JournalPage> {
         if (!didPop && _selecting) _exitSelection();
       },
       child: Scaffold(
+        backgroundColor: AppColors.bg,
         appBar: AppBar(
           leading: _selecting
               ? IconButton(
@@ -786,7 +798,7 @@ class _JournalPageState extends State<JournalPage> {
                   ? Center(
                       child: Text(
                         query.isEmpty ? '暂无记录' : '没有匹配的记录',
-                        style: const TextStyle(color: AppColors.textGrey),
+                        style: const TextStyle(color: Color(0xFF606060)),
                       ),
                     )
                   : ListView(
