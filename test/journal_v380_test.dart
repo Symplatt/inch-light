@@ -753,11 +753,11 @@ void main() {
     await t.pumpAndSettle();
     expect(find.text('软件信息'), findsNothing);
     expect(find.text('一日千录'), findsOneWidget);
-    expect(find.text('版本 3.12.1（构建 54）'), findsOneWidget);
+    expect(find.text('版本 3.12.2（构建 63）'), findsOneWidget);
     expect(find.text('版权所有 © Symplatt'), findsOneWidget);
     final lefts = [
       '一日千录',
-      '版本 3.12.1（构建 54）',
+      '版本 3.12.2（构建 63）',
       '版权所有 © Symplatt',
       '数据保存在本机，可在设置中导出备份。',
     ].map((text) => t.getTopLeft(find.text(text)).dx).toSet();

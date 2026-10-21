@@ -110,11 +110,11 @@ class _FormatPainter extends CustomPainter {
         symbol == JournalFormatSymbol.boldWide) {
       canvas.save();
       if (symbol == JournalFormatSymbol.boldWide) {
-        // The menu glyph has a wider bowl but retains the same vertical grid.
-        canvas.translate(-4.8, 0);
-        canvas.scale(1.4, 1);
+        // Center the menu B on the shared grid with comparable visible area.
+        canvas.translate(-0.7, 1.8);
+        canvas.scale(1.05, .85);
       }
-      paint.strokeWidth = 2.7;
+      paint.strokeWidth = symbol == JournalFormatSymbol.boldWide ? 2.3 : 2.7;
       path(
         Path()
           ..moveTo(7, 4)

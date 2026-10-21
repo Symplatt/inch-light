@@ -163,7 +163,7 @@ void main() {
   );
 
   testWidgets(
-    'File import is directly on settings with inline confirmation and cancellation',
+    'File import opens a confirmation dialog and cancellation preserves data',
     (t) async {
       t.view.physicalSize = const Size(400, 1000);
       t.view.devicePixelRatio = 1;
@@ -195,7 +195,7 @@ void main() {
       await t.ensureVisible(find.text('文件导入'));
       await t.tap(find.text('文件导入'));
       await t.pumpAndSettle();
-      expect(find.byType(AlertDialog), findsNothing);
+      expect(find.byType(AlertDialog), findsOneWidget);
       expect(p.normalTasks, hasLength(1));
       await t.ensureVisible(find.text('取消'));
       await t.tap(find.text('取消'));

@@ -50,3 +50,7 @@ repomix-output.*
 /android/.kotlin/
 /需求变更（git push不上传）.md
 /assets/75022b5bf3cb546b71a48804c16587e9.jpg
+
+# Personal backup snapshots remain local.
+/一日千录更新备份2026-10-21.json
+/一日千录更新备份2026-10-21.md

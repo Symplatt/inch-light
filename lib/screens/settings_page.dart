@@ -16,7 +16,6 @@ class SettingsPage extends StatefulWidget {
 }
 
 class _SettingsPageState extends State<SettingsPage> {
-  String? _pendingImport;
   bool _busy = false;
 
   void _showMessage(BuildContext context, String message) {
@@ -62,7 +61,6 @@ class _SettingsPageState extends State<SettingsPage> {
     if (_busy) return;
     setState(() {
       _busy = true;
-      _pendingImport = null;
     });
     try {
       final text = file
@@ -74,7 +72,29 @@ class _SettingsPageState extends State<SettingsPage> {
       if (text == null || text.trim().isEmpty) {
         if (!file) _showMessage(context, '剪贴板为空');
       } else {
-        setState(() => _pendingImport = text);
+        final confirmed = await showDialog<bool>(
+          context: context,
+          builder: (dialogContext) => AlertDialog(
+            title: const Text('导入备份'),
+            content: const Text('将覆盖备份中包含的数据，请先导出当前数据。'),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(dialogContext, false),
+                child: const Text('取消'),
+              ),
+              TextButton(
+                onPressed: () => Navigator.pop(dialogContext, true),
+                child: const Text(
+                  '确认导入',
+                  style: TextStyle(color: AppColors.danger),
+                ),
+              ),
+            ],
+          ),
+        );
+        if (confirmed == true && mounted) {
+          await _confirmImport(context.read<AppProvider>(), text);
+        }
       }
     } catch (_) {
       if (mounted) _showMessage(context, file ? '文件读取失败，请重试' : '剪贴板读取失败，请重试');
@@ -83,20 +103,14 @@ class _SettingsPageState extends State<SettingsPage> {
     }
   }
 
-  Future<void> _confirmImport(AppProvider provider) async {
-    final text = _pendingImport;
-    if (text == null || _busy) return;
-    setState(() => _busy = true);
+  Future<void> _confirmImport(AppProvider provider, String text) async {
     try {
       final success = await provider.importData(text);
       if (mounted) {
-        setState(() => _pendingImport = null);
         _showMessage(context, success ? '导入成功' : '数据格式错误');
       }
     } catch (_) {
       if (mounted) _showMessage(context, '导入失败，请重试');
-    } finally {
-      if (mounted) setState(() => _busy = false);
     }
   }
 
@@ -149,7 +163,7 @@ class _SettingsPageState extends State<SettingsPage> {
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Text(
-                          '版本 3.12.1（构建 54）',
+                          '版本 3.12.2（构建 63）',
                           style: TextStyle(color: AppColors.textGrey),
                         ),
                         SizedBox(height: 16),
@@ -167,7 +181,7 @@ class _SettingsPageState extends State<SettingsPage> {
                     onPressed: () => showLicensePage(
                       context: dialogContext,
                       applicationName: '一日千录',
-                      applicationVersion: '3.12.1',
+                      applicationVersion: '3.12.2',
                       applicationLegalese: '版权所有 © Symplatt',
                     ),
                     child: const Text('开源许可'),
@@ -269,38 +283,6 @@ class _SettingsPageState extends State<SettingsPage> {
                       () => _readImport(file: false),
                     ),
                     _dataDivider(),
-                    if (_pendingImport != null)
-                      Padding(
-                        padding: const EdgeInsets.all(16),
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            const Text('将覆盖备份中包含的数据，请先导出当前数据。'),
-                            Row(
-                              mainAxisAlignment: MainAxisAlignment.end,
-                              children: [
-                                TextButton(
-                                  onPressed: _busy
-                                      ? null
-                                      : () => setState(
-                                          () => _pendingImport = null,
-                                        ),
-                                  child: const Text('取消'),
-                                ),
-                                TextButton(
-                                  onPressed: _busy
-                                      ? null
-                                      : () => _confirmImport(provider),
-                                  child: const Text(
-                                    '确认导入',
-                                    style: TextStyle(color: AppColors.danger),
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ],
-                        ),
-                      ),
                     const Padding(
                       padding: EdgeInsets.fromLTRB(20, 14, 20, 16),
                       child: Align(

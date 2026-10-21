@@ -610,7 +610,7 @@ class AppProvider with ChangeNotifier, WidgetsBindingObserver {
 
   Future<bool> importData(String jsonString) async {
     try {
-      final Map<String, dynamic> data = jsonDecode(jsonString);
+      final Map<String, dynamic> data = jsonDecode(jsonString.trim());
       // Parse all sections first: malformed backups must never partially replace data.
       List<T> parse<T>(
         String key,

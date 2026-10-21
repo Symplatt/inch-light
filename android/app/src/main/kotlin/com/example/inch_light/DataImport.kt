@@ -2,6 +2,7 @@ package com.example.inch_light
 
 import android.app.Activity
 import android.content.Intent
+import android.provider.DocumentsContract
 import io.flutter.plugin.common.MethodChannel
 
 class DataImport(private val activity: Activity) {
@@ -14,8 +15,11 @@ class DataImport(private val activity: Activity) {
         try {
             activity.startActivityForResult(Intent(Intent.ACTION_OPEN_DOCUMENT).apply {
                 addCategory(Intent.CATEGORY_OPENABLE)
+                putExtra(Intent.EXTRA_ALLOW_MULTIPLE, false)
+                putExtra(DocumentsContract.EXTRA_INITIAL_URI,
+                    DocumentsContract.buildDocumentUri("com.android.externalstorage.documents", "primary:inch-light"))
                 type = "*/*"
-                putExtra(Intent.EXTRA_MIME_TYPES, arrayOf("application/json", "text/plain", "application/octet-stream"))
+                putExtra(Intent.EXTRA_MIME_TYPES, arrayOf("application/json", "text/plain", "text/markdown", "text/x-markdown", "application/octet-stream"))
                 addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
             }, REQUEST)
         } catch (_: Exception) {
@@ -27,7 +31,10 @@ class DataImport(private val activity: Activity) {
     fun onResult(code: Int, data: Intent?) {
         val result = pending ?: return
         pending = null
-        val uri = data?.data
+        // Some document providers return a single selection through ClipData.
+        val uri = data?.data ?: data?.clipData?.let {
+            if (it.itemCount == 1) it.getItemAt(0).uri else null
+        }
         if (code != Activity.RESULT_OK || uri == null) { result.success(null); return }
         BackupRetention.executor.execute {
             try {

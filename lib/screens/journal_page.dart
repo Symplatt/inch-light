@@ -435,6 +435,10 @@ class _JournalPageState extends State<_JournalView> {
         builder: (context, _) {
           final folders = provider.journalCollections;
           Widget tile(String? id, String name) => ListTile(
+            contentPadding: EdgeInsets.zero,
+            dense: true,
+            visualDensity: VisualDensity.compact,
+            minVerticalPadding: 8,
             title: Text(name),
             trailing: Text(
               '${provider.journalEntries.where((e) => id == null ? e.collectionId == null : e.collectionId == id).length}',

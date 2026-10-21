@@ -123,7 +123,11 @@ void main() {
             }
           }
           expect((top + bottom + 1) / 8, closeTo(12, .5), reason: symbol.name);
-          expect((bottom + 1 - top) / 4, closeTo(18, 1), reason: symbol.name);
+          expect(
+            (bottom + 1 - top) / 4,
+            closeTo(symbol == JournalFormatSymbol.boldWide ? 15.5 : 18, 1),
+            reason: symbol.name,
+          );
           image.dispose();
         });
       }

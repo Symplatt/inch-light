@@ -32,8 +32,8 @@ void main() {
     collectionId: folder,
     isPinned: pinned,
     titleBold: true,
-    createdAt: DateTime(2026, 10, day),
-    updatedAt: DateTime(2026, 10, day),
+    createdAt: DateTime.now().add(Duration(days: day)),
+    updatedAt: DateTime.now().add(Duration(days: day)),
   );
   Future<AppProvider> mount(WidgetTester t, Widget page) async {
     t.view.physicalSize = const Size(390, 844);

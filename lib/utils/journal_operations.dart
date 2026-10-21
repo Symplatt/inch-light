@@ -157,6 +157,10 @@ List<_Atom> _removeLeadingPunctuation(List<_Atom> atoms) {
   var leading = true;
   return atoms.where((atom) {
     if (!leading) return true;
+    if (atom.attributes['code'] == true) {
+      leading = false;
+      return true;
+    }
     if (_space(atom)) return true;
     final value = atom.value;
     if (value is String &&
@@ -169,6 +173,129 @@ List<_Atom> _removeLeadingPunctuation(List<_Atom> atoms) {
     leading = false;
     return true;
   }).toList();
+}
+
+bool _closingMark(_Atom atom) =>
+    RegExp(r'''^[\p{Pe}\p{Pf}"'＂＇」』]$''', unicode: true).hasMatch(atom.value);
+
+bool _sentenceTerminator(dynamic value) =>
+    value is String && RegExp(r'^[。.!?！？…]$').hasMatch(value);
+
+bool _sentenceBeforePair(List<_Atom> atoms, int end) {
+  const openingFor = {
+    '）': '（',
+    ')': '(',
+    '】': '【',
+    ']': '[',
+    '}': '{',
+    '》': '《',
+    '〉': '〈',
+    '］': '［',
+    '｝': '｛',
+    '〕': '〔',
+    '〗': '〖',
+    '〙': '〘',
+    '〛': '〚',
+    '｠': '｟',
+    '”': '“',
+    '’': '‘',
+    '」': '「',
+    '』': '『',
+    '»': '«',
+    '›': '‹',
+    '"': '"',
+    "'": "'",
+    '＂': '＂',
+    '＇': '＇',
+  };
+  final closing = atoms[end].value;
+  final opening = openingFor[closing];
+  if (opening == null) return false;
+  var depth = 1;
+  for (var i = end - 1; i >= 0; i--) {
+    final atom = atoms[i];
+    if (atom.attributes['code'] == true) continue;
+    if (atom.value == opening) {
+      depth--;
+      if (depth == 0) {
+        var before = i - 1;
+        while (before >= 0 &&
+            _space(atoms[before]) &&
+            atoms[before].attributes['code'] != true) {
+          before--;
+        }
+        return before >= 0 &&
+            atoms[before].attributes['code'] != true &&
+            _sentenceTerminator(atoms[before].value);
+      }
+    } else if (atom.value == closing) {
+      depth++;
+    }
+  }
+  return false;
+}
+
+void _normalizeSentenceEnding(List<_Atom> atoms) {
+  var last = atoms.lastIndexWhere((a) => !_space(a));
+  if (last < 0) return;
+  final first = atoms.firstWhere((a) => !_space(a));
+  const quotes = {
+    '“': '”',
+    '‘': '’',
+    '「': '」',
+    '『': '』',
+    '"': '"',
+    "'": "'",
+    '＂': '＂',
+    '＇': '＇',
+  };
+  final closing = quotes[first.value];
+  if (first.attributes['code'] != true && closing != null) {
+    final start = atoms.indexOf(first);
+    final hasClosing = atoms
+        .skip(start + 1)
+        .any((a) => a.value == closing && a.attributes['code'] != true);
+    if (!hasClosing) {
+      atoms.insert(last + 1, _Atom(closing, first.attributes));
+      last++;
+    }
+  }
+
+  // A trailing aside may follow an already complete sentence. Match its
+  // opening mark rather than treating any earlier punctuation as sentence end.
+  var enclosed = last;
+  while (enclosed >= 0 &&
+      ['。', '.'].contains(atoms[enclosed].value) &&
+      atoms[enclosed].attributes['code'] != true) {
+    enclosed--;
+  }
+  final closingEnd = enclosed;
+  while (enclosed >= 0 &&
+      _closingMark(atoms[enclosed]) &&
+      atoms[enclosed].attributes['code'] != true) {
+    enclosed--;
+  }
+  final internallyFinished =
+      enclosed < closingEnd &&
+      enclosed >= 0 &&
+      _sentenceTerminator(atoms[enclosed].value) &&
+      atoms[enclosed].attributes['code'] != true;
+  final afterSentence = [
+    for (var end = closingEnd; end > enclosed; end--)
+      _sentenceBeforePair(atoms, end),
+  ].any((finished) => finished);
+  if (internallyFinished || afterSentence) {
+    atoms.removeRange(closingEnd + 1, last + 1);
+    return;
+  }
+  // Inline code is opaque, including its leading/trailing punctuation. Do not
+  // append a sentence period to a code-ending paragraph or inherit code style.
+  final tail = atoms[last];
+  if (tail.attributes['code'] == true) return;
+  if (_closingMark(tail) ||
+      !RegExp(r'^[\p{P}\p{S}]$', unicode: true).hasMatch(tail.value)) {
+    atoms.insert(last + 1, _Atom('。', tail.attributes));
+  }
 }
 
 String transformJournalText(String text, JournalOperation operation) {
@@ -280,7 +407,8 @@ List<dynamic> transformJournalDocument(
         };
       }
     }
-    if (operation == JournalOperation.removeLeadingPunctuation) {
+    if (operation == JournalOperation.removeLeadingPunctuation &&
+        !line.attributes.containsKey('code-block')) {
       line.atoms = _removeLeadingPunctuation(line.atoms);
     }
     if ((operation == JournalOperation.addSentencePeriods ||
@@ -288,18 +416,7 @@ List<dynamic> transformJournalDocument(
         !line.blank &&
         line.atoms.every((a) => a.value is String) &&
         !['header', 'code-block'].any(line.attributes.containsKey)) {
-      final last = line.atoms.lastIndexWhere((a) => !_space(a));
-      if (last >= 0 &&
-          (RegExp(
-                r'''^[\p{Pe}\p{Pf}"'＂＇」』]$''',
-                unicode: true,
-              ).hasMatch(line.atoms[last].value) ||
-              !RegExp(
-                r'^[\p{P}\p{S}]$',
-                unicode: true,
-              ).hasMatch(line.atoms[last].value))) {
-        line.atoms.insert(last + 1, _Atom('。', line.atoms[last].attributes));
-      }
+      _normalizeSentenceEnding(line.atoms);
     }
     if (operation == JournalOperation.normalizeSpaces) {
       line.atoms = _normalize(line.atoms);
