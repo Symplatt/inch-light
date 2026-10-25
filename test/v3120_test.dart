@@ -154,7 +154,8 @@ void main() {
     expect(t.getCenter(find.byIcon(Icons.help_outline)).dx, closeTo(x, .1));
     await t.tap(find.byTooltip('软件信息'));
     await t.pumpAndSettle();
-    expect(find.textContaining('固定合集不会自动移除'), findsOneWidget);
+    expect(find.textContaining('固定合集不会自动移除'), findsNothing);
+    expect(find.text('版本 3.13.3（构建 73）'), findsOneWidget);
     await t.pumpWidget(const SizedBox());
     p.dispose();
   });

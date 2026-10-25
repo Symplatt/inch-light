@@ -1,5 +1,6 @@
 import 'package:flutter_quill/flutter_quill.dart' as quill;
 import 'package:flutter/services.dart';
+import '../constants/journal_colors.dart';
 
 /// Applies a completed line-start shortcut from either a software or hardware
 /// keyboard. It leaves pasted prose and markers in the middle of a line alone.
@@ -47,7 +48,7 @@ bool _inlineShortcut(
     ('**', [quill.Attribute.bold]),
     ('__', [quill.Attribute.bold]),
     ('~~', [quill.Attribute.strikeThrough]),
-    ('==', [const quill.BackgroundAttribute('#E6E6E6')]),
+    ('==', [const quill.BackgroundAttribute(journalHighlightHex)]),
     ('*', [quill.Attribute.italic]),
     ('_', [quill.Attribute.italic]),
     ('`', [quill.Attribute.inlineCode]),

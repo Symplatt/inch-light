@@ -173,95 +173,92 @@ class _JournalImagePageState extends State<_JournalImageView> {
                 child: SingleChildScrollView(
                   child: RepaintBoundary(
                     key: _capture,
-                    child: JournalGrayscale(
-                      child: ColoredBox(
-                        color: Colors.white,
-                        child: Padding(
-                          key: const ValueKey('image-page-padding'),
-                          padding: EdgeInsets.fromLTRB(
-                            _settings.sideMargin,
-                            _settings.topMargin,
-                            _settings.sideMargin,
-                            _settings.bottomMargin,
-                          ),
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.stretch,
-                            children: [
-                              if (widget.entry.title.isNotEmpty) ...[
-                                Text(
-                                  widget.entry.title,
-                                  style: TextStyle(
-                                    fontSize: _settings.fontSize * 30 / 18,
-                                    letterSpacing: _settings.letterSpacing,
-                                    height: 1.4,
-                                    color: const Color(0xFF3D3D3D),
-                                    fontWeight: widget.entry.titleBold
-                                        ? FontWeight.w600
-                                        : FontWeight.w400,
-                                  ),
+                    child: ColoredBox(
+                      color: Colors.white,
+                      child: Padding(
+                        key: const ValueKey('image-page-padding'),
+                        padding: EdgeInsets.fromLTRB(
+                          _settings.sideMargin,
+                          _settings.topMargin,
+                          _settings.sideMargin,
+                          _settings.bottomMargin,
+                        ),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.stretch,
+                          children: [
+                            if (widget.entry.title.isNotEmpty) ...[
+                              Text(
+                                widget.entry.title,
+                                style: TextStyle(
+                                  fontSize: _settings.fontSize * 30 / 18,
+                                  letterSpacing: _settings.letterSpacing,
+                                  height: 1.4,
+                                  color: const Color(0xFF3D3D3D),
+                                  fontWeight: widget.entry.titleBold
+                                      ? FontWeight.w600
+                                      : FontWeight.w400,
                                 ),
-                                const SizedBox(height: 20),
-                              ],
-                              if (!_settings.hideMetadata)
-                                Text(
-                                  '${DateFormat('M月d日 HH:mm').format(widget.entry.updatedAt)}  |  ${widget.entry.wordCount}字',
-                                  key: const ValueKey('image-metadata'),
-                                  style: const TextStyle(
-                                    fontSize: 14,
-                                    color: Color(0xFF999999),
-                                  ),
-                                ),
-                              if (widget.entry.tags.isNotEmpty) ...[
-                                const SizedBox(height: 16),
-                                JournalTags(tags: widget.entry.tags),
-                              ],
+                              ),
                               const SizedBox(height: 20),
-                              quill.QuillEditor(
-                                controller: _controller,
-                                focusNode: _focus,
-                                scrollController: _scroll,
-                                config: quill.QuillEditorConfig(
-                                  scrollable: false,
-                                  padding: EdgeInsets.zero,
-                                  showCursor: false,
-                                  enableInteractiveSelection: false,
-                                  customStyles: journalStyles(
+                            ],
+                            if (!_settings.hideMetadata)
+                              Text(
+                                '${DateFormat('M月d日 HH:mm').format(widget.entry.updatedAt)}  |  ${widget.entry.wordCount}字',
+                                key: const ValueKey('image-metadata'),
+                                style: const TextStyle(
+                                  fontSize: 14,
+                                  color: Color(0xFF999999),
+                                ),
+                              ),
+                            if (widget.entry.tags.isNotEmpty) ...[
+                              const SizedBox(height: 16),
+                              JournalTags(tags: widget.entry.tags),
+                            ],
+                            const SizedBox(height: 20),
+                            quill.QuillEditor(
+                              controller: _controller,
+                              focusNode: _focus,
+                              scrollController: _scroll,
+                              config: quill.QuillEditorConfig(
+                                scrollable: false,
+                                padding: EdgeInsets.zero,
+                                showCursor: false,
+                                enableInteractiveSelection: false,
+                                customStyles: journalStyles(
+                                  fontSize: _settings.fontSize,
+                                  letterSpacing: _settings.letterSpacing,
+                                  lineHeight: _settings.lineHeight,
+                                  paragraphSpacing: _settings.paragraphSpacing,
+                                ),
+                                textSpanBuilder: journalSpan,
+                                // ignore: experimental_member_use
+                                customLeadingBlockBuilder: (node, config) =>
+                                    journalLeading(
+                                      context,
+                                      node,
+                                      config,
+                                      readOnly: true,
+                                      textStyle:
+                                          journalBlock(
+                                            _settings.fontSize,
+                                          ).style.copyWith(
+                                            letterSpacing:
+                                                _settings.letterSpacing,
+                                            height: _settings.lineHeight,
+                                          ),
+                                    ),
+                                embedBuilders: [
+                                  const JournalDividerBuilder(),
+                                  JournalTableBuilder(
+                                    onChanged: (_) {},
                                     fontSize: _settings.fontSize,
                                     letterSpacing: _settings.letterSpacing,
                                     lineHeight: _settings.lineHeight,
-                                    paragraphSpacing:
-                                        _settings.paragraphSpacing,
                                   ),
-                                  textSpanBuilder: journalSpan,
-                                  // ignore: experimental_member_use
-                                  customLeadingBlockBuilder: (node, config) =>
-                                      journalLeading(
-                                        context,
-                                        node,
-                                        config,
-                                        readOnly: true,
-                                        textStyle:
-                                            journalBlock(
-                                              _settings.fontSize,
-                                            ).style.copyWith(
-                                              letterSpacing:
-                                                  _settings.letterSpacing,
-                                              height: _settings.lineHeight,
-                                            ),
-                                      ),
-                                  embedBuilders: [
-                                    const JournalDividerBuilder(),
-                                    JournalTableBuilder(
-                                      onChanged: (_) {},
-                                      fontSize: _settings.fontSize,
-                                      letterSpacing: _settings.letterSpacing,
-                                      lineHeight: _settings.lineHeight,
-                                    ),
-                                  ],
-                                ),
+                                ],
                               ),
-                            ],
-                          ),
+                            ),
+                          ],
                         ),
                       ),
                     ),

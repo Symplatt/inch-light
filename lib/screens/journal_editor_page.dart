@@ -4,6 +4,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import '../widgets/journal_image_settings.dart';
 import '../widgets/journal_chain_dialog.dart';
 import '../utils/clipboard.dart';
+import '../constants/journal_colors.dart';
 import 'dart:async';
 import 'dart:convert';
 
@@ -1026,6 +1027,7 @@ class JournalFormatBar extends StatelessWidget {
     if (attribute == quill.Attribute.leftAlignment) {
       return value == null || value == 'left';
     }
+    if (attribute.key == quill.Attribute.background.key) return value != null;
     return value == attribute.value;
   }
 
@@ -1230,7 +1232,9 @@ class JournalFormatBar extends StatelessWidget {
                 button(
                   '高亮',
                   const JournalFormatIcon(JournalFormatSymbol.highlight),
-                  attribute: const quill.BackgroundAttribute('#E6E6E6'),
+                  attribute: const quill.BackgroundAttribute(
+                    journalHighlightHex,
+                  ),
                 ),
                 button(
                   '分隔线',

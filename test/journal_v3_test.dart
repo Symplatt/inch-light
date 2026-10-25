@@ -245,7 +245,7 @@ void main() {
       expect(titleStyle.fontWeight, FontWeight.w500);
       expect(titleStyle.color, const Color(0xFF3D3D3D));
       expect(tester.widget<Text>(find.text('合集甲')).style, titleStyle);
-      expect(tagStyle.fontSize, 10);
+      expect(tagStyle.fontSize, 9);
       expect(tagStyle.color, const Color(0xFF767676));
       await tester.enterText(
         find.byKey(const ValueKey('record-search')),

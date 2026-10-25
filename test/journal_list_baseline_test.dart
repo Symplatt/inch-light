@@ -11,11 +11,18 @@ void main() {
     'Adding English to a Han list item preserves row baselines and height',
     (t) async {
       var hasFonts = false;
+      var sdk = File(Platform.resolvedExecutable).parent;
+      while (sdk.parent.path != sdk.path &&
+          !File(
+            '${sdk.path}/bin/cache/artifacts/material_fonts/roboto-regular.ttf',
+          ).existsSync()) {
+        sdk = sdk.parent;
+      }
       if (File('C:/Windows/Fonts/msyh.ttc').existsSync()) {
         for (final (family, path) in [
           (
             'ListLatin',
-            'C:/Users/CJZ/.cache/inch-light-tools/flutter/bin/cache/artifacts/material_fonts/roboto-regular.ttf',
+            '${sdk.path}/bin/cache/artifacts/material_fonts/roboto-regular.ttf',
           ),
           ('ListHan', 'C:/Windows/Fonts/msyh.ttc'),
         ]) {

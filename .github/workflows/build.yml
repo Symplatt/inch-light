@@ -24,7 +24,7 @@ jobs:
           channel: stable
           cache: true
       - run: flutter pub get
-      - run: flutter test test/journal_v3132_test.dart test/journal_v1131_test.dart
+      - run: flutter test test/journal_v3133_test.dart
       - run: flutter build apk --release --split-per-abi
       - uses: actions/upload-artifact@v4
         with:

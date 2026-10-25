@@ -113,8 +113,12 @@ List<_Atom> _normalize(List<_Atom> atoms) {
     }
     var start = i;
     var last = end;
-    while (start < last && _space(atoms[start])) start++;
-    while (last > start && _space(atoms[last - 1])) last--;
+    while (start < last && _space(atoms[start])) {
+      start++;
+    }
+    while (last > start && _space(atoms[last - 1])) {
+      last--;
+    }
     trimmed.addAll(atoms.sublist(start, last));
     i = end;
   }

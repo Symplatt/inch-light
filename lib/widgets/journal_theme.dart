@@ -1,38 +1,5 @@
 import 'package:flutter/material.dart';
 
-/// Keep note presentation monochrome without rewriting stored rich text.
-class JournalGrayscale extends StatelessWidget {
-  const JournalGrayscale({super.key, required this.child});
-  final Widget child;
-
-  @override
-  Widget build(BuildContext context) => ColorFiltered(
-    colorFilter: const ColorFilter.matrix([
-      .2126,
-      .7152,
-      .0722,
-      0,
-      0,
-      .2126,
-      .7152,
-      .0722,
-      0,
-      0,
-      .2126,
-      .7152,
-      .0722,
-      0,
-      0,
-      0,
-      0,
-      0,
-      1,
-      0,
-    ]),
-    child: child,
-  );
-}
-
 class JournalTheme extends StatelessWidget {
   const JournalTheme({super.key, required this.child});
   final Widget child;
@@ -79,7 +46,7 @@ class JournalTheme extends StatelessWidget {
           surfaceTintColor: Colors.transparent,
         ),
       ),
-      child: JournalGrayscale(child: child),
+      child: child,
     );
   }
 }

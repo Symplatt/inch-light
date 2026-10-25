@@ -1,4 +1,3 @@
-import '../constants/app_usage_guide.dart';
 import '../utils/clipboard.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/foundation.dart';
@@ -258,15 +257,13 @@ class _SettingsPageState extends State<SettingsPage> {
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Text(
-                          '版本 3.13.2（构建 71）',
+                          '版本 3.13.3（构建 73）',
                           style: TextStyle(color: AppColors.textGrey),
                         ),
                         SizedBox(height: 16),
                         Text('版权所有 © Symplatt'),
                         SizedBox(height: 16),
                         Text('数据保存在本机，可在设置中导出备份。'),
-                        SizedBox(height: 16),
-                        Text(appUsageGuide),
                       ],
                     ),
                   ),
@@ -276,7 +273,7 @@ class _SettingsPageState extends State<SettingsPage> {
                     onPressed: () => showLicensePage(
                       context: dialogContext,
                       applicationName: '一日千录',
-                      applicationVersion: '3.13.2',
+                      applicationVersion: '3.13.3',
                       applicationLegalese: '版权所有 © Symplatt',
                     ),
                     child: const Text('开源许可'),

@@ -8,6 +8,7 @@ import '../models/journal_entry.dart';
 import '../providers/app_provider.dart';
 import '../widgets/journal_tags.dart';
 import '../widgets/journal_collection_dialog.dart';
+import '../widgets/journal_collection_strip.dart';
 import '../widgets/position_border.dart';
 import '../widgets/journal_export_icon.dart';
 import '../widgets/swipe_delete_card.dart';
@@ -450,6 +451,10 @@ class _JournalPageState extends State<_JournalView> {
             },
           );
           return AlertDialog(
+            alignment: Alignment.center,
+            constraints: BoxConstraints(
+              maxHeight: MediaQuery.sizeOf(context).height * .65,
+            ),
             title: Text('合集 · ${folders.length + 1}'),
             content: SizedBox(
               width: double.maxFinite,
@@ -779,22 +784,18 @@ class _JournalPageState extends State<_JournalView> {
             ),
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: 16),
-              child: SingleChildScrollView(
-                key: const ValueKey('collection-tabs'),
-                scrollDirection: Axis.horizontal,
-                padding: const EdgeInsets.only(bottom: 12),
-                child: Row(
-                  children: [
-                    _collectionTab(null, '默认'),
-                    for (final folder in collections)
-                      _collectionTab(folder.id, folder.title, folder: folder),
-                    IconButton(
-                      tooltip: '查看合集列表',
-                      onPressed: _showCollections,
-                      icon: const Icon(Icons.view_list_outlined),
-                    ),
-                  ],
-                ),
+              child: JournalCollectionStrip(
+                onOpenCollections: _showCollections,
+                children: [
+                  _collectionTab(null, '默认'),
+                  for (final folder in collections)
+                    _collectionTab(folder.id, folder.title, folder: folder),
+                  IconButton(
+                    tooltip: '查看合集列表',
+                    onPressed: _showCollections,
+                    icon: const Icon(Icons.view_list_outlined),
+                  ),
+                ],
               ),
             ),
             Expanded(

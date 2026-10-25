@@ -289,7 +289,7 @@ void main() {
         ('无序列表', 'list', 'bullet'),
         ('倾斜', 'italic', true),
         ('删除线', 'strike', true),
-        ('高亮', 'background', '#E6E6E6'),
+        ('高亮', 'background', '#FFF2A8'),
         ('居中对齐', 'align', 'center'),
         ('左对齐', 'align', 'left'),
         ('右对齐', 'align', 'right'),

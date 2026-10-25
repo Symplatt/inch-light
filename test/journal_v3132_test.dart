@@ -84,7 +84,7 @@ void main() {
         document: [
           {
             'insert':
-                List.generate(55, (i) => '第$i行 hello world').join('\n') + '\n',
+                '${List.generate(55, (i) => '第$i行 hello world').join('\n')}\n',
           },
         ],
       );

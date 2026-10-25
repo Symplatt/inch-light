@@ -125,7 +125,8 @@ void main() {
           (w) => w is Text && (w.data?.contains('字') ?? false),
         ),
       );
-      expect(t.getSize(tags).height, closeTo(t.getSize(text).height, .01));
+      expect(t.getSize(tags).height, 12);
+      expect(t.getSize(tags).height, lessThan(t.getSize(text).height));
       await t.longPress(card);
       await t.pumpAndSettle();
       await t.tap(find.text('置顶'));

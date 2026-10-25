@@ -2,6 +2,7 @@ import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_quill/flutter_quill.dart' as quill;
 import '../models/journal_table.dart';
+import '../constants/journal_colors.dart';
 import 'journal_table.dart';
 
 quill.DefaultTextBlockStyle journalBlock(double size) =>
@@ -76,6 +77,33 @@ InlineSpan journalSpan(
   TextStyle? style,
   GestureRecognizer? recognizer,
 ) {
+  Color? gray(Color? color) {
+    if (color == null) return null;
+    final luminance = .2126 * color.r + .7152 * color.g + .0722 * color.b;
+    return Color.from(
+      alpha: color.a,
+      red: luminance,
+      green: luminance,
+      blue: luminance,
+    );
+  }
+
+  // Convert text colors here rather than filtering the whole page, so yellow
+  // highlights also survive the image export's repaint boundary.
+  style = style?.copyWith(
+    color: gray(style.color),
+    decorationColor: gray(style.decorationColor),
+    backgroundColor: gray(style.backgroundColor),
+  );
+  // Display the previous built-in gray highlight in yellow without rewriting
+  // saved documents; other imported colors keep their previous gray display.
+  final background = node.style.attributes['background']?.value;
+  if (background is String &&
+      ['#E6E6E6', journalHighlightHex].contains(background.toUpperCase())) {
+    style = (style ?? const TextStyle()).copyWith(
+      backgroundColor: journalHighlightColor,
+    );
+  }
   final line = node is quill.Line ? node : node.parent;
   if (line?.style.attributes['header'] != null) {
     style = style?.copyWith(fontWeight: FontWeight.w700);

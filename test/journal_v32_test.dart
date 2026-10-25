@@ -92,7 +92,7 @@ void main() {
             ('__加粗__', '加粗', 'bold', true),
             ('*倾斜*', '倾斜', 'italic', true),
             ('~~删除~~', '删除', 'strike', true),
-            ('==高亮==', '高亮', 'background', '#E6E6E6'),
+            ('==高亮==', '高亮', 'background', '#FFF2A8'),
             ('`代码`', '代码', 'code', true),
           ]) {
         final c = quill.QuillController(
