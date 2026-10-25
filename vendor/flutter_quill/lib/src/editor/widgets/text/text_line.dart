@@ -187,8 +187,29 @@ class _TextLineState extends State<TextLine> {
     if (inCode) padding.add(InlineCodePadding(offset, leading: false));
     _inlineCodeOffsets = InlineCodeOffsetMapping(padding);
     final textSpan = _getTextSpanForWholeLine();
+    final isList = widget.line.style.attributes.containsKey(Attribute.list.key);
+    var strutTextStyle = textSpan.style ?? const TextStyle();
+    if (isList) {
+      var maximumSize = strutTextStyle.fontSize ?? 18;
+      void includeSpan(InlineSpan span, TextStyle inherited) {
+        final style = inherited.merge(span.style);
+        final size = style.fontSize ?? maximumSize;
+        if (size > maximumSize) maximumSize = size;
+        if (span is TextSpan) {
+          for (final child in span.children ?? const <InlineSpan>[]) {
+            includeSpan(child, style);
+          }
+        }
+      }
+
+      includeSpan(textSpan, strutTextStyle);
+      strutTextStyle = strutTextStyle.copyWith(fontSize: maximumSize);
+    }
+    // Font fallback must not move a list row when Latin text joins Han text.
+    // Reserve the largest explicit inline size so styled text still fits.
     final strutStyle = StrutStyle.fromTextStyle(
-      textSpan.style ?? const TextStyle(),
+      strutTextStyle,
+      forceStrutHeight: isList,
     );
     final textAlign = _getTextAlign();
     final child = RichText(
@@ -354,7 +375,7 @@ class _TextLineState extends State<TextLine> {
           semanticsLabel: '',
           style: TextStyle(
             fontSize: 0,
-            letterSpacing: 10 * scale,
+            letterSpacing: (leading && position == 0 ? 7 : 10) * scale,
             wordSpacing: 0,
             color: Colors.transparent,
             backgroundColor: Colors.transparent,
@@ -1410,9 +1431,13 @@ class RenderEditableTextLine extends RenderEditableBox {
         : _resolvedPadding!.right;
 
     _body!.layout(innerConstraints, parentUsesSize: true);
+    final checklist = [
+      'checked',
+      'unchecked',
+    ].contains(line.style.attributes[Attribute.list.key]?.value);
     (_body!.parentData as BoxParentData).offset = Offset(
       _resolvedPadding!.left,
-      _resolvedPadding!.top,
+      _resolvedPadding!.top - (checklist ? 2 : 0),
     );
 
     if (_leading != null) {
@@ -1430,7 +1455,10 @@ class RenderEditableTextLine extends RenderEditableBox {
         final bodyBaseline = _body!.getDistanceToBaseline(
           TextBaseline.alphabetic,
         );
-        final markerBaseline = _leading!.getDistanceToBaseline(
+        // A marker can be reparented while a list block is split. Measure its
+        // baseline from constraints rather than reading a pending child layout.
+        final markerBaseline = _leading!.getDryBaseline(
+          leadingConstraints,
           TextBaseline.alphabetic,
         );
         if (bodyBaseline != null && markerBaseline != null) {
@@ -1538,8 +1566,12 @@ class RenderEditableTextLine extends RenderEditableBox {
               ? 3.0
               : 3 * paragraph.textScaler.scale(fontSize) / fontSize;
           for (var index = 0; index < rects.length; index++) {
-            final rect = rects[index].translate(0, 1).shift(effectiveOffset);
-            final left = rect.left + (index == 0 ? gap : 0);
+            final rect = rects[index].shift(effectiveOffset);
+            // Text boxes start halfway through the invisible spacing glyph.
+            // Include its leading half so a paragraph-start background is at x=0.
+            final left =
+                rect.left +
+                (index == 0 ? (range.start == 0 ? -gap * 7 / 6 : gap) : 0);
             final right = rect.right - (index == rects.length - 1 ? gap : 0);
             if (inlineCodeStyle.radius == null) {
               final paintRect = Rect.fromLTRB(

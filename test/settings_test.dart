@@ -31,8 +31,12 @@ void main() {
     expect(find.byIcon(Icons.import_export_rounded), findsNothing);
     await tester.tap(find.text('设置').last);
     await tester.pumpAndSettle();
+    await tester.drag(find.byType(ListView).last, const Offset(0, -500));
+    await tester.pumpAndSettle();
     expect(find.text('导出备份'), findsOneWidget);
     expect(find.text('粘贴导入'), findsOneWidget);
+    await tester.drag(find.byType(ListView).last, const Offset(0, 500));
+    await tester.pumpAndSettle();
     for (final looseFirst in [false, true]) {
       await tester.tap(find.text(looseFirst ? '零散事项在上' : '事项合集在上'));
       await tester.pumpAndSettle();
@@ -107,6 +111,8 @@ void main() {
     );
     await tester.pumpAndSettle();
     await tester.tap(find.text('设置').last);
+    await tester.pumpAndSettle();
+    await tester.drag(find.byType(ListView).last, const Offset(0, -500));
     await tester.pumpAndSettle();
     await Scrollable.ensureVisible(
       tester.element(find.text('导出备份')),

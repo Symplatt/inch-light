@@ -5,19 +5,8 @@ class JournalTags extends StatelessWidget {
   final List<String> tags;
   final bool compact;
   static double compactHeight(BuildContext context) {
-    final painter = TextPainter(
-      text: TextSpan(
-        text: '日期 00字',
-        style: DefaultTextStyle.of(
-          context,
-        ).style.merge(const TextStyle(fontSize: 12)),
-      ),
-      textDirection: TextDirection.ltr,
-      textScaler: MediaQuery.textScalerOf(context),
-    )..layout();
-    final height = painter.height;
-    painter.dispose();
-    return height;
+    // Match the metadata's nominal glyph height, without its line leading.
+    return MediaQuery.textScalerOf(context).scale(12);
   }
 
   @override
@@ -41,7 +30,8 @@ class JournalTags extends StatelessWidget {
               tag,
               style: TextStyle(
                 color: Color(compact ? 0xFF767676 : 0xFF252525),
-                fontSize: compact ? 10 : 13,
+                fontSize: compact ? 9 : 13,
+                height: compact ? 1 : null,
                 fontWeight: FontWeight.w400,
               ),
             ),

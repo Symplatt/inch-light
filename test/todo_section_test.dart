@@ -41,9 +41,11 @@ void main() {
     }
     await tester.tap(find.text('设置').last);
     await tester.pumpAndSettle();
+    expect(find.text('事项顺序'), findsOneWidget);
+    await tester.drag(find.byType(ListView).last, const Offset(0, -500));
+    await tester.pumpAndSettle();
     expect(find.text('导出备份'), findsOneWidget);
     expect(find.text('粘贴导入'), findsOneWidget);
-    expect(find.text('事项顺序'), findsOneWidget);
     for (final label in ['本地备份', '每日自动备份', '读取本地备份']) {
       expect(find.text(label), findsNothing);
     }

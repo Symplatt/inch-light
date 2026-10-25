@@ -616,6 +616,8 @@ class QuillRawEditorState extends EditorState
       _disableScrollControllerAnimateOnce = true;
       final currentSelection = controller.selection.copyWith();
       final attribute = value ? Attribute.checked : Attribute.unchecked;
+      final previousIgnoreFocus = controller.ignoreFocusOnTextChange;
+      final previousSkipKeyboard = controller.skipRequestKeyboard;
 
       // The same tap also fires the editor's selection gesture (onSingleTapUp), which
       // would move the caret to this line. Ignore that gesture-driven change so the
@@ -636,10 +638,16 @@ class QuillRawEditorState extends EditorState
         // Fallback: clear the guard (in case the gesture never fired) and restore the
         // selection in case it moved despite it.
         _ignoreCheckboxTapSelectionChange = false;
+        if (!mounted) return;
+        // Restoring the selection is part of the checkbox edit, not a request
+        // to open an input connection when the keyboard was already hidden.
         controller
-          ..ignoreFocusOnTextChange = false
+          ..ignoreFocusOnTextChange = true
           ..skipRequestKeyboard = !requestKeyboardFocusOnCheckListChanged
           ..updateSelection(currentSelection, ChangeSource.local);
+        controller
+          ..ignoreFocusOnTextChange = previousIgnoreFocus
+          ..skipRequestKeyboard = previousSkipKeyboard;
       });
     }
   }
@@ -874,7 +882,28 @@ class QuillRawEditorState extends EditorState
     } else if (attrs.containsKey(Attribute.indent.key)) {
       return defaultStyles!.indent!.verticalSpacing;
     } else if (attrs.containsKey(Attribute.list.key)) {
-      return defaultStyles!.lists!.verticalSpacing;
+      final spacing = defaultStyles!.lists!.verticalSpacing;
+      final next = node.next;
+      final isChecklist = [
+        'checked',
+        'unchecked',
+      ].contains(attrs[Attribute.list.key]?.value);
+      // Checked and unchecked lines remain separate document blocks. The visual
+      // gap inside one checklist must stay the same when those blocks split.
+      if (isChecklist &&
+          next is Block &&
+          [
+            'checked',
+            'unchecked',
+          ].contains(next.style.attributes[Attribute.list.key]?.value) &&
+          attrs[Attribute.indent.key]?.value ==
+              next.style.attributes[Attribute.indent.key]?.value) {
+        return VerticalSpacing(
+          spacing.top,
+          defaultStyles.lists!.lineSpacing.bottom,
+        );
+      }
+      return spacing;
     } else if (attrs.containsKey(Attribute.align.key)) {
       return defaultStyles!.align!.verticalSpacing;
     }

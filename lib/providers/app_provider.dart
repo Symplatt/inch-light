@@ -10,6 +10,9 @@ import '../models/task_model.dart';
 import '../models/journal_entry.dart';
 
 import '../utils/schedule.dart';
+import '../utils/journal_sort.dart';
+
+export '../utils/journal_sort.dart' show JournalSort;
 
 class AppProvider with ChangeNotifier, WidgetsBindingObserver {
   bool _backupReady = false;
@@ -64,6 +67,30 @@ class AppProvider with ChangeNotifier, WidgetsBindingObserver {
 
   final List<JournalEntry> _journalEntries = [];
   final List<JournalCollection> _journalCollections = [];
+  JournalSort _journalCollectionSort = JournalSort.edited;
+  JournalSort _journalEntrySort = JournalSort.edited;
+  JournalSort get journalCollectionSort => _journalCollectionSort;
+  JournalSort get journalEntrySort => _journalEntrySort;
+
+  Future<void> setJournalSort(
+    JournalSort value, {
+    required bool collections,
+  }) async {
+    await ready;
+    final prefs = await SharedPreferences.getInstance();
+    final saved = await prefs.setString(
+      collections ? 'journal_collection_sort' : 'journal_entry_sort',
+      value.name,
+    );
+    if (!saved) throw StateError('Unable to save journal sort');
+    if (collections) {
+      _journalCollectionSort = value;
+    } else {
+      _journalEntrySort = value;
+    }
+    if (!_disposed) notifyListeners();
+  }
+
   final Map<String, ({JournalEntry entry, DateTime deletedAt})>
   _recentlyDeleted = {};
   final DateTime Function() _journalNow;
@@ -111,22 +138,34 @@ class AppProvider with ChangeNotifier, WidgetsBindingObserver {
     return restoring.length;
   }
 
-  List<JournalCollection> get journalCollections => List.unmodifiable(
-    List<JournalCollection>.from(_journalCollections)..sort((a, b) {
-      DateTime edited(JournalCollection c) => _journalEntries
-          .where((e) => e.collectionId == c.id)
-          .fold(
-            c.updatedAt ?? DateTime.fromMillisecondsSinceEpoch(0),
-            (latest, e) => e.updatedAt.isAfter(latest) ? e.updatedAt : latest,
-          );
-      final result = edited(b).compareTo(edited(a));
-      return result != 0
-          ? result
-          : _journalCollections
-                .indexOf(a)
-                .compareTo(_journalCollections.indexOf(b));
-    }),
-  );
+  List<JournalCollection> get journalCollections {
+    final names = _journalCollectionSort == JournalSort.name
+        ? {for (final c in _journalCollections) c.id: JournalNameKey(c.title)}
+        : <String, JournalNameKey>{};
+    return List.unmodifiable(
+      List<JournalCollection>.from(_journalCollections)..sort((a, b) {
+        if (_journalCollectionSort == JournalSort.name) {
+          final result = names[a.id]!.compareTo(names[b.id]!);
+          if (result != 0) return result;
+          return _journalCollections
+              .indexOf(a)
+              .compareTo(_journalCollections.indexOf(b));
+        }
+        DateTime edited(JournalCollection c) => _journalEntries
+            .where((e) => e.collectionId == c.id)
+            .fold(
+              c.updatedAt ?? DateTime.fromMillisecondsSinceEpoch(0),
+              (latest, e) => e.updatedAt.isAfter(latest) ? e.updatedAt : latest,
+            );
+        final result = edited(b).compareTo(edited(a));
+        return result != 0
+            ? result
+            : _journalCollections
+                  .indexOf(a)
+                  .compareTo(_journalCollections.indexOf(b));
+      }),
+    );
+  }
 
   Future<void> addJournalCollection(String title) async {
     await ready;
@@ -200,15 +239,25 @@ class AppProvider with ChangeNotifier, WidgetsBindingObserver {
   }
 
   Future<void> _journalWrite = Future.value();
-  List<JournalEntry> get journalEntries => List.unmodifiable(
-    List<JournalEntry>.from(_journalEntries)..sort(
-      (a, b) => a.isPinned != b.isPinned
-          ? (a.isPinned ? -1 : 1)
-          : a.isBottom != b.isBottom
-          ? (a.isBottom ? 1 : -1)
-          : b.updatedAt.compareTo(a.updatedAt),
-    ),
-  );
+  List<JournalEntry> get journalEntries {
+    final names = _journalEntrySort == JournalSort.name
+        ? {
+            for (final e in _journalEntries)
+              e.id: JournalNameKey(e.title.isEmpty ? '未命名' : e.title),
+          }
+        : <String, JournalNameKey>{};
+    return List.unmodifiable(
+      List<JournalEntry>.from(_journalEntries)..sort(
+        (a, b) => a.isPinned != b.isPinned
+            ? (a.isPinned ? -1 : 1)
+            : a.isBottom != b.isBottom
+            ? (a.isBottom ? 1 : -1)
+            : _journalEntrySort == JournalSort.name
+            ? names[a.id]!.compareTo(names[b.id]!)
+            : b.updatedAt.compareTo(a.updatedAt),
+      ),
+    );
+  }
 
   Future<void> saveJournalEntry(JournalEntry entry) async {
     await ready;
@@ -486,6 +535,13 @@ class AppProvider with ChangeNotifier, WidgetsBindingObserver {
         (prefs.getStringList('hidden_todo_collections') ?? []).toSet();
     _looseTasksFirst = prefs.getBool('loose_tasks_first') ?? true;
     _countdownsFirst = prefs.getBool('countdowns_first') ?? true;
+    _journalCollectionSort =
+        prefs.getString('journal_collection_sort') == 'name'
+        ? JournalSort.name
+        : JournalSort.edited;
+    _journalEntrySort = prefs.getString('journal_entry_sort') == 'name'
+        ? JournalSort.name
+        : JournalSort.edited;
     _lastJournalCollection = prefs.getString('last_journal_collection');
     final module = prefs.getString('last_module');
     _lastModule = ['todo', 'journal', 'calendar', 'settings'].contains(module)

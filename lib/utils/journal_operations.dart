@@ -11,6 +11,8 @@ enum JournalOperation {
   demoteHeadings('标题降级'),
   capitalize('首字母大写'),
   shuffleBullets('打乱无序列表'),
+  checkAll('勾选全部'),
+  uncheckAll('清空勾选'),
   addSentencePeriods('补全句号');
 
   const JournalOperation(this.label);
@@ -97,6 +99,26 @@ bool _spacedSymbol(dynamic value) =>
     value is String && RegExp(r'^[+\-×÷/@\\]$').hasMatch(value);
 
 List<_Atom> _normalize(List<_Atom> atoms) {
+  // Code spans are opaque except for whitespace at their two boundaries.
+  // A span can cross bold/italic delta runs, so group by the code attribute.
+  final trimmed = <_Atom>[];
+  for (var i = 0; i < atoms.length;) {
+    if (atoms[i].attributes['code'] != true) {
+      trimmed.add(atoms[i++]);
+      continue;
+    }
+    var end = i + 1;
+    while (end < atoms.length && atoms[end].attributes['code'] == true) {
+      end++;
+    }
+    var start = i;
+    var last = end;
+    while (start < last && _space(atoms[start])) start++;
+    while (last > start && _space(atoms[last - 1])) last--;
+    trimmed.addAll(atoms.sublist(start, last));
+    i = end;
+  }
+  atoms = trimmed;
   // Trim each logical line before spacing normalization, including Unicode
   // whitespace and leading runs split across different rich-text styles.
   atoms = atoms
@@ -108,12 +130,19 @@ List<_Atom> _normalize(List<_Atom> atoms) {
   final out = <_Atom>[];
   for (var i = 0; i < atoms.length; i++) {
     final atom = atoms[i];
+    if (atom.attributes['code'] == true) {
+      out.add(atom);
+      continue;
+    }
     if (_space(atom)) {
       var next = i + 1;
       while (next < atoms.length && _space(atoms[next])) {
         next++;
       }
-      if (out.isNotEmpty && next < atoms.length) {
+      if (out.isNotEmpty &&
+          next < atoms.length &&
+          out.last.attributes['code'] != true &&
+          atoms[next].attributes['code'] != true) {
         final left = out.last.value;
         final right = atoms[next].value;
         // English punctuation retains ordinary separation ("hello, world").
@@ -135,6 +164,7 @@ List<_Atom> _normalize(List<_Atom> atoms) {
       continue;
     }
     if (out.isNotEmpty &&
+        out.last.attributes['code'] != true &&
         !_space(out.last) &&
         (_spacedSymbol(out.last.value) ||
             _spacedSymbol(atom.value) ||
@@ -331,6 +361,50 @@ String transformJournalText(String text, JournalOperation operation) {
   return text;
 }
 
+/// Availability describes the note, not the saved chain. Chain editing always
+/// exposes the complete operation set, even when the current note is empty.
+Set<JournalOperation> availableJournalOperations(
+  List<dynamic> document, {
+  String title = '',
+  bool titleBold = false,
+}) {
+  final result = <JournalOperation>{
+    JournalOperation.removeLeadingPunctuation,
+    JournalOperation.normalizeSpaces,
+  };
+  if (titleBold) result.add(JournalOperation.removeBold);
+  var hasLetters = RegExp(r'[A-Za-z]').hasMatch(title);
+  for (final line in _lines(document)) {
+    if (line.blank) result.add(JournalOperation.clearBlankLines);
+    if (line.bullet) result.add(JournalOperation.shuffleBullets);
+    if (line.attributes['header'] != null) {
+      result.addAll([
+        JournalOperation.promoteHeadings,
+        JournalOperation.demoteHeadings,
+      ]);
+    }
+    if (['checked', 'unchecked'].contains(line.attributes['list'])) {
+      result.addAll([JournalOperation.checkAll, JournalOperation.uncheckAll]);
+    }
+    for (final atom in line.atoms) {
+      if (atom.attributes['bold'] == true &&
+          !line.attributes.containsKey('header')) {
+        result.add(JournalOperation.removeBold);
+      }
+      if (atom.value is String && atom.attributes['code'] != true) {
+        hasLetters |= RegExp(r'[A-Za-z]').hasMatch(atom.value as String);
+      }
+      if (atom.value is Map && atom.value['table'] is String) {
+        final table = JournalTableData.decode(atom.value['table']);
+        hasLetters |= RegExp(r'[A-Za-z]').hasMatch(table.plainText);
+        if (table.headerBold) result.add(JournalOperation.removeBold);
+      }
+    }
+  }
+  if (hasLetters) result.add(JournalOperation.capitalize);
+  return result;
+}
+
 // Shuffle sibling items with their descendants, then shuffle each nested list.
 // Separate bullet runs never exchange content, nor do ordered lists.
 List<_Line> _shuffle(List<_Line> lines, Random random) {
@@ -361,6 +435,13 @@ List<dynamic> transformJournalDocument(
     lines = lines.where((line) => !line.blank).toList();
   }
   for (final line in lines) {
+    if ((operation == JournalOperation.checkAll ||
+            operation == JournalOperation.uncheckAll) &&
+        ['checked', 'unchecked'].contains(line.attributes['list'])) {
+      line.attributes['list'] = operation == JournalOperation.checkAll
+          ? 'checked'
+          : 'unchecked';
+    }
     if (operation == JournalOperation.promoteHeadings ||
         operation == JournalOperation.demoteHeadings) {
       final header = line.attributes['header'];
@@ -383,7 +464,9 @@ List<dynamic> transformJournalDocument(
         final word =
             atom.value is String &&
             RegExp(r'^[A-Za-z0-9_]$').hasMatch(atom.value);
-        if (word && !inWord) atom.value = (atom.value as String).toUpperCase();
+        if (word && !inWord && atom.attributes['code'] != true) {
+          atom.value = (atom.value as String).toUpperCase();
+        }
         inWord = word;
       }
       final value = atom.value;
@@ -418,7 +501,8 @@ List<dynamic> transformJournalDocument(
         !['header', 'code-block'].any(line.attributes.containsKey)) {
       _normalizeSentenceEnding(line.atoms);
     }
-    if (operation == JournalOperation.normalizeSpaces) {
+    if (operation == JournalOperation.normalizeSpaces &&
+        !line.attributes.containsKey('header')) {
       line.atoms = _normalize(line.atoms);
     }
   }

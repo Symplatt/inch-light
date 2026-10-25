@@ -75,6 +75,10 @@ String journalToMarkdown(JournalEntry entry) {
         case 'bullet':
           text = '- $text';
           kind = 'bullet';
+        case 'checked':
+        case 'unchecked':
+          text = '- [${attributes['list'] == 'checked' ? 'x' : ' '}] $text';
+          kind = 'check';
       }
     }
     final align = attributes['align'];

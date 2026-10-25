@@ -78,8 +78,8 @@ void main() {
       ];
       final original = document.toString();
       final result = transformJournalDocument(document, operation);
-      expect(plain(result), '标题\n正文 hello world\n列表项\n\n\uFFFC\n');
-      expect(result.first['attributes']['underline'], true);
+      expect(plain(result), '　\u0085 \t标题\n正文 hello world\n列表项\n\n\uFFFC\n');
+      expect(result.any((op) => op['attributes']?['underline'] == true), true);
       expect(result.any((op) => op['attributes']?['header'] == 2), true);
       expect(
         result.any(
@@ -573,7 +573,7 @@ void main() {
           )
           .where((item) => item.value != null)
           .map((item) => item.value!.label),
-      ['标点管理', '空格管理', '清除空行', '打乱无序列表', '标题升级', '标题降级', '取消加粗', '首字母大写'],
+      ['标点管理', '空格管理', '取消加粗', '首字母大写'],
     );
     await t.tap(find.text('首字母大写'));
     await t.pumpAndSettle();
@@ -753,11 +753,11 @@ void main() {
     await t.pumpAndSettle();
     expect(find.text('软件信息'), findsNothing);
     expect(find.text('一日千录'), findsOneWidget);
-    expect(find.text('版本 3.12.2（构建 63）'), findsOneWidget);
+    expect(find.text('版本 3.13.0（构建 68）'), findsOneWidget);
     expect(find.text('版权所有 © Symplatt'), findsOneWidget);
     final lefts = [
       '一日千录',
-      '版本 3.12.2（构建 63）',
+      '版本 3.13.0（构建 68）',
       '版权所有 © Symplatt',
       '数据保存在本机，可在设置中导出备份。',
     ].map((text) => t.getTopLeft(find.text(text)).dx).toSet();

@@ -82,6 +82,15 @@ InlineSpan journalSpan(
   } else if (node.style.attributes['bold']?.value == false) {
     style = style?.copyWith(fontWeight: FontWeight.w400);
   }
+  if (line?.style.attributes['list']?.value == 'checked') {
+    style = (style ?? const TextStyle()).copyWith(
+      color: const Color(0xFF898989),
+      decoration: TextDecoration.combine([
+        if (style?.decoration != null) style!.decoration!,
+        TextDecoration.lineThrough,
+      ]),
+    );
+  }
   return TextSpan(text: text, recognizer: recognizer, style: style);
 }
 
@@ -91,9 +100,11 @@ Widget? journalLeading(
   quill.LeadingConfig config, {
   bool readOnly = false,
   TextStyle? textStyle,
+  Key? checkboxKey,
 }) {
   final type = config.attribute.value;
-  if (!['ordered', 'bullet'].contains(type)) {
+  final check = ['checked', 'unchecked'].contains(type);
+  if (!['ordered', 'bullet'].contains(type) && !check) {
     return null;
   }
   final style = textStyle ?? journalBlock(18).style;
@@ -131,7 +142,30 @@ Widget? journalLeading(
       height: height,
       child: Align(
         alignment: Alignment.centerLeft,
-        child: type == 'ordered'
+        child: check
+            ? SizedBox.square(
+                key: checkboxKey,
+                dimension: MediaQuery.textScalerOf(context).scale(18),
+                child: ExcludeFocus(
+                  child: Checkbox(
+                    value: config.value,
+                    onChanged: readOnly || config.enabled == false
+                        ? null
+                        : (value) => config.onCheckboxTap(value!),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(3),
+                    ),
+                    side: const BorderSide(
+                      color: Color(0xFF707070),
+                      width: 1.4,
+                    ),
+                    activeColor: const Color(0xFF606060),
+                    materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                    visualDensity: VisualDensity.compact,
+                  ),
+                ),
+              )
+            : type == 'ordered'
             ? marker('${config.getIndexNumberByIndent}.')
             : marker('•'),
       ),

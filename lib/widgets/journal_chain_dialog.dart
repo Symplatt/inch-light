@@ -30,11 +30,11 @@ class _JournalChainDialogState extends State<JournalChainDialog> {
     title: const Text('连携操作'),
     content: SizedBox(
       width: 360,
-      height: 460,
+      height: 430,
       child: ReorderableListView.builder(
         buildDefaultDragHandles: false,
         header: const Padding(
-          padding: EdgeInsets.only(bottom: 8),
+          padding: EdgeInsets.only(bottom: 4),
           child: Text(
             '已选中 · 长按整行拖动选择与排序',
             style: TextStyle(fontSize: 12, color: Color(0xFF808080)),
@@ -53,11 +53,11 @@ class _JournalChainDialogState extends State<JournalChainDialog> {
           if (operation == null) {
             return const SizedBox(
               key: ValueKey('chain-unselected-divider'),
-              height: 44,
+              height: 32,
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Divider(thickness: 0.5, color: Color(0xFFE8E8E8)),
+                  Divider(height: 12, thickness: 0.5, color: Color(0xFFE8E8E8)),
                   Text(
                     '未选中',
                     style: TextStyle(fontSize: 12, color: Color(0xFF808080)),
@@ -72,7 +72,7 @@ class _JournalChainDialogState extends State<JournalChainDialog> {
             index: index,
             child: Container(
               color: Colors.transparent,
-              height: 44,
+              height: 36,
               child: Row(
                 children: [
                   SizedBox(

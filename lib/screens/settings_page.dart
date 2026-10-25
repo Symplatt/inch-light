@@ -139,6 +139,101 @@ class _SettingsPageState extends State<SettingsPage> {
     color: Color(0xFFEEF0F3),
   );
 
+  Widget _orderOption(
+    String label, {
+    required bool selected,
+    required VoidCallback onTap,
+    Key? circleKey,
+  }) => Semantics(
+    checked: selected,
+    inMutuallyExclusiveGroup: true,
+    child: InkWell(
+      borderRadius: BorderRadius.circular(8),
+      onTap: onTap,
+      child: SizedBox(
+        height: 44,
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Container(
+              key: circleKey,
+              width: 18,
+              height: 18,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                border: Border.all(
+                  color: selected ? AppColors.primary : AppColors.textGrey,
+                  width: 1.7,
+                ),
+              ),
+              child: selected
+                  ? Center(
+                      child: Container(
+                        width: 10,
+                        height: 10,
+                        decoration: const BoxDecoration(
+                          shape: BoxShape.circle,
+                          color: AppColors.primary,
+                        ),
+                      ),
+                    )
+                  : null,
+            ),
+            const SizedBox(width: 8),
+            Text(label, style: const TextStyle(fontSize: 14)),
+          ],
+        ),
+      ),
+    ),
+  );
+
+  Widget _journalSortOptions(
+    AppProvider provider,
+    String title, {
+    required bool collections,
+  }) {
+    final selected = collections
+        ? provider.journalCollectionSort
+        : provider.journalEntrySort;
+    Widget option(JournalSort value, String label) => _orderOption(
+      label,
+      selected: selected == value,
+      circleKey: ValueKey(
+        'journal-sort-circle-${collections ? 'collections' : 'entries'}-${value.name}',
+      ),
+      onTap: () async {
+        try {
+          await provider.setJournalSort(value, collections: collections);
+        } catch (_) {
+          if (mounted) _showMessage(context, '排序保存失败，请重试');
+        }
+      },
+    );
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(20, 16, 20, 8),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            title,
+            key: ValueKey(
+              'journal-sort-title-${collections ? 'collections' : 'entries'}',
+            ),
+            style: const TextStyle(fontSize: 15),
+          ),
+          const SizedBox(height: 4),
+          Wrap(
+            spacing: 24,
+            children: [
+              option(JournalSort.edited, '最近编辑时间'),
+              option(JournalSort.name, '名称'),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final provider = context.watch<AppProvider>();
@@ -163,7 +258,7 @@ class _SettingsPageState extends State<SettingsPage> {
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Text(
-                          '版本 3.12.2（构建 63）',
+                          '版本 3.13.2（构建 71）',
                           style: TextStyle(color: AppColors.textGrey),
                         ),
                         SizedBox(height: 16),
@@ -181,7 +276,7 @@ class _SettingsPageState extends State<SettingsPage> {
                     onPressed: () => showLicensePage(
                       context: dialogContext,
                       applicationName: '一日千录',
-                      applicationVersion: '3.12.2',
+                      applicationVersion: '3.13.2',
                       applicationLegalese: '版权所有 © Symplatt',
                     ),
                     child: const Text('开源许可'),
@@ -211,17 +306,48 @@ class _SettingsPageState extends State<SettingsPage> {
                   borderRadius: BorderRadius.circular(16),
                   side: const BorderSide(color: Color(0xFFE7E8EB)),
                 ),
-                child: RadioGroup<bool>(
-                  groupValue: provider.looseTasksFirst,
-                  onChanged: (value) {
-                    if (value != null) provider.setLooseTasksFirst(value);
-                  },
-                  child: const Column(
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 20,
+                    vertical: 8,
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
                     children: [
-                      RadioListTile<bool>(value: false, title: Text('事项合集在上')),
-                      RadioListTile<bool>(value: true, title: Text('零散事项在上')),
+                      _orderOption(
+                        '事项合集在上',
+                        selected: !provider.looseTasksFirst,
+                        circleKey: const ValueKey('todo-order-collections'),
+                        onTap: () => provider.setLooseTasksFirst(false),
+                      ),
+                      _orderOption(
+                        '零散事项在上',
+                        selected: provider.looseTasksFirst,
+                        circleKey: const ValueKey('todo-order-loose'),
+                        onTap: () => provider.setLooseTasksFirst(true),
+                      ),
                     ],
                   ),
+                ),
+              ),
+              const SizedBox(height: 24),
+              const SectionHeading(title: '记录排序'),
+              Card(
+                margin: EdgeInsets.zero,
+                elevation: 0,
+                color: AppColors.surface,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(16),
+                  side: const BorderSide(color: Color(0xFFE7E8EB)),
+                ),
+                child: Column(
+                  key: const ValueKey('journal-sort-card'),
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    _journalSortOptions(provider, '合集横滚栏', collections: true),
+                    _dataDivider(),
+                    _journalSortOptions(provider, '合集内笔记', collections: false),
+                  ],
                 ),
               ),
               const SizedBox(height: 24),
@@ -234,15 +360,26 @@ class _SettingsPageState extends State<SettingsPage> {
                   borderRadius: BorderRadius.circular(16),
                   side: const BorderSide(color: Color(0xFFE7E8EB)),
                 ),
-                child: RadioGroup<bool>(
-                  groupValue: provider.countdownsFirst,
-                  onChanged: (value) {
-                    if (value != null) provider.setCountdownsFirst(value);
-                  },
-                  child: const Column(
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 20,
+                    vertical: 8,
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
                     children: [
-                      RadioListTile<bool>(value: true, title: Text('倒计时在上')),
-                      RadioListTile<bool>(value: false, title: Text('周期在上')),
+                      _orderOption(
+                        '倒计时在上',
+                        selected: provider.countdownsFirst,
+                        circleKey: const ValueKey('calendar-order-countdowns'),
+                        onTap: () => provider.setCountdownsFirst(true),
+                      ),
+                      _orderOption(
+                        '周期在上',
+                        selected: !provider.countdownsFirst,
+                        circleKey: const ValueKey('calendar-order-cycles'),
+                        onTap: () => provider.setCountdownsFirst(false),
+                      ),
                     ],
                   ),
                 ),

@@ -14,18 +14,7 @@ class JournalEntry {
     this.isPinned = false,
     this.titleBold = false,
     this.isBottom = false,
-  }) : document = document.map((op) {
-         final attributes = op['attributes'];
-         if (attributes is Map &&
-             ['checked', 'unchecked'].contains(attributes['list'])) {
-           // Keep older notes readable after removing interactive checklists.
-           return {
-             ...op as Map,
-             'attributes': {...attributes, 'list': 'bullet'},
-           };
-         }
-         return op;
-       }).toList();
+  }) : document = List<dynamic>.from(document);
 
   final String id;
   final String title;

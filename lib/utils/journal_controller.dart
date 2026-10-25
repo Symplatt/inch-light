@@ -14,6 +14,7 @@ class JournalController extends quill.QuillController {
   }) {
     onReplaceText = _replace;
     onDelete = (position, forward) {
+      if (!forward && handleListBackspace()) return;
       if (!forward && clearLeadingEmptyLines()) return;
       if (!forward && position > 0) {
         replaceText(
@@ -27,6 +28,61 @@ class JournalController extends quill.QuillController {
   }
   int? pendingTable;
   bool _deleting = false;
+
+  /// Unlist the first item at its start; remove only interior blank items.
+  /// Raw deltas prevent Quill's paragraph merge from copying list attributes.
+  bool handleListBackspace() {
+    if (_deleting || !selection.isCollapsed || selection.baseOffset < 0) {
+      return false;
+    }
+    final line = document.queryChild(selection.baseOffset).node;
+    if (line is! quill.Line) {
+      return false;
+    }
+    String? kind(quill.Node? node) {
+      if (node is! quill.Line) return null;
+      final value = node.toDelta().last.attributes?['list'];
+      if (value == 'checked' || value == 'unchecked') return 'check';
+      return value == 'ordered' || value == 'bullet' ? value as String : null;
+    }
+
+    final type = kind(line);
+    if (type == null) return false;
+    final start = line.documentOffset;
+    final previous = start > 0 ? document.queryChild(start - 1).node : null;
+    final blank = line.toPlainText().trim().isEmpty;
+    if (!blank && (selection.baseOffset != start || kind(previous) == type)) {
+      return false;
+    }
+    final nextAt = start + line.length;
+    final next = nextAt < document.length
+        ? document.queryChild(nextAt).node
+        : null;
+    final middle = kind(previous) == type && kind(next) == type;
+    _deleting = true;
+    pendingTable = null;
+    try {
+      final delta = Delta()..retain(start);
+      if (blank && middle) {
+        delta.delete(line.length);
+      } else {
+        if (blank) {
+          delta.delete(line.length - 1);
+        } else {
+          delta.retain(line.length - 1);
+        }
+        delta.retain(1, {'list': null, 'indent': null});
+      }
+      compose(
+        delta,
+        TextSelection.collapsed(offset: start),
+        quill.ChangeSource.local,
+      );
+    } finally {
+      _deleting = false;
+    }
+    return true;
+  }
 
   /// Insert on a clean paragraph without splitting or replacing existing prose.
   /// Compose once so whitespace cleanup and insertion share one undo step.
@@ -206,6 +262,13 @@ class JournalController extends quill.QuillController {
       }
     }
     if (_deleting) return true;
+    if (data == '' &&
+        length > 0 &&
+        selection.isCollapsed &&
+        index < selection.baseOffset &&
+        handleListBackspace()) {
+      return false;
+    }
     if (data == '' &&
         length > 0 &&
         selection.isCollapsed &&

@@ -22,6 +22,7 @@ import '../utils/journal_markdown.dart';
 import '../utils/journal_shortcuts.dart';
 import '../utils/journal_operations.dart';
 import '../utils/journal_controller.dart';
+import '../utils/journal_editor_cache.dart';
 import '../widgets/journal_body.dart';
 import '../widgets/journal_export_icon.dart';
 import 'journal_image_page.dart';
@@ -51,6 +52,9 @@ class _JournalEditorPageState extends State<_JournalEditorView>
     with WidgetsBindingObserver {
   late final TextEditingController _title;
   late final JournalController _editor;
+  final _contentCache = JournalEditorCache();
+  List<dynamic>? _countedDocument;
+  int _cachedWordCount = 0;
   late final AppProvider _provider;
   final _titleFocus = FocusNode();
   final _bodyFocus = FocusNode();
@@ -59,7 +63,10 @@ class _JournalEditorPageState extends State<_JournalEditorView>
   final _renderEditorKey = GlobalKey<quill.EditorState>();
   final _pageViewportKey = GlobalKey();
   final _tableKeys = <String, GlobalKey>{};
+  final _checkboxKeys = <int, GlobalKey>{};
   bool _caretScrollPending = false;
+  double? _editingScrollAnchor;
+  Timer? _editingScrollTimer;
   bool _titleBold = false;
   late final String _id;
   late final DateTime _createdAt;
@@ -101,6 +108,9 @@ class _JournalEditorPageState extends State<_JournalEditorView>
     _bodyFocus.canRequestFocus = false;
     FocusScope.of(context).unfocus();
     _editor.skipRequestKeyboard = true;
+    // Unlike skipRequestKeyboard, this survives every controller notification
+    // produced by document replacement and route focus restoration.
+    _editor.ignoreFocusOnTextChange = true;
     SystemChannels.textInput.invokeMethod<void>('TextInput.hide');
   }
 
@@ -190,12 +200,27 @@ class _JournalEditorPageState extends State<_JournalEditorView>
   }
 
   void _refreshFocus() {
+    if (!_bodyFocus.hasPrimaryFocus) _clearEditingScrollAnchor();
     if (mounted) setState(() {});
     _revealCaret();
   }
 
   @override
-  void didChangeMetrics() => _revealCaret();
+  void didChangeMetrics() {
+    if (_editingScrollAnchor != null) {
+      _editingScrollTimer?.cancel();
+      _editingScrollTimer = Timer(
+        const Duration(milliseconds: 150),
+        _clearEditingScrollAnchor,
+      );
+    }
+    _revealCaret();
+  }
+
+  void _clearEditingScrollAnchor() {
+    _editingScrollTimer?.cancel();
+    _editingScrollAnchor = null;
+  }
 
   void _revealCaret() {
     if (_caretScrollPending || !mounted || !_bodyFocus.hasPrimaryFocus) return;
@@ -211,6 +236,14 @@ class _JournalEditorPageState extends State<_JournalEditorView>
       final editor = _renderEditorKey.currentState?.renderEditor;
       final viewport = _pageViewportKey.currentContext?.findRenderObject();
       if (editor == null || viewport is! RenderBox || !viewport.hasSize) return;
+      // Focus and Android's animated IME can independently reveal the editor's
+      // top edge. Start from the tapped viewport, then reveal only the caret.
+      final anchor = _editingScrollAnchor;
+      if (anchor != null) {
+        _pageScroll.jumpTo(
+          anchor.clamp(0.0, _pageScroll.position.maxScrollExtent),
+        );
+      }
       final caret = editor.getLocalRectForCaret(
         TextPosition(
           offset: _editor.selection.extentOffset.clamp(
@@ -242,17 +275,26 @@ class _JournalEditorPageState extends State<_JournalEditorView>
     });
   }
 
-  String _snapshot() => jsonEncode({
-    'title': _title.text,
-    'document': _editor.document.toDelta().toJson(),
-    'tags': _tags,
-    'titleBold': _titleBold,
-  });
+  String _snapshot() => _contentCache.snapshot(
+    document: _editor.document,
+    title: _title.text,
+    tags: _tags,
+    titleBold: _titleBold,
+  );
+
+  int get _wordCount {
+    final data = _contentCache.documentData(_editor.document);
+    if (!identical(data, _countedDocument)) {
+      _cachedWordCount = _entry().wordCount;
+      _countedDocument = data;
+    }
+    return _cachedWordCount;
+  }
 
   JournalEntry _entry() => JournalEntry(
     id: _id,
     title: _title.text,
-    document: _editor.document.toDelta().toJson(),
+    document: _contentCache.documentData(_editor.document),
     createdAt: _createdAt,
     updatedAt: _updatedAt,
     tags: List.from(_tags),
@@ -437,7 +479,9 @@ class _JournalEditorPageState extends State<_JournalEditorView>
     var title = _title.text;
     for (final op in operations) {
       document = transformJournalDocument(document, op);
-      title = transformJournalText(title, op);
+      if (op != JournalOperation.normalizeSpaces) {
+        title = transformJournalText(title, op);
+      }
     }
     final before = _current;
     _restoring = true;
@@ -590,6 +634,7 @@ class _JournalEditorPageState extends State<_JournalEditorView>
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
     _saveTimer?.cancel();
+    _editingScrollTimer?.cancel();
     _title.dispose();
     _editor.dispose();
     _titleFocus.dispose();
@@ -611,6 +656,138 @@ class _JournalEditorPageState extends State<_JournalEditorView>
       }
     }
     return false;
+  }
+
+  bool _hitCheckbox(Offset position) {
+    for (final key in _checkboxKeys.values) {
+      final box = key.currentContext?.findRenderObject();
+      if (box is RenderBox &&
+          box.attached &&
+          box.hasSize &&
+          (Offset.zero & box.size).contains(box.globalToLocal(position))) {
+        return true;
+      }
+    }
+    return false;
+  }
+
+  Object? _bodyConfiguration;
+  quill.QuillEditor? _bodyWidget;
+
+  Widget _bodyEditor(BuildContext context) {
+    final configuration = (
+      _editor.document,
+      _bodyFocus.hasPrimaryFocus,
+      _editor.onEmbedLine,
+      _editor.selection.isCollapsed ? null : _editor.pendingTable,
+      _newTableId,
+      _pageStyle.fontSize,
+      _pageStyle.letterSpacing,
+      _pageStyle.lineHeight,
+      _pageStyle.paragraphSpacing,
+      _pageStyle.sideMargin,
+      _pageStyle.bottomMargin,
+    );
+    if (configuration == _bodyConfiguration && _bodyWidget != null) {
+      return _bodyWidget!;
+    }
+    _bodyConfiguration = configuration;
+    // Insets resize the parent viewport without changing the note layout.
+    // Controller/focus notifications still rebuild Quill's own editor state.
+    return _bodyWidget = quill.QuillEditor(
+      controller: _editor,
+      focusNode: _bodyFocus,
+      scrollController: _bodyScroll,
+      config: quill.QuillEditorConfig(
+        editorKey: _renderEditorKey,
+        placeholder: '开始书写',
+        padding: EdgeInsets.fromLTRB(
+          _pageStyle.sideMargin,
+          8,
+          _pageStyle.sideMargin,
+          _pageStyle.bottomMargin,
+        ),
+        scrollable: false,
+        minHeight: 180,
+        showCursor: _bodyFocus.hasPrimaryFocus && !_editor.onEmbedLine,
+        // Pinned Quill APIs; shortcut handlers also process software-keyboard spaces.
+        // ignore: experimental_member_use
+        characterShortcutEvents: quill.standardCharactersShortcutEvents,
+        // ignore: experimental_member_use
+        spaceShortcutEvents: quill.standardSpaceShorcutEvents,
+        textSpanBuilder: journalSpan,
+        // IMEs may send a key event at offset zero instead of a text replacement.
+        // ignore: experimental_member_use
+        onKeyPressed: (event, _) {
+          if (_bodyFocus.hasPrimaryFocus &&
+              (event is KeyDownEvent || event is KeyRepeatEvent) &&
+              event.logicalKey == LogicalKeyboardKey.backspace &&
+              (_editor.handleListBackspace() ||
+                  _editor.clearLeadingEmptyLines() ||
+                  _editor.handleTableBackspace())) {
+            return KeyEventResult.handled;
+          }
+          return null;
+        },
+        // ignore: experimental_member_use
+        customLeadingBlockBuilder: (node, config) => journalLeading(
+          context,
+          node,
+          config,
+          checkboxKey: ['checked', 'unchecked'].contains(config.attribute.value)
+              ? _checkboxKeys.putIfAbsent(node.documentOffset, GlobalKey.new)
+              : null,
+          textStyle: journalBlock(_pageStyle.fontSize).style.copyWith(
+            letterSpacing: _pageStyle.letterSpacing,
+            height: _pageStyle.lineHeight,
+          ),
+        ),
+        onTapDown: (details, _) => _hitCheckbox(details.globalPosition),
+        // Embedded cells and checkboxes own their taps; retain the editor focus.
+        onTapUp: (details, _) {
+          if (_hitCheckbox(details.globalPosition)) return true;
+          final table = _hitTable(details.globalPosition);
+          if (!table) {
+            if (!_bodyFocus.hasPrimaryFocus && _pageScroll.hasClients) {
+              _editingScrollAnchor = _pageScroll.offset;
+              _editingScrollTimer?.cancel();
+              // Hardware keyboards may not send any inset changes.
+              _editingScrollTimer = Timer(
+                const Duration(milliseconds: 800),
+                _clearEditingScrollAnchor,
+              );
+            }
+            _bodyFocus.canRequestFocus = true;
+            _editor.ignoreFocusOnTextChange = false;
+            _editor.skipRequestKeyboard = false;
+          }
+          return table;
+        },
+        onTapOutsideEnabled: false,
+        embedBuilders: [
+          const JournalDividerBuilder(),
+          JournalTableBuilder(
+            tableKeys: _tableKeys,
+            fontSize: _pageStyle.fontSize,
+            letterSpacing: _pageStyle.letterSpacing,
+            lineHeight: _pageStyle.lineHeight,
+            onChanged: _updateTable,
+            onDelete: _deleteTable,
+            onMoveDown: (id) => _editor.moveTableDown(id),
+            autofocusId: _newTableId,
+            selectedOffset: _editor.selection.isCollapsed
+                ? null
+                : _editor.pendingTable,
+          ),
+        ],
+        customStyles: journalStyles(
+          fontSize: _pageStyle.fontSize,
+          letterSpacing: _pageStyle.letterSpacing,
+          lineHeight: _pageStyle.lineHeight,
+          paragraphSpacing: _pageStyle.paragraphSpacing,
+        ),
+      ),
+    );
   }
 
   @override
@@ -699,6 +876,11 @@ class _JournalEditorPageState extends State<_JournalEditorView>
                   ),
                   itemBuilder: (menuContext) => journalOperationsMenu(
                     menuContext,
+                    available: availableJournalOperations(
+                      _editor.document.toDelta().toJson(),
+                      title: _title.text,
+                      titleBold: _titleBold,
+                    ),
                     runChain: _runChain,
                     editChain: _editChain,
                   ),
@@ -706,35 +888,34 @@ class _JournalEditorPageState extends State<_JournalEditorView>
               const SizedBox(width: 8),
             ],
           ),
-          body: Listener(
-            onPointerDown: (_) {
-              _titleFocus.canRequestFocus = true;
-              _bodyFocus.canRequestFocus = true;
-            },
-            child: SafeArea(
-              top: false,
-              child: Column(
-                children: [
-                  Expanded(
-                    child: SizedBox(
-                      key: _pageViewportKey,
-                      child: SingleChildScrollView(
-                        key: const ValueKey('record-page-scroll'),
-                        controller: _pageScroll,
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.stretch,
-                          children: [
-                            Padding(
-                              padding: EdgeInsets.fromLTRB(
-                                _pageStyle.sideMargin,
-                                _pageStyle.topMargin,
-                                _pageStyle.sideMargin,
-                                20,
-                              ),
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  TextField(
+          body: SafeArea(
+            top: false,
+            child: Column(
+              children: [
+                Expanded(
+                  child: SizedBox(
+                    key: _pageViewportKey,
+                    child: SingleChildScrollView(
+                      key: const ValueKey('record-page-scroll'),
+                      controller: _pageScroll,
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
+                        children: [
+                          Padding(
+                            padding: EdgeInsets.fromLTRB(
+                              _pageStyle.sideMargin,
+                              _pageStyle.topMargin,
+                              _pageStyle.sideMargin,
+                              20,
+                            ),
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Listener(
+                                  onPointerDown: (_) {
+                                    _titleFocus.canRequestFocus = true;
+                                  },
+                                  child: TextField(
                                     key: const ValueKey('record-title'),
                                     controller: _title,
                                     focusNode: _titleFocus,
@@ -748,6 +929,9 @@ class _JournalEditorPageState extends State<_JournalEditorView>
                                     maxLines: null,
                                     textInputAction: TextInputAction.next,
                                     onSubmitted: (_) {
+                                      _bodyFocus.canRequestFocus = true;
+                                      _editor.ignoreFocusOnTextChange = false;
+                                      _editor.skipRequestKeyboard = false;
                                       if (_title.selection.isCollapsed &&
                                           _title.selection.extentOffset ==
                                               _title.text.length) {
@@ -772,134 +956,43 @@ class _JournalEditorPageState extends State<_JournalEditorView>
                                       contentPadding: EdgeInsets.zero,
                                     ),
                                   ),
-                                  if (!_pageStyle.hideMetadata)
-                                    const SizedBox(height: 22),
-                                  if (!_pageStyle.hideMetadata)
-                                    Text(
-                                      '${DateFormat('M月d日 HH:mm').format(_updatedAt)}  |  ${_entry().wordCount}字',
-                                      key: const ValueKey('record-metadata'),
-                                      style: const TextStyle(
-                                        fontSize: 14,
-                                        color: Color(0xFF999999),
-                                      ),
-                                    ),
-                                  if (_tags.isNotEmpty) ...[
-                                    const SizedBox(height: 16),
-                                    JournalTags(tags: _tags),
-                                  ],
-                                ],
-                              ),
-                            ),
-                            quill.QuillEditor(
-                              controller: _editor,
-                              focusNode: _bodyFocus,
-                              scrollController: _bodyScroll,
-                              config: quill.QuillEditorConfig(
-                                editorKey: _renderEditorKey,
-                                placeholder: '开始书写',
-                                padding: EdgeInsets.fromLTRB(
-                                  _pageStyle.sideMargin,
-                                  8,
-                                  _pageStyle.sideMargin,
-                                  _pageStyle.bottomMargin,
                                 ),
-                                scrollable: false,
-                                minHeight: 180,
-                                showCursor:
-                                    _bodyFocus.hasPrimaryFocus &&
-                                    !_editor.onEmbedLine,
-                                // Pinned Quill APIs; shortcut handlers also process software-keyboard spaces.
-                                // ignore: experimental_member_use
-                                characterShortcutEvents:
-                                    quill.standardCharactersShortcutEvents,
-                                // ignore: experimental_member_use
-                                spaceShortcutEvents:
-                                    quill.standardSpaceShorcutEvents,
-                                textSpanBuilder: journalSpan,
-                                // IMEs may send a key event at offset zero instead of a text replacement.
-                                // ignore: experimental_member_use
-                                onKeyPressed: (event, _) {
-                                  if (_bodyFocus.hasPrimaryFocus &&
-                                      (event is KeyDownEvent ||
-                                          event is KeyRepeatEvent) &&
-                                      event.logicalKey ==
-                                          LogicalKeyboardKey.backspace &&
-                                      (_editor.clearLeadingEmptyLines() ||
-                                          _editor.handleTableBackspace())) {
-                                    return KeyEventResult.handled;
-                                  }
-                                  return null;
-                                },
-                                // ignore: experimental_member_use
-                                customLeadingBlockBuilder: (node, config) =>
-                                    journalLeading(
-                                      context,
-                                      node,
-                                      config,
-                                      textStyle:
-                                          journalBlock(
-                                            _pageStyle.fontSize,
-                                          ).style.copyWith(
-                                            letterSpacing:
-                                                _pageStyle.letterSpacing,
-                                            height: _pageStyle.lineHeight,
-                                          ),
+                                if (!_pageStyle.hideMetadata)
+                                  const SizedBox(height: 22),
+                                if (!_pageStyle.hideMetadata)
+                                  Text(
+                                    '${DateFormat('M月d日 HH:mm').format(_updatedAt)}  |  $_wordCount字',
+                                    key: const ValueKey('record-metadata'),
+                                    style: const TextStyle(
+                                      fontSize: 14,
+                                      color: Color(0xFF999999),
                                     ),
-                                // Embedded cells own their caret; Quill must not reclaim focus on tap.
-                                onTapUp: (details, _) {
-                                  final table = _hitTable(
-                                    details.globalPosition,
-                                  );
-                                  if (!table) {
-                                    _editor.skipRequestKeyboard = false;
-                                  }
-                                  return table;
-                                },
-                                onTapOutsideEnabled: false,
-                                embedBuilders: [
-                                  const JournalDividerBuilder(),
-                                  JournalTableBuilder(
-                                    tableKeys: _tableKeys,
-                                    fontSize: _pageStyle.fontSize,
-                                    letterSpacing: _pageStyle.letterSpacing,
-                                    lineHeight: _pageStyle.lineHeight,
-                                    onChanged: _updateTable,
-                                    onDelete: _deleteTable,
-                                    onMoveDown: (id) =>
-                                        _editor.moveTableDown(id),
-                                    autofocusId: _newTableId,
-                                    selectedOffset:
-                                        _editor.selection.isCollapsed
-                                        ? null
-                                        : _editor.pendingTable,
                                   ),
+                                if (_tags.isNotEmpty) ...[
+                                  const SizedBox(height: 16),
+                                  JournalTags(tags: _tags),
                                 ],
-                                customStyles: journalStyles(
-                                  fontSize: _pageStyle.fontSize,
-                                  letterSpacing: _pageStyle.letterSpacing,
-                                  lineHeight: _pageStyle.lineHeight,
-                                  paragraphSpacing: _pageStyle.paragraphSpacing,
-                                ),
-                              ),
+                              ],
                             ),
-                          ],
-                        ),
+                          ),
+                          _bodyEditor(context),
+                        ],
                       ),
                     ),
                   ),
-                  if (keyboardVisible)
-                    JournalFormatBar(
-                      controller: _editor,
-                      onFormat: () => _bodyFocus.requestFocus(),
-                      onTable: _insertTable,
-                      titleBold: _titleFocus.hasFocus ? _titleBold : null,
-                      onTitleBold: () {
-                        _titleBold = !_titleBold;
-                        _changed();
-                      },
-                    ),
-                ],
-              ),
+                ),
+                if (keyboardVisible)
+                  JournalFormatBar(
+                    controller: _editor,
+                    onFormat: () => _bodyFocus.requestFocus(),
+                    onTable: _insertTable,
+                    titleBold: _titleFocus.hasFocus ? _titleBold : null,
+                    onTitleBold: () {
+                      _titleBold = !_titleBold;
+                      _changed();
+                    },
+                  ),
+              ],
             ),
           ),
         ),
@@ -923,12 +1016,11 @@ class JournalFormatBar extends StatelessWidget {
   final bool? titleBold;
   final VoidCallback? onTitleBold;
 
-  bool _active(quill.Attribute attribute) {
+  bool _active(quill.Attribute attribute, [quill.Style? selectionStyle]) {
     if (attribute == quill.Attribute.bold && titleBold != null) {
       return titleBold!;
     }
-    final value = controller
-        .getSelectionStyle()
+    final value = (selectionStyle ?? controller.getSelectionStyle())
         .attributes[attribute.key]
         ?.value;
     if (attribute == quill.Attribute.leftAlignment) {
@@ -938,6 +1030,39 @@ class JournalFormatBar extends StatelessWidget {
   }
 
   void _format(quill.Attribute attribute) {
+    if (attribute == quill.Attribute.inlineCode &&
+        controller.selection.isCollapsed) {
+      final position = controller.selection.baseOffset;
+      var offset = 0;
+      int? start;
+      var end = 0;
+      for (final op in controller.document.toDelta().toJson()) {
+        final insert = op['insert'];
+        final length = insert is String ? insert.length : 1;
+        final code = insert is String && op['attributes']?['code'] == true;
+        if (code) {
+          start ??= offset;
+          end = offset + length;
+        }
+        if (!code || offset + length == controller.document.length) {
+          if (start != null &&
+              position >= start &&
+              position <= end &&
+              _active(attribute)) {
+            controller.formatText(
+              start,
+              end - start,
+              quill.Attribute.clone(attribute, null),
+            );
+            controller.formatSelection(quill.Attribute.clone(attribute, null));
+            onFormat();
+            return;
+          }
+          start = null;
+        }
+        offset += length;
+      }
+    }
     final isAlignment = attribute.key == quill.Attribute.align.key;
     controller.formatSelection(
       !isAlignment && _active(attribute)
@@ -984,13 +1109,17 @@ class JournalFormatBar extends StatelessWidget {
   Widget build(BuildContext context) => LayoutBuilder(
     builder: (context, constraints) {
       final width = constraints.maxWidth / 7;
+      final selectionStyle = controller.getSelectionStyle();
       Widget button(
         String label,
         Widget icon, {
         quill.Attribute? attribute,
         VoidCallback? action,
+        bool? selectedOverride,
       }) {
-        final selected = attribute != null && _active(attribute);
+        final selected =
+            selectedOverride ??
+            (attribute != null && _active(attribute, selectionStyle));
         return SizedBox(
           width: width,
           height: 54,
@@ -1063,6 +1192,25 @@ class JournalFormatBar extends StatelessWidget {
                   '无序列表',
                   const JournalFormatIcon(JournalFormatSymbol.bullet),
                   attribute: quill.Attribute.ul,
+                ),
+                button(
+                  '复选框列表',
+                  const Icon(Icons.checklist),
+                  attribute: quill.Attribute.unchecked,
+                  selectedOverride: ['checked', 'unchecked'].contains(
+                    selectionStyle.attributes[quill.Attribute.list.key]?.value,
+                  ),
+                  action: () {
+                    final current = selectionStyle
+                        .attributes[quill.Attribute.list.key]
+                        ?.value;
+                    controller.formatSelection(
+                      ['checked', 'unchecked'].contains(current)
+                          ? quill.Attribute.clone(quill.Attribute.list, null)
+                          : quill.Attribute.unchecked,
+                    );
+                    onFormat();
+                  },
                 ),
                 button(
                   '倾斜',

@@ -6,6 +6,7 @@ List<PopupMenuEntry<JournalOperation>> journalOperationsMenu(
   BuildContext context, {
   required VoidCallback runChain,
   required VoidCallback editChain,
+  required Set<JournalOperation> available,
 }) {
   void closeThen(VoidCallback action) {
     Navigator.pop(context);
@@ -46,6 +47,11 @@ List<PopupMenuEntry<JournalOperation>> journalOperationsMenu(
     JournalOperation.capitalize => const Icon(Icons.text_fields, size: 20),
     JournalOperation.addSentencePeriods => const Icon(
       Icons.more_horiz,
+      size: 20,
+    ),
+    JournalOperation.checkAll => const Icon(Icons.check_box_outlined, size: 20),
+    JournalOperation.uncheckAll => const Icon(
+      Icons.indeterminate_check_box_outlined,
       size: 20,
     ),
   };
@@ -99,6 +105,7 @@ List<PopupMenuEntry<JournalOperation>> journalOperationsMenu(
                     content: const Text(
                       '文本整理：管理标点、整理空格、清除空行或打乱无序列表。\n\n'
                       '格式调整：升降标题、取消加粗或将首字母大写。\n\n'
+                      '选框操作：勾选全部或清空勾选。\n\n'
                       '连携操作：按设定顺序一次执行多项操作，点击铅笔编辑。',
                     ),
                     actions: [
@@ -123,16 +130,37 @@ List<PopupMenuEntry<JournalOperation>> journalOperationsMenu(
       JournalOperation.clearBlankLines,
       JournalOperation.shuffleBullets,
     ])
-      item(operation),
-    const PopupMenuDivider(height: 9, thickness: 0.5, color: Color(0xFFF2F2F2)),
-    group('格式调整'),
-    for (final operation in [
+      if (available.contains(operation)) item(operation),
+    if ([
       JournalOperation.promoteHeadings,
       JournalOperation.demoteHeadings,
       JournalOperation.removeBold,
       JournalOperation.capitalize,
-    ])
-      item(operation),
+    ].any(available.contains)) ...[
+      const PopupMenuDivider(
+        height: 9,
+        thickness: 0.5,
+        color: Color(0xFFF2F2F2),
+      ),
+      group('格式调整'),
+      for (final operation in [
+        JournalOperation.promoteHeadings,
+        JournalOperation.demoteHeadings,
+        JournalOperation.removeBold,
+        JournalOperation.capitalize,
+      ])
+        if (available.contains(operation)) item(operation),
+    ],
+    if (available.contains(JournalOperation.checkAll)) ...[
+      const PopupMenuDivider(
+        height: 9,
+        thickness: 0.5,
+        color: Color(0xFFF2F2F2),
+      ),
+      group('选框操作'),
+      item(JournalOperation.checkAll),
+      item(JournalOperation.uncheckAll),
+    ],
     const PopupMenuDivider(height: 9, thickness: 0.5, color: Color(0xFFF2F2F2)),
     PopupMenuItem<JournalOperation>(
       enabled: false,

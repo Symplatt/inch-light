@@ -68,7 +68,7 @@ void main() {
       await t.tap(find.byTooltip('操作'));
       await t.pumpAndSettle();
       expect(find.text('文本整理'), findsOneWidget);
-      expect(find.text('格式调整'), findsOneWidget);
+      expect(find.text('格式调整'), findsNothing);
       final menu = t.widget<PopupMenuButton<JournalOperation>>(
         find.byType(PopupMenuButton<JournalOperation>),
       );
@@ -81,7 +81,7 @@ void main() {
           find.byWidgetPredicate(
             (widget) => widget is JournalFormatIcon && widget.symbol == symbol,
           ),
-          findsOneWidget,
+          findsNothing,
         );
       }
       await t.tap(find.text('标点管理'));

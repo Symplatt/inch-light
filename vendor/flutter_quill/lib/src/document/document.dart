@@ -55,6 +55,11 @@ class Document {
 
   Delta _delta;
 
+  // Synchronous invalidation for consumers that cache document-derived data.
+  // Selection/composing changes do not alter the document revision.
+  int _revision = 0;
+  int get revision => _revision;
+
   /// Returns contents of this document as [Delta].
   Delta toDelta() => Delta.from(_delta);
 
@@ -491,6 +496,7 @@ class Document {
       throw StateError('_delta compose failed');
     }
     assert(_delta == _root.toDelta(), 'Compose failed');
+    _revision++;
     cachedPlainText = null;
     final change = DocChange(originalDelta, delta, changeSource);
     documentChangeObserver.add(change);

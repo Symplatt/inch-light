@@ -309,7 +309,7 @@ void main() {
       await tester.pumpAndSettle();
       expect(tester.getTopLeft(find.text('事项顺序')), calendarPosition);
       expect(tester.widget<Text>(find.text('事项顺序')).style, calendarStyle);
-      expect(find.byType(SectionHeading), findsNWidgets(3));
+      expect(find.byType(SectionHeading), findsNWidgets(4));
       await unmount(tester, provider);
     },
   );

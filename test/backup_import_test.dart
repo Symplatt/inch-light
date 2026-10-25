@@ -54,6 +54,8 @@ void main() {
         );
         await t.pumpAndSettle();
         final action = find.text(file ? '文件导入' : '粘贴导入');
+        await t.drag(find.byType(ListView), const Offset(0, -500));
+        await t.pumpAndSettle();
         await t.ensureVisible(action);
         await t.tap(action);
         await t.pumpAndSettle();

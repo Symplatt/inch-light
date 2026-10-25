@@ -219,7 +219,7 @@ void main() {
     },
   );
   test(
-    'Removed checklist shortcuts stay literal and old checklist content becomes bullets',
+    'Checklist shortcuts stay literal and saved checklist content retains its state',
     () {
       for (final text in ['[ ] ', '[x] ']) {
         final c = JournalController(
@@ -242,7 +242,7 @@ void main() {
           },
         ],
       );
-      expect(note.document.last['attributes']['list'], 'bullet');
+      expect(note.document.last['attributes']['list'], 'checked');
       expect(note.content, '旧内容');
     },
   );

@@ -121,7 +121,7 @@ void main() {
       expect(markdown, contains('> 引用'));
       expect(markdown, contains('1. 第一项\n2. 第二项'));
       expect(markdown, contains('- 无序'));
-      expect(markdown, contains('- 待选\n- 已选'));
+      expect(markdown, contains('- [ ] 待选\n- [x] 已选'));
       expect(markdown, contains('\n\n---\n\n'));
       expect(markdown, contains('<div align="center">\n\n居中\n\n</div>'));
       expect(markdown, contains('<div align="right">'));
