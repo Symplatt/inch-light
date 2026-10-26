@@ -19,6 +19,8 @@ class _JournalCollectionStripState extends State<JournalCollectionStrip> {
   final _scroll = ScrollController();
   int? _pointer;
   double _pullDistance = 0;
+  double _startOffset = 0;
+  Offset _travel = Offset.zero;
 
   @override
   void dispose() {
@@ -29,24 +31,22 @@ class _JournalCollectionStripState extends State<JournalCollectionStrip> {
   @override
   Widget build(BuildContext context) => Listener(
     onPointerDown: (event) {
-      // Multi-touch and ballistic scrolling must not open the dialog.
-      _pointer =
-          _pointer == null &&
-              (!_scroll.hasClients || !_scroll.position.outOfRange)
-          ? event.pointer
-          : -1;
+      // Count finger travel directly: a fast drag can release before the
+      // ScrollPosition has painted its overscroll displacement.
+      _pointer = _pointer == null ? event.pointer : -1;
+      _startOffset = _scroll.hasClients
+          ? (_scroll.offset - _scroll.position.minScrollExtent).clamp(
+              0.0,
+              double.infinity,
+            )
+          : 0;
+      _travel = Offset.zero;
       _pullDistance = 0;
     },
     onPointerMove: (event) {
       if (_pointer != event.pointer || !_scroll.hasClients) return;
-      if (_scroll.offset <= _scroll.position.minScrollExtent) {
-        _pullDistance = (_pullDistance + event.delta.dx).clamp(
-          0,
-          double.infinity,
-        );
-      } else {
-        _pullDistance = 0;
-      }
+      _travel += event.delta;
+      _pullDistance = (_travel.dx - _startOffset).clamp(0.0, double.infinity);
     },
     onPointerCancel: (_) {
       _pointer = null;
@@ -57,7 +57,7 @@ class _JournalCollectionStripState extends State<JournalCollectionStrip> {
           _pointer == event.pointer &&
           _pullDistance >= 220 &&
           _scroll.hasClients &&
-          _scroll.position.minScrollExtent - _scroll.offset >= 64;
+          _travel.dx > _travel.dy.abs() * 1.3;
       _pointer = null;
       if (deliberatePull) widget.onOpenCollections();
     },

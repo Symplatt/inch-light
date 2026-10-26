@@ -7,6 +7,12 @@ import '../constants/journal_colors.dart';
 bool applyJournalShortcut(quill.QuillController controller) {
   final selection = controller.selection;
   if (!selection.isCollapsed || selection.baseOffset <= 0) return false;
+  if (controller.document
+          .collectStyle(selection.baseOffset, 0)
+          .attributes['code-block']
+          ?.value ==
+      true)
+    return false;
   final plain = controller.document.toPlainText();
   final end = selection.baseOffset.clamp(0, plain.length);
   final start = plain.lastIndexOf('\n', end - 1) + 1;

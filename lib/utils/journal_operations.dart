@@ -322,10 +322,15 @@ void _normalizeSentenceEnding(List<_Atom> atoms) {
     atoms.removeRange(closingEnd + 1, last + 1);
     return;
   }
-  // Inline code is opaque, including its leading/trailing punctuation. Do not
-  // append a sentence period to a code-ending paragraph or inherit code style.
   final tail = atoms[last];
-  if (tail.attributes['code'] == true) return;
+  if (tail.attributes['code'] == true) {
+    // Append outside the span; punctuation must not become part of the code.
+    final attributes = Map<String, dynamic>.from(tail.attributes)
+      ..remove('code')
+      ..remove('link');
+    atoms.insert(last + 1, _Atom('。', attributes));
+    return;
+  }
   if (_closingMark(tail) ||
       !RegExp(r'^[\p{P}\p{S}]$', unicode: true).hasMatch(tail.value)) {
     atoms.insert(last + 1, _Atom('。', tail.attributes));
@@ -346,7 +351,12 @@ String transformJournalText(String text, JournalOperation operation) {
   if (operation == JournalOperation.capitalize) {
     return text.replaceAllMapped(
       RegExp(r'\b[a-zA-Z]'),
-      (m) => m[0]!.toUpperCase(),
+      (m) =>
+          m.start >= 2 &&
+              text[m.start - 1] == '.' &&
+              RegExp(r'[A-Za-z0-9_]').hasMatch(text[m.start - 2])
+          ? m[0]!
+          : m[0]!.toUpperCase(),
     );
   }
   if (operation == JournalOperation.normalizeSpaces) {
@@ -459,7 +469,8 @@ List<dynamic> transformJournalDocument(
       line.attributes.remove('bold');
     }
     var inWord = false;
-    for (final atom in line.atoms) {
+    for (var i = 0; i < line.atoms.length; i++) {
+      final atom = line.atoms[i];
       if (operation == JournalOperation.removeBold &&
           !line.attributes.containsKey('header')) {
         atom.attributes['bold'] = false;
@@ -471,7 +482,13 @@ List<dynamic> transformJournalDocument(
         if (word && !inWord && atom.attributes['code'] != true) {
           atom.value = (atom.value as String).toUpperCase();
         }
-        inWord = word;
+        final joinsWord =
+            atom.value == '.' &&
+            inWord &&
+            i + 1 < line.atoms.length &&
+            line.atoms[i + 1].value is String &&
+            RegExp(r'^[A-Za-z0-9_]$').hasMatch(line.atoms[i + 1].value);
+        inWord = word || joinsWord;
       }
       final value = atom.value;
       if (value is Map && value['table'] is String) {

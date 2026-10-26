@@ -1,3 +1,5 @@
+import '../constants/shortcut_guide.dart';
+import '../widgets/app_dialog.dart';
 import '../utils/clipboard.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/foundation.dart';
@@ -16,6 +18,12 @@ class SettingsPage extends StatefulWidget {
 
 class _SettingsPageState extends State<SettingsPage> {
   bool _busy = false;
+  static final _infoButtonStyle = TextButton.styleFrom(
+    padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 8),
+    minimumSize: Size.zero,
+    tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+    textStyle: const TextStyle(fontSize: 13, fontWeight: FontWeight.w400),
+  );
 
   void _showMessage(BuildContext context, String message) {
     ScaffoldMessenger.of(context)
@@ -73,7 +81,7 @@ class _SettingsPageState extends State<SettingsPage> {
       } else {
         final confirmed = await showDialog<bool>(
           context: context,
-          builder: (dialogContext) => AlertDialog(
+          builder: (dialogContext) => AppAlertDialog(
             title: const Text('导入备份'),
             content: const Text('将覆盖备份中包含的数据，请先导出当前数据。'),
             actions: [
@@ -247,7 +255,7 @@ class _SettingsPageState extends State<SettingsPage> {
             icon: const Icon(Icons.help_outline, color: AppColors.textGrey),
             onPressed: () => showDialog<void>(
               context: context,
-              builder: (dialogContext) => AlertDialog(
+              builder: (dialogContext) => AppAlertDialog(
                 title: const Text('一日千录'),
                 content: const SizedBox(
                   width: double.maxFinite,
@@ -257,7 +265,7 @@ class _SettingsPageState extends State<SettingsPage> {
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Text(
-                          '版本 3.13.3（构建 73）',
+                          '版本 3.13.5（构建 76）',
                           style: TextStyle(color: AppColors.textGrey),
                         ),
                         SizedBox(height: 16),
@@ -268,17 +276,42 @@ class _SettingsPageState extends State<SettingsPage> {
                     ),
                   ),
                 ),
+                actionsPadding: const EdgeInsets.fromLTRB(12, 0, 12, 8),
                 actions: [
                   TextButton(
+                    style: _infoButtonStyle,
+                    onPressed: () => showDialog<void>(
+                      context: dialogContext,
+                      builder: (helpContext) => AppAlertDialog(
+                        title: const Text('快捷操作说明'),
+                        content: const SizedBox(
+                          width: double.maxFinite,
+                          child: SingleChildScrollView(
+                            child: Text(shortcutGuide),
+                          ),
+                        ),
+                        actions: [
+                          TextButton(
+                            onPressed: () => Navigator.pop(helpContext),
+                            child: const Text('关闭'),
+                          ),
+                        ],
+                      ),
+                    ),
+                    child: const Text('快捷操作说明'),
+                  ),
+                  TextButton(
+                    style: _infoButtonStyle,
                     onPressed: () => showLicensePage(
                       context: dialogContext,
                       applicationName: '一日千录',
-                      applicationVersion: '3.13.3',
+                      applicationVersion: '3.13.5',
                       applicationLegalese: '版权所有 © Symplatt',
                     ),
                     child: const Text('开源许可'),
                   ),
                   TextButton(
+                    style: _infoButtonStyle,
                     onPressed: () => Navigator.pop(dialogContext),
                     child: const Text('关闭'),
                   ),

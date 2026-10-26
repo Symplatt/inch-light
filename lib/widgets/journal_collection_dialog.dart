@@ -1,3 +1,4 @@
+import 'app_dialog.dart';
 import 'package:flutter/material.dart';
 import '../constants/app_colors.dart';
 
@@ -10,7 +11,7 @@ class JournalDialogFrame extends StatelessWidget {
   final String title;
   final Widget child;
   @override
-  Widget build(BuildContext context) => Dialog(
+  Widget build(BuildContext context) => AppDialog(
     elevation: 0,
     backgroundColor: Colors.white,
     surfaceTintColor: Colors.transparent,

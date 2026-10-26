@@ -10,12 +10,15 @@ import '../models/task_model.dart';
 import '../models/journal_entry.dart';
 
 import '../utils/schedule.dart';
+import '../utils/backup_preferences.dart';
 import '../utils/journal_sort.dart';
 
 export '../utils/journal_sort.dart' show JournalSort;
 
 class AppProvider with ChangeNotifier, WidgetsBindingObserver {
   bool _backupReady = false;
+  SharedPreferences? _preferences;
+  Set<String> _seenCalendarAlerts = {};
   String? _backupSnapshot;
   String? _backupDay;
   Future<void> _backupWrite = Future.value();
@@ -529,8 +532,7 @@ class AppProvider with ChangeNotifier, WidgetsBindingObserver {
     notifyListeners();
   }
 
-  Future<void> _loadData() async {
-    final prefs = await SharedPreferences.getInstance();
+  void _loadPreferences(SharedPreferences prefs) {
     _hiddenTodoCollections =
         (prefs.getStringList('hidden_todo_collections') ?? []).toSet();
     _looseTasksFirst = prefs.getBool('loose_tasks_first') ?? true;
@@ -547,6 +549,43 @@ class AppProvider with ChangeNotifier, WidgetsBindingObserver {
     _lastModule = ['todo', 'journal', 'calendar', 'settings'].contains(module)
         ? module!
         : 'todo';
+    _seenCalendarAlerts =
+        (prefs.getStringList('calendar_seen_alerts') ??
+                calendarAlertIds.toList())
+            .toSet();
+  }
+
+  Set<String> get calendarAlertIds {
+    final time = now;
+    bool urgent(DateTime due) =>
+        due.isAfter(time) && due.difference(time) <= const Duration(hours: 24);
+    return {
+      for (final task in _countdowns)
+        if (urgent(task.deadline))
+          'countdown:${task.id}:${task.deadline.millisecondsSinceEpoch}',
+      for (final task in _cycleTasks)
+        if (urgent(task.nextRunTime))
+          'cycle:${task.id}:${task.nextRunTime.millisecondsSinceEpoch}',
+    };
+  }
+
+  bool get hasCalendarAlerts => calendarAlertIds.isNotEmpty;
+  bool get hasNewCalendarAlerts =>
+      calendarAlertIds.any((id) => !_seenCalendarAlerts.contains(id));
+  Future<void> markCalendarAlertsSeen() async {
+    _seenCalendarAlerts = calendarAlertIds;
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setStringList(
+      'calendar_seen_alerts',
+      _seenCalendarAlerts.toList(),
+    );
+    notifyListeners();
+  }
+
+  Future<void> _loadData() async {
+    final prefs = await SharedPreferences.getInstance();
+    _preferences = prefs;
+    _loadPreferences(prefs);
     void safeLoad(
       String key,
       List<dynamic> list,
@@ -609,6 +648,13 @@ class AppProvider with ChangeNotifier, WidgetsBindingObserver {
         debugPrint("Error parsing collections: $e");
       }
     }
+    if (!prefs.containsKey('calendar_seen_alerts')) {
+      _seenCalendarAlerts = calendarAlertIds;
+      await prefs.setStringList(
+        'calendar_seen_alerts',
+        _seenCalendarAlerts.toList(),
+      );
+    }
     await _checkAndResetDailyTasks();
   }
 
@@ -660,6 +706,7 @@ class AppProvider with ChangeNotifier, WidgetsBindingObserver {
       'normal_tasks': _normalTasks.map((e) => e.toJson()).toList(),
       'cycle_tasks': _cycleTasks.map((e) => e.toJson()).toList(),
       'collections': _collections.map((e) => e.toJson()).toList(),
+      if (_preferences != null) 'preferences': backupPreferences(_preferences!),
     };
     return jsonEncode(data);
   }
@@ -688,6 +735,7 @@ class AppProvider with ChangeNotifier, WidgetsBindingObserver {
       ].any(data.containsKey)) {
         return false;
       }
+      final preferences = parseBackupPreferences(data['preferences']);
       final daily = parse('daily_tasks', TaskItem.fromJson, _dailyTasks);
       final entries = parse(
         'journal_entries',
@@ -711,6 +759,11 @@ class AppProvider with ChangeNotifier, WidgetsBindingObserver {
         CalendarCountdown.fromJson,
         _countdowns,
       );
+      if (preferences != null) {
+        final prefs = await SharedPreferences.getInstance();
+        await restoreBackupPreferences(prefs, preferences);
+        _loadPreferences(prefs);
+      }
       _dailyTasks
         ..clear()
         ..addAll(daily);

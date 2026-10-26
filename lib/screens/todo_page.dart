@@ -1,3 +1,4 @@
+import '../widgets/app_dialog.dart';
 import '../widgets/todo_visibility_dialog.dart';
 import '../widgets/position_border.dart';
 import '../widgets/section_heading.dart';
@@ -279,7 +280,7 @@ class _TodoPageState extends State<TodoPage> {
           key: Key(collection.id),
           id: collection.id,
           bottomMargin: 16,
-          direction: DismissDirection.startToEnd,
+          direction: DismissDirection.horizontal,
           onSwipedRight: () async {
             await provider.setVisibleTodoCollections({
               for (final item in provider.collections)
@@ -452,7 +453,7 @@ class _TodoPageState extends State<TodoPage> {
       duration: _completionDuration,
       child: SwipeDeleteCard(
         key: ValueKey('task-card-${task.id}'),
-        enabled: false,
+        enabled: !inCollection,
         id: task.id,
         radius: inCollection ? 0 : 16,
         bottomMargin: inCollection ? 0 : 12,
@@ -1140,7 +1141,7 @@ class _TodoPageState extends State<TodoPage> {
     final controller = TextEditingController(text: collection.title);
     showDialog(
       context: context,
-      builder: (context) => AlertDialog(
+      builder: (context) => AppAlertDialog(
         title: const Text('修改合集名称'),
         content: TextField(
           controller: controller,

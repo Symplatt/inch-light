@@ -1,3 +1,4 @@
+import 'app_dialog.dart';
 import 'package:flutter/material.dart';
 import '../utils/journal_operations.dart';
 
@@ -26,7 +27,7 @@ class _JournalChainDialogState extends State<JournalChainDialog> {
       items.takeWhile((item) => item != null).cast<JournalOperation>().toList();
 
   @override
-  Widget build(BuildContext context) => AlertDialog(
+  Widget build(BuildContext context) => AppAlertDialog(
     title: const Text('连携操作'),
     content: SizedBox(
       width: 360,

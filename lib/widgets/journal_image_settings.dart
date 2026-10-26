@@ -1,3 +1,4 @@
+import 'app_dialog.dart';
 import 'dart:convert';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:flutter/material.dart';
@@ -146,7 +147,7 @@ class _JournalImageSettingsDialogState
     ],
   );
   @override
-  Widget build(BuildContext context) => AlertDialog(
+  Widget build(BuildContext context) => AppAlertDialog(
     title: Text(widget.page ? '页面设置' : '图片设置'),
     content: SizedBox(
       width: 360,

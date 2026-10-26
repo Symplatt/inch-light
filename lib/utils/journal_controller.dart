@@ -2,7 +2,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter_quill/flutter_quill.dart' as quill;
 import 'package:flutter_quill/quill_delta.dart';
 import '../models/journal_table.dart';
-import 'journal_table_markdown.dart';
+import 'journal_markdown_import.dart';
 
 /// Select a table on the first backspace and delete it on the next one. Keeping
 /// this in the controller covers both IME replacements and hardware backspace.
@@ -71,7 +71,12 @@ class JournalController extends quill.QuillController {
         } else {
           delta.retain(line.length - 1);
         }
-        delta.retain(1, {'list': null, 'indent': null});
+        delta.retain(1, {
+          'list': null,
+          'indent': null,
+          if (line.toDelta().last.attributes?['blockquote'] == true)
+            'blockquote': true,
+        });
       }
       compose(
         delta,
@@ -225,40 +230,46 @@ class JournalController extends quill.QuillController {
   }
 
   bool _replace(int index, int length, Object? data) {
-    if (data is String && data.contains('\n') && data.contains('|')) {
-      final blocks = markdownTableBlocks(data);
-      if (blocks.isNotEmpty) {
-        final delta = Delta()
-          ..retain(index)
-          ..delete(length);
-        var at = 0;
-        var inserted = 0;
-        void text(String value) {
-          if (value.isNotEmpty) {
-            delta.insert(value);
-            inserted += value.length;
+    if (!_deleting && data is String && data.length > 1) {
+      final style = document.collectStyle(index, 0).attributes;
+      if (style['code']?.value != true && style['code-block']?.value != true) {
+        final parsed = journalMarkdownInsertion(data);
+        if (parsed != null) {
+          final plain = document.toPlainText();
+          final insertion = Delta();
+          if (parsed.blocks && index > 0 && plain[index - 1] != '\n') {
+            insertion.insert('\n');
           }
-        }
-
-        final plain = document.toPlainText();
-        for (final block in blocks) {
-          text(data.substring(at, block.start));
-          if (block.start == 0 && index > 0 && plain[index - 1] != '\n') {
-            text('\n');
+          for (final op in parsed.delta.toList()) {
+            insertion.push(op);
           }
-          delta.insert({'table': block.table.encode()});
-          inserted++;
-          text('\n');
-          at = block.end;
+          final end = index + length;
+          var removed = length;
+          // Reuse a blank target paragraph's newline instead of adding an
+          // empty paragraph after every complete pasted block.
+          if (parsed.blocks && end < plain.length && plain[end] == '\n') {
+            removed++;
+          }
+          final change = Delta()
+            ..retain(index)
+            ..delete(removed);
+          for (final op in insertion.toList()) {
+            change.push(op);
+          }
+          pendingTable = null;
+          final caret = (index + insertion.length).clamp(
+            0,
+            document.length - removed + insertion.length - 1,
+          );
+          // Quill.compose transforms the old selection and ignores its supplied
+          // selection; set the post-conversion caret before notifying listeners.
+          document.compose(change, quill.ChangeSource.local);
+          updateSelection(
+            TextSelection.collapsed(offset: caret),
+            quill.ChangeSource.local,
+          );
+          return false;
         }
-        text(data.substring(at));
-        pendingTable = null;
-        compose(
-          delta,
-          TextSelection.collapsed(offset: index + inserted),
-          quill.ChangeSource.local,
-        );
-        return false;
       }
     }
     if (_deleting) return true;
@@ -305,6 +316,73 @@ class JournalController extends quill.QuillController {
     }
     pendingTable = null;
     return true;
+  }
+
+  @override
+  void formatText(
+    int index,
+    int len,
+    quill.Attribute? attribute, {
+    bool shouldNotifyListeners = true,
+  }) {
+    if (attribute == null || !['list', 'blockquote'].contains(attribute.key)) {
+      super.formatText(
+        index,
+        len,
+        attribute,
+        shouldNotifyListeners: shouldNotifyListeners,
+      );
+      return;
+    }
+    final other = attribute.key == 'list' ? 'blockquote' : 'list';
+    final lines = <({int at, Map<String, dynamic> attributes})>[];
+    var start = 0;
+    var offset = 0;
+    for (final op in document.toDelta().toJson()) {
+      final insert = op['insert'];
+      if (insert is! String) {
+        offset++;
+        continue;
+      }
+      for (var i = 0; i < insert.length; i++) {
+        if (insert[i] == '\n') {
+          final at = offset + i;
+          if (at >= index &&
+              (start < index + len || len == 0 && start <= index)) {
+            lines.add((
+              at: at,
+              attributes: Map<String, dynamic>.from(op['attributes'] ?? {}),
+            ));
+          }
+          start = at + 1;
+        }
+      }
+      offset += insert.length;
+    }
+    if (!lines.any((line) => line.attributes[other] != null)) {
+      super.formatText(
+        index,
+        len,
+        attribute,
+        shouldNotifyListeners: shouldNotifyListeners,
+      );
+      return;
+    }
+    final delta = Delta();
+    var at = 0;
+    for (final line in lines) {
+      delta
+        ..retain(line.at - at)
+        ..retain(1, {
+          attribute.key: attribute.value,
+          if (line.attributes[other] != null) other: line.attributes[other],
+          if (attribute.value != null) 'header': null,
+          if (attribute.value != null) 'code-block': null,
+        });
+      at = line.at + 1;
+    }
+    document.compose(delta, quill.ChangeSource.local);
+    if (shouldNotifyListeners) notifyListeners();
   }
 
   @override

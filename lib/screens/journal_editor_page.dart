@@ -1,3 +1,4 @@
+import '../widgets/app_dialog.dart';
 import '../widgets/journal_operations_menu.dart';
 import '../widgets/journal_theme.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -104,9 +105,8 @@ class _JournalEditorPageState extends State<_JournalEditorView>
   }
 
   void _stayBrowsing() {
-    // Disable route focus restoration until an explicit tap in the note.
-    _titleFocus.canRequestFocus = false;
-    _bodyFocus.canRequestFocus = false;
+    // Unfocus clears this field from the route's restoration history. Keep
+    // focus eligibility intact so Android can deliver a fresh editing tap.
     FocusScope.of(context).unfocus();
     _editor.skipRequestKeyboard = true;
     // Unlike skipRequestKeyboard, this survives every controller notification
@@ -157,12 +157,12 @@ class _JournalEditorPageState extends State<_JournalEditorView>
     }
   }
 
-  Future<void> _runChain() async {
+  Future<void> _runChain({bool fromLongPress = false}) async {
     if (_chain.isEmpty) {
       await _editChain();
       return;
     }
-    await _operate(_chain.first, chain: _chain);
+    await _operate(_chain.first, chain: _chain, fromLongPress: fromLongPress);
   }
 
   @override
@@ -451,7 +451,7 @@ class _JournalEditorPageState extends State<_JournalEditorView>
     FocusScope.of(context).unfocus();
     final confirmed = await showDialog<bool>(
       context: context,
-      builder: (ctx) => AlertDialog(
+      builder: (ctx) => AppAlertDialog(
         title: const Text('删除整张表格？'),
         actions: [
           TextButton(
@@ -473,6 +473,7 @@ class _JournalEditorPageState extends State<_JournalEditorView>
   Future<void> _operate(
     JournalOperation operation, {
     List<JournalOperation>? chain,
+    bool fromLongPress = false,
   }) async {
     _stayBrowsing();
     final operations = chain ?? [operation];
@@ -501,9 +502,13 @@ class _JournalEditorPageState extends State<_JournalEditorView>
     _restoring = false;
     _changed();
     if (_current == before) {
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(const SnackBar(content: Text('没有需要修改的内容')));
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            fromLongPress ? '已通过长按魔法棒执行连携操作，没有需要修改的内容' : '没有需要修改的内容',
+          ),
+        ),
+      );
       return;
     }
     ScaffoldMessenger.of(context)
@@ -511,7 +516,11 @@ class _JournalEditorPageState extends State<_JournalEditorView>
       ..showSnackBar(
         SnackBar(
           content: Text(
-            chain == null ? '已${journalOperationName(operation)}' : '已完成连携操作',
+            chain == null
+                ? '已${journalOperationName(operation)}'
+                : fromLongPress
+                ? '已完成连携操作（长按魔法棒快捷执行）'
+                : '已完成连携操作',
           ),
           duration: const Duration(seconds: 3),
           persist: false,
@@ -596,7 +605,7 @@ class _JournalEditorPageState extends State<_JournalEditorView>
     final input = TextEditingController(text: _tags.join(' '));
     final result = await showDialog<String>(
       context: context,
-      builder: (context) => AlertDialog(
+      builder: (context) => AppAlertDialog(
         title: const Text('标签'),
         content: TextField(
           controller: input,
@@ -743,7 +752,15 @@ class _JournalEditorPageState extends State<_JournalEditorView>
             height: _pageStyle.lineHeight,
           ),
         ),
-        onTapDown: (details, _) => _hitCheckbox(details.globalPosition),
+        onTapDown: (details, _) {
+          if (_hitCheckbox(details.globalPosition)) return true;
+          if (!_hitTable(details.globalPosition)) {
+            _bodyFocus.canRequestFocus = true;
+            _editor.ignoreFocusOnTextChange = false;
+            _editor.skipRequestKeyboard = false;
+          }
+          return false;
+        },
         // Embedded cells and checkboxes own their taps; retain the editor focus.
         onTapUp: (details, _) {
           if (_hitCheckbox(details.globalPosition)) return true;
@@ -761,6 +778,13 @@ class _JournalEditorPageState extends State<_JournalEditorView>
             _bodyFocus.canRequestFocus = true;
             _editor.ignoreFocusOnTextChange = false;
             _editor.skipRequestKeyboard = false;
+            WidgetsBinding.instance.addPostFrameCallback((_) {
+              if (!mounted || !_bodyFocus.canRequestFocus) return;
+              _editor.ignoreFocusOnTextChange = false;
+              _editor.skipRequestKeyboard = false;
+              _bodyFocus.requestFocus();
+              _renderEditorKey.currentState?.requestKeyboard();
+            });
           }
           return table;
         },
@@ -851,39 +875,52 @@ class _JournalEditorPageState extends State<_JournalEditorView>
                   icon: const JournalActionIcon(JournalActionSymbol.done),
                 )
               else
-                PopupMenuButton<JournalOperation>(
-                  tooltip: '操作',
-                  icon: const Icon(Icons.auto_fix_high_outlined),
-                  onOpened: _stayBrowsing,
-                  requestFocus: false,
-                  onSelected: _operate,
-                  color: Colors.white,
-                  surfaceTintColor: Colors.transparent,
-                  elevation: 4,
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(14),
-                    side: const BorderSide(color: Color(0xFFE5E5E5)),
+                TooltipTheme(
+                  data: const TooltipThemeData(
+                    triggerMode: TooltipTriggerMode.manual,
                   ),
-                  constraints: BoxConstraints.tightFor(
-                    width:
-                        (224 +
-                                (MediaQuery.textScalerOf(context).scale(15) -
-                                        15) *
-                                    6)
-                            .clamp(
-                              224.0,
-                              MediaQuery.sizeOf(context).width - 24,
-                            ),
-                  ),
-                  itemBuilder: (menuContext) => journalOperationsMenu(
-                    menuContext,
-                    available: availableJournalOperations(
-                      _editor.document.toDelta().toJson(),
-                      title: _title.text,
-                      titleBold: _titleBold,
+                  child: GestureDetector(
+                    onLongPress: () => _runChain(fromLongPress: true),
+                    child: PopupMenuButton<JournalOperation>(
+                      tooltip: '操作',
+                      child: const Padding(
+                        padding: EdgeInsets.all(12),
+                        child: Icon(Icons.auto_fix_high_outlined),
+                      ),
+                      onOpened: _stayBrowsing,
+                      requestFocus: false,
+                      onSelected: _operate,
+                      color: Colors.white,
+                      surfaceTintColor: Colors.transparent,
+                      elevation: 4,
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(14),
+                        side: const BorderSide(color: Color(0xFFE5E5E5)),
+                      ),
+                      constraints: BoxConstraints.tightFor(
+                        width:
+                            (224 +
+                                    (MediaQuery.textScalerOf(
+                                              context,
+                                            ).scale(15) -
+                                            15) *
+                                        6)
+                                .clamp(
+                                  224.0,
+                                  MediaQuery.sizeOf(context).width - 24,
+                                ),
+                      ),
+                      itemBuilder: (menuContext) => journalOperationsMenu(
+                        menuContext,
+                        available: availableJournalOperations(
+                          _editor.document.toDelta().toJson(),
+                          title: _title.text,
+                          titleBold: _titleBold,
+                        ),
+                        runChain: _runChain,
+                        editChain: _editChain,
+                      ),
                     ),
-                    runChain: _runChain,
-                    editChain: _editChain,
                   ),
                 ),
               const SizedBox(width: 8),

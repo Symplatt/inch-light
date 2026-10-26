@@ -1,3 +1,4 @@
+import 'app_dialog.dart';
 import '../utils/clipboard.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -89,7 +90,7 @@ class _TableSizeDialogState extends State<_TableSizeDialog> {
   }
 
   @override
-  Widget build(BuildContext context) => AlertDialog(
+  Widget build(BuildContext context) => AppAlertDialog(
     title: const Text('插入表格'),
     content: Column(
       mainAxisSize: MainAxisSize.min,

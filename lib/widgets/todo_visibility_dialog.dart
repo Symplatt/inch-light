@@ -1,3 +1,4 @@
+import 'app_dialog.dart';
 import 'package:flutter/material.dart';
 import '../models/task_model.dart';
 
@@ -17,7 +18,7 @@ class _TodoVisibilityDialogState extends State<TodoVisibilityDialog> {
   late final selected = {...widget.visible};
   void _help() => showDialog<void>(
     context: context,
-    builder: (ctx) => AlertDialog(
+    builder: (ctx) => AppAlertDialog(
       title: const Text('部分显示'),
       content: const Text(
         '勾选要显示的事项合集，取消勾选可隐藏。右滑合集也可将它隐藏；回到“部分显示”重新勾选即可恢复显示。\n\n全选、全不选可快速调整，点击“确定”后生效。隐藏只改变显示，不会删除合集或其中的事项。',
@@ -31,7 +32,7 @@ class _TodoVisibilityDialogState extends State<TodoVisibilityDialog> {
     ),
   );
   @override
-  Widget build(BuildContext context) => Dialog(
+  Widget build(BuildContext context) => AppDialog(
     backgroundColor: Colors.white,
     surfaceTintColor: Colors.transparent,
     insetPadding: const EdgeInsets.symmetric(horizontal: 24, vertical: 32),

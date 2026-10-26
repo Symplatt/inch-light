@@ -1,3 +1,4 @@
+import 'app_dialog.dart';
 import 'package:flutter/material.dart';
 import '../utils/journal_operations.dart';
 import 'journal_format_icon.dart';
@@ -100,7 +101,7 @@ List<PopupMenuEntry<JournalOperation>> journalOperationsMenu(
               onPressed: () => closeThen(() {
                 showDialog<void>(
                   context: context,
-                  builder: (dialogContext) => AlertDialog(
+                  builder: (dialogContext) => AppAlertDialog(
                     title: const Text('快捷操作'),
                     content: const Text(
                       '文本整理：管理标点、整理空格、清除空行或打乱无序列表。\n\n'

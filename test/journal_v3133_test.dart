@@ -1,3 +1,4 @@
+import 'package:inch_light/widgets/app_dialog.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:flutter_quill/flutter_quill.dart' as q;
@@ -55,11 +56,11 @@ void main() {
     }
 
     await drag(120);
-    expect(find.byType(AlertDialog), findsNothing);
+    expect(find.byType(AppAlertDialog), findsNothing);
     expect(scroll.offset, closeTo(0, .1));
     await drag(-280);
     expect(scroll.offset, greaterThan(100));
-    expect(find.byType(AlertDialog), findsNothing);
+    expect(find.byType(AppAlertDialog), findsNothing);
     scroll.jumpTo(0);
     await t.pumpAndSettle();
 
@@ -70,29 +71,32 @@ void main() {
     }
     expect(-scroll.offset, greaterThan(64));
     expect(-scroll.offset, lessThan(150));
-    expect(find.byType(AlertDialog), findsNothing);
+    expect(find.byType(AppAlertDialog), findsNothing);
     await gesture.up();
     await t.pumpAndSettle();
     expect(find.text('合集 · 15'), findsOneWidget);
     final surface = find
         .descendant(
-          of: find.byType(AlertDialog),
+          of: find.byType(AppAlertDialog),
           matching: find.byType(Material),
         )
         .first;
     final rect = t.getRect(surface);
     expect(rect.height, lessThanOrEqualTo(850 * .65));
     expect(rect.center.dx, closeTo(200, .1));
-    expect(rect.center.dy, closeTo(425, .1));
+    expect(
+      rect.center.dy,
+      closeTo(850 * dialogCenterFraction(rect.height / 850), .1),
+    );
     final collection = find.descendant(
-      of: find.byType(AlertDialog),
+      of: find.byType(AppAlertDialog),
       matching: find.text('合集4'),
     );
     await t.scrollUntilVisible(
       collection,
       150,
       scrollable: find.descendant(
-        of: find.byType(AlertDialog),
+        of: find.byType(AppAlertDialog),
         matching: find.byType(Scrollable),
       ),
     );
@@ -103,7 +107,7 @@ void main() {
       p.lastJournalCollection,
       p.journalCollections.firstWhere((c) => c.title == '合集4').id,
     );
-    expect(find.byType(AlertDialog), findsNothing);
+    expect(find.byType(AppAlertDialog), findsNothing);
     expect(t.takeException(), isNull);
     await t.pumpWidget(const SizedBox());
     p.dispose();
@@ -187,7 +191,7 @@ void main() {
     final p = await mount(t, const SettingsPage());
     await t.tap(find.byTooltip('软件信息'));
     await t.pumpAndSettle();
-    final dialog = find.byType(AlertDialog);
+    final dialog = find.byType(AppAlertDialog);
     expect(
       find.descendant(of: dialog, matching: find.text('版本 3.13.3（构建 73）')),
       findsOneWidget,

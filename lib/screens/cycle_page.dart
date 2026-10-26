@@ -1,3 +1,4 @@
+import '../widgets/app_dialog.dart';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
@@ -328,7 +329,7 @@ class _CalendarEditorState extends State<_CalendarEditor> {
   }
 
   @override
-  Widget build(BuildContext context) => AlertDialog(
+  Widget build(BuildContext context) => AppAlertDialog(
     title: Text(_editing ? '编辑事项' : '新建时历'),
     titleTextStyle: const TextStyle(
       fontSize: 20,

@@ -53,12 +53,15 @@ class _MainScreenState extends State<MainScreen> {
   void _onTabTapped(int index) {
     setState(() => _currentIndex = index);
     _pageController.jumpToPage(index);
-    context.read<AppProvider>().setLastModule(_modules[index]);
+    final provider = context.read<AppProvider>();
+    provider.setLastModule(_modules[index]);
+    if (index == 2) provider.markCalendarAlertsSeen();
   }
 
   @override
   Widget build(BuildContext context) {
     if (!_loaded) return const Scaffold(body: SizedBox.expand());
+    final provider = context.watch<AppProvider>();
     return Scaffold(
       body: PageView(
         controller: _pageController,
@@ -79,7 +82,7 @@ class _MainScreenState extends State<MainScreen> {
         unselectedItemColor: AppColors.textGrey,
         selectedLabelStyle: const TextStyle(fontWeight: FontWeight.w400),
         elevation: 2,
-        items: const [
+        items: [
           BottomNavigationBarItem(
             icon: Icon(Icons.check_circle_outline),
             activeIcon: Icon(Icons.check_circle),
@@ -90,7 +93,46 @@ class _MainScreenState extends State<MainScreen> {
             label: '记录',
           ),
           BottomNavigationBarItem(
-            icon: Icon(Icons.calendar_month_outlined),
+            icon: Stack(
+              clipBehavior: Clip.none,
+              children: [
+                const Icon(Icons.calendar_month_outlined),
+                if (provider.hasCalendarAlerts)
+                  Positioned(
+                    right: provider.hasNewCalendarAlerts ? -10 : -3,
+                    top: -4,
+                    child: provider.hasNewCalendarAlerts
+                        ? Container(
+                            key: const ValueKey('calendar-new'),
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 3,
+                              vertical: 1,
+                            ),
+                            decoration: BoxDecoration(
+                              color: AppColors.danger,
+                              borderRadius: BorderRadius.circular(4),
+                            ),
+                            child: const Text(
+                              'new',
+                              style: TextStyle(
+                                color: Colors.white,
+                                fontSize: 9,
+                                height: 1,
+                              ),
+                            ),
+                          )
+                        : Container(
+                            key: const ValueKey('calendar-dot'),
+                            width: 6,
+                            height: 6,
+                            decoration: const BoxDecoration(
+                              color: AppColors.danger,
+                              shape: BoxShape.circle,
+                            ),
+                          ),
+                  ),
+              ],
+            ),
             label: '时历',
           ),
           BottomNavigationBarItem(

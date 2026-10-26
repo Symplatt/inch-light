@@ -1,3 +1,4 @@
+import '../widgets/app_dialog.dart';
 import '../utils/clipboard.dart';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
@@ -51,7 +52,7 @@ class _JournalPageState extends State<_JournalView> {
     if (delete) {
       final confirmed = await showDialog<bool>(
         context: context,
-        builder: (ctx) => AlertDialog(
+        builder: (ctx) => AppAlertDialog(
           title: Text('删除选中的 ${ids.length} 篇笔记？'),
           actions: [
             TextButton(
@@ -72,7 +73,7 @@ class _JournalPageState extends State<_JournalView> {
     } else {
       target = await showDialog<String>(
         context: context,
-        builder: (ctx) => SimpleDialog(
+        builder: (ctx) => AppSimpleDialog(
           title: const Text('移动到合集'),
           children: [
             SimpleDialogOption(
@@ -262,7 +263,7 @@ class _JournalPageState extends State<_JournalView> {
         swipe ||
         (await showDialog<bool>(
               context: context,
-              builder: (context) => AlertDialog(
+              builder: (context) => AppAlertDialog(
                 title: const Text('删除记录？'),
                 content: Text(entry.title.isEmpty ? '未命名' : entry.title),
                 actions: [
@@ -294,7 +295,7 @@ class _JournalPageState extends State<_JournalView> {
     final provider = context.read<AppProvider>();
     final confirmed = await showDialog<bool>(
       context: context,
-      builder: (context) => AlertDialog(
+      builder: (context) => AppAlertDialog(
         title: const Text('恢复最近删除的笔记？'),
         content: Text(
           '恢复过去一分钟内滑动删除的 ${provider.recoverableJournalCount} 篇笔记，已超过一分钟的笔记不会恢复。',
@@ -369,7 +370,7 @@ class _JournalPageState extends State<_JournalView> {
       } else {
         final target = await showDialog<String>(
           context: context,
-          builder: (context) => SimpleDialog(
+          builder: (context) => AppSimpleDialog(
             title: const Text('移动到合集'),
             children: [
               SimpleDialogOption(
@@ -450,8 +451,7 @@ class _JournalPageState extends State<_JournalView> {
               _selectCollection(id);
             },
           );
-          return AlertDialog(
-            alignment: Alignment.center,
+          return AppAlertDialog(
             constraints: BoxConstraints(
               maxHeight: MediaQuery.sizeOf(context).height * .65,
             ),

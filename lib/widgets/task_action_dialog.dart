@@ -1,3 +1,4 @@
+import 'app_dialog.dart';
 import 'package:flutter/material.dart';
 import '../constants/app_colors.dart';
 
@@ -21,7 +22,7 @@ Future<void> showTaskActionDialog(
 }) => showDialog<void>(
   context: context,
   barrierColor: Colors.black.withValues(alpha: 0.22),
-  builder: (dialogContext) => Dialog(
+  builder: (dialogContext) => AppDialog(
     backgroundColor: AppColors.surface,
     surfaceTintColor: Colors.transparent,
     elevation: 0,
