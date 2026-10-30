@@ -16,6 +16,11 @@ class TodoVisibilityDialog extends StatefulWidget {
 
 class _TodoVisibilityDialogState extends State<TodoVisibilityDialog> {
   late final selected = {...widget.visible};
+  // Snapshot the partition so checking a row does not move it under the finger.
+  late final ordered = [
+    ...widget.collections.where((c) => widget.visible.contains(c.id)),
+    ...widget.collections.where((c) => !widget.visible.contains(c.id)),
+  ];
   void _help() => showDialog<void>(
     context: context,
     builder: (ctx) => AppAlertDialog(
@@ -100,7 +105,7 @@ class _TodoVisibilityDialogState extends State<TodoVisibilityDialog> {
               child: Column(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  for (var i = 0; i < widget.collections.length; i++) ...[
+                  for (var i = 0; i < ordered.length; i++) ...[
                     if (i > 0)
                       const Divider(
                         height: 1,
@@ -110,13 +115,13 @@ class _TodoVisibilityDialogState extends State<TodoVisibilityDialog> {
                     CheckboxListTile(
                       contentPadding: EdgeInsets.zero,
                       title: Text(
-                        widget.collections[i].title,
+                        ordered[i].title,
                         style: const TextStyle(
                           fontSize: 16,
                           fontWeight: FontWeight.w400,
                         ),
                       ),
-                      value: selected.contains(widget.collections[i].id),
+                      value: selected.contains(ordered[i].id),
                       activeColor: const Color(0xFF171717),
                       checkColor: Colors.white,
                       side: const BorderSide(
@@ -129,9 +134,9 @@ class _TodoVisibilityDialogState extends State<TodoVisibilityDialog> {
                       controlAffinity: ListTileControlAffinity.trailing,
                       onChanged: (value) => setState(() {
                         if (value == true) {
-                          selected.add(widget.collections[i].id);
+                          selected.add(ordered[i].id);
                         } else {
-                          selected.remove(widget.collections[i].id);
+                          selected.remove(ordered[i].id);
                         }
                       }),
                     ),

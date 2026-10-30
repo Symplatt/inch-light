@@ -1,3 +1,4 @@
+import '../utils/journal_title_controller.dart';
 import '../widgets/app_dialog.dart';
 import '../widgets/journal_operations_menu.dart';
 import '../widgets/journal_theme.dart';
@@ -105,9 +106,11 @@ class _JournalEditorPageState extends State<_JournalEditorView>
   }
 
   void _stayBrowsing() {
-    // Unfocus clears this field from the route's restoration history. Keep
-    // focus eligibility intact so Android can deliver a fresh editing tap.
+    // Clear route focus history; explicit title/body taps restore eligibility.
     FocusScope.of(context).unfocus();
+    // Route focus restoration and delayed Quill notifications must wait for a new tap.
+    _bodyFocus.canRequestFocus = false;
+    _titleFocus.canRequestFocus = false;
     _editor.skipRequestKeyboard = true;
     // Unlike skipRequestKeyboard, this survives every controller notification
     // produced by document replacement and route focus restoration.
@@ -175,7 +178,7 @@ class _JournalEditorPageState extends State<_JournalEditorView>
     _updatedAt = widget.entry?.updatedAt ?? _createdAt;
     _tags = List.from(widget.entry?.tags ?? []);
     _titleBold = widget.entry?.titleBold ?? false;
-    _title = TextEditingController(text: widget.entry?.title ?? '');
+    _title = JournalTitleController(text: widget.entry?.title ?? '');
     _editor = JournalController(
       config: const quill.QuillControllerConfig(
         // Quill is pinned; plain-text external paste prevents unsupported image
@@ -191,6 +194,15 @@ class _JournalEditorPageState extends State<_JournalEditorView>
           : quill.Document.fromJson(widget.entry!.document),
       selection: const TextSelection.collapsed(offset: 0),
     );
+    _editor.preparePaste = (source) {
+      if (_title.text.isNotEmpty ||
+          _editor.document.toPlainText().trim().isNotEmpty)
+        return null;
+      final heading = RegExp(r'^# ([^\r\n]+)(?:\r?\n|$)').firstMatch(source);
+      if (heading == null) return null;
+      _title.text = heading[1]!;
+      return source.substring(heading.end);
+    };
     _current = _snapshot();
     _saved = _current;
     _title.addListener(_changed);
@@ -482,7 +494,7 @@ class _JournalEditorPageState extends State<_JournalEditorView>
     for (final op in operations) {
       document = transformJournalDocument(document, op);
       if (op != JournalOperation.normalizeSpaces) {
-        title = transformJournalText(title, op);
+        title = transformJournalTitle(title, op);
       }
     }
     final before = _current;
@@ -501,6 +513,14 @@ class _JournalEditorPageState extends State<_JournalEditorView>
     if (operations.contains(JournalOperation.removeBold)) _titleBold = false;
     _restoring = false;
     _changed();
+    _stayBrowsing();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted &&
+          !_bodyFocus.canRequestFocus &&
+          !_titleFocus.canRequestFocus) {
+        _stayBrowsing();
+      }
+    });
     if (_current == before) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
@@ -1069,38 +1089,11 @@ class JournalFormatBar extends StatelessWidget {
   }
 
   void _format(quill.Attribute attribute) {
-    if (attribute == quill.Attribute.inlineCode &&
-        controller.selection.isCollapsed) {
-      final position = controller.selection.baseOffset;
-      var offset = 0;
-      int? start;
-      var end = 0;
-      for (final op in controller.document.toDelta().toJson()) {
-        final insert = op['insert'];
-        final length = insert is String ? insert.length : 1;
-        final code = insert is String && op['attributes']?['code'] == true;
-        if (code) {
-          start ??= offset;
-          end = offset + length;
-        }
-        if (!code || offset + length == controller.document.length) {
-          if (start != null &&
-              position >= start &&
-              position <= end &&
-              _active(attribute)) {
-            controller.formatText(
-              start,
-              end - start,
-              quill.Attribute.clone(attribute, null),
-            );
-            controller.formatSelection(quill.Attribute.clone(attribute, null));
-            onFormat();
-            return;
-          }
-          start = null;
-        }
-        offset += length;
-      }
+    if (attribute.scope == quill.AttributeScope.inline &&
+        controller is JournalController &&
+        (controller as JournalController).clearInlineAtCaret(attribute)) {
+      onFormat();
+      return;
     }
     final isAlignment = attribute.key == quill.Attribute.align.key;
     controller.formatSelection(

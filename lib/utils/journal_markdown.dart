@@ -143,7 +143,7 @@ String journalToMarkdown(JournalEntry entry) {
   if (current.isNotEmpty) finish({});
   final output = StringBuffer();
   if (entry.title.trim().isNotEmpty) {
-    output.write('# ${_escape(entry.title.trim().replaceAll('\n', ' '))}\n\n');
+    output.write('# ${entry.title.trim().replaceAll('\n', ' ')}\n\n');
   }
   for (var i = 0; i < lines.length; i++) {
     if (i > 0) {

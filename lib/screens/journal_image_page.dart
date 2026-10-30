@@ -1,3 +1,4 @@
+import '../utils/journal_title_controller.dart';
 import '../widgets/journal_theme.dart';
 import 'dart:math' as math;
 import '../utils/journal_image_capture.dart';
@@ -187,8 +188,8 @@ class _JournalImagePageState extends State<_JournalImageView> {
                           crossAxisAlignment: CrossAxisAlignment.stretch,
                           children: [
                             if (widget.entry.title.isNotEmpty) ...[
-                              Text(
-                                widget.entry.title,
+                              Text.rich(
+                                journalTitleSpan(widget.entry.title, null),
                                 style: TextStyle(
                                   fontSize: _settings.fontSize * 30 / 18,
                                   letterSpacing: _settings.letterSpacing,

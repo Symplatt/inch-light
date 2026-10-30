@@ -1,3 +1,4 @@
+import '../utils/journal_title_controller.dart';
 import '../widgets/app_dialog.dart';
 import '../utils/clipboard.dart';
 import 'package:flutter/material.dart';
@@ -591,8 +592,11 @@ class _JournalPageState extends State<_JournalView> {
                       : null,
                 ),
                 titleAlignment: ListTileTitleAlignment.center,
-                title: Text(
-                  entry.title.isEmpty ? '未命名' : entry.title,
+                title: Text.rich(
+                  journalTitleSpan(
+                    entry.title.isEmpty ? '未命名' : entry.title,
+                    null,
+                  ),
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                   style: const TextStyle(

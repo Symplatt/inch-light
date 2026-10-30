@@ -594,6 +594,47 @@ class _TodoPageState extends State<TodoPage> {
     );
   }
 
+  Future<void> _moveTask(BuildContext context, TaskItem task) async {
+    final provider = context.read<AppProvider>();
+    final destination = await showDialog<String>(
+      context: context,
+      builder: (ctx) => AppAlertDialog(
+        title: const Text('移动事项'),
+        content: SizedBox(
+          width: double.maxFinite,
+          child: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                for (final destination in [
+                  (id: '', title: '零散事项'),
+                  ...provider.collections.map(
+                    (c) => (id: c.id, title: c.title),
+                  ),
+                ])
+                  ListTile(
+                    title: Text(destination.title),
+                    trailing: (task.collectionId ?? '') == destination.id
+                        ? const Icon(Icons.check, size: 20)
+                        : null,
+                    onTap: () => Navigator.pop(ctx, destination.id),
+                  ),
+              ],
+            ),
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text('取消'),
+          ),
+        ],
+      ),
+    );
+    if (destination != null)
+      provider.moveTask(task, destination.isEmpty ? null : destination);
+  }
+
   void _showEditTaskDialog(BuildContext context, TaskItem task) {
     final titleController = TextEditingController(text: task.title);
     final tagController = TextEditingController(text: task.tags.join(" "));
@@ -636,8 +677,26 @@ class _TodoPageState extends State<TodoPage> {
                         ),
                       ),
                       if (task.type != TaskType.daily)
+                        TextButton(
+                          style: TextButton.styleFrom(
+                            minimumSize: const Size(0, 40),
+                            padding: const EdgeInsets.symmetric(horizontal: 8),
+                            tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                          ),
+                          child: const Text('移动'),
+                          onPressed: () => _moveTask(context, task),
+                        ),
+                      if (task.type != TaskType.daily)
                         for (final position in [-1, 1])
                           TextButton(
+                            style: TextButton.styleFrom(
+                              minimumSize: const Size(0, 40),
+                              padding: EdgeInsets.only(
+                                left: 8,
+                                right: position == 1 ? 0 : 8,
+                              ),
+                              tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                            ),
                             onPressed: () => setState(() {
                               final active = position < 0
                                   ? task.isPinned
@@ -680,7 +739,13 @@ class _TodoPageState extends State<TodoPage> {
                       controller: tagController,
                       decoration: InputDecoration(
                         hintText: "标签 (空格分隔)",
-                        prefixIcon: const Icon(Icons.tag, size: 18),
+                        prefixIconConstraints: const BoxConstraints.tightFor(
+                          width: 38,
+                        ),
+                        prefixIcon: const Padding(
+                          padding: EdgeInsets.only(left: 12, right: 8),
+                          child: Icon(Icons.tag, size: 18),
+                        ),
                         filled: true,
                         fillColor: AppColors.bg,
                         border: OutlineInputBorder(
@@ -707,10 +772,8 @@ class _TodoPageState extends State<TodoPage> {
                         );
                       },
                       child: Container(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 12,
-                          vertical: 12,
-                        ),
+                        height: 56,
+                        padding: const EdgeInsets.symmetric(horizontal: 12),
                         decoration: BoxDecoration(
                           color: AppColors.bg,
                           borderRadius: BorderRadius.circular(12),
@@ -722,7 +785,7 @@ class _TodoPageState extends State<TodoPage> {
                               size: 18,
                               color: AppColors.textGrey,
                             ),
-                            const SizedBox(width: 8),
+                            const SizedBox(width: 12),
                             Text(
                               selectedDeadline == null
                                   ? "设置截止时间"
@@ -757,19 +820,27 @@ class _TodoPageState extends State<TodoPage> {
                     ),
                     Row(
                       children: [
-                        for (final offset in [0, 1])
-                          TextButton.icon(
+                        for (final offset in [0, 1]) ...[
+                          TextButton(
                             style: TextButton.styleFrom(
                               padding: const EdgeInsets.symmetric(
                                 horizontal: 4,
                               ),
                             ),
-                            icon: const Icon(Icons.today_outlined, size: 18),
-                            label: Text(offset == 0 ? '今日截止' : '明日截止'),
                             onPressed: () => setState(() {
                               selectedDeadline = endOfDay(offset);
                             }),
+                            child: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                const Icon(Icons.today_outlined, size: 18),
+                                const SizedBox(width: 4),
+                                Text(offset == 0 ? '今日截止' : '明日截止'),
+                              ],
+                            ),
                           ),
+                          if (offset == 0) const SizedBox(width: 12),
+                        ],
                         const Spacer(),
                         TextButton(
                           style: TextButton.styleFrom(
@@ -965,7 +1036,13 @@ class _TodoPageState extends State<TodoPage> {
                       controller: tagController,
                       decoration: InputDecoration(
                         hintText: "添加标签 (空格分隔)",
-                        prefixIcon: const Icon(Icons.tag, size: 18),
+                        prefixIconConstraints: const BoxConstraints.tightFor(
+                          width: 38,
+                        ),
+                        prefixIcon: const Padding(
+                          padding: EdgeInsets.only(left: 12, right: 8),
+                          child: Icon(Icons.tag, size: 18),
+                        ),
                         filled: true,
                         fillColor: AppColors.bg,
                         border: OutlineInputBorder(
@@ -1007,7 +1084,7 @@ class _TodoPageState extends State<TodoPage> {
                               size: 18,
                               color: AppColors.textGrey,
                             ),
-                            const SizedBox(width: 8),
+                            const SizedBox(width: 12),
                             Text(
                               selectedDeadline == null
                                   ? "设置截止时间"

@@ -20,6 +20,8 @@ class _MainScreenState extends State<MainScreen> {
   final PageController _pageController = PageController();
   static const _modules = ['todo', 'journal', 'calendar', 'settings'];
   bool _loaded = false;
+  double _headerDrag = double.nan;
+  Offset _headerStart = Offset.zero;
 
   @override
   void initState() {
@@ -63,15 +65,34 @@ class _MainScreenState extends State<MainScreen> {
     if (!_loaded) return const Scaffold(body: SizedBox.expand());
     final provider = context.watch<AppProvider>();
     return Scaffold(
-      body: PageView(
-        controller: _pageController,
-        physics: const NeverScrollableScrollPhysics(),
-        children: const [
-          TodoPage(),
-          JournalPage(),
-          CyclePage(),
-          SettingsPage(),
-        ],
+      body: Listener(
+        onPointerDown: (event) {
+          final top = MediaQuery.paddingOf(context).top;
+          _headerDrag =
+              event.localPosition.dy >= top &&
+                  event.localPosition.dy <= top + kToolbarHeight
+              ? event.pointer.toDouble()
+              : double.nan;
+          _headerStart = event.localPosition;
+        },
+        onPointerCancel: (_) => _headerDrag = double.nan,
+        onPointerUp: (event) {
+          if (_headerDrag != event.pointer.toDouble()) return;
+          final delta = event.localPosition - _headerStart;
+          if (delta.dx.abs() < 48 || delta.dy.abs() > 24) return;
+          final next = _currentIndex + (delta.dx < 0 ? 1 : -1);
+          if (next >= 0 && next < _modules.length) _onTabTapped(next);
+        },
+        child: PageView(
+          controller: _pageController,
+          physics: const NeverScrollableScrollPhysics(),
+          children: const [
+            TodoPage(),
+            JournalPage(),
+            CyclePage(),
+            SettingsPage(),
+          ],
+        ),
       ),
       bottomNavigationBar: BottomNavigationBar(
         type: BottomNavigationBarType.fixed,

@@ -909,6 +909,16 @@ class AppProvider with ChangeNotifier, WidgetsBindingObserver {
     notifyListeners();
   }
 
+  void moveTask(TaskItem task, String? collectionId) {
+    if (task.type != TaskType.normal || !_normalTasks.contains(task)) return;
+    if (collectionId != null && !_collections.any((c) => c.id == collectionId))
+      return;
+    task.collectionId = collectionId;
+    _removeCompletedCollections();
+    _saveData();
+    notifyListeners();
+  }
+
   void removeTask(TaskItem task) {
     if (task.type == TaskType.daily) _dailyTasks.remove(task);
     if (task.type == TaskType.normal) _normalTasks.remove(task);

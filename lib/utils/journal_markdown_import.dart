@@ -47,13 +47,30 @@ MarkdownInsertion? journalMarkdownInsertion(String source) {
   }
   final nodes = md.Document(
     extensionSet: md.ExtensionSet.gitHubFlavored,
+    inlineSyntaxes: [
+      _NoteInlineSyntax(r'==(.+?)==', 'mark'),
+      _NoteInlineSyntax(r'<u>(.+?)</u>', 'u'),
+      _NoteInlineSyntax(r'\^([^\n]+?)\^', 'sup'),
+      _NoteInlineSyntax(r'(?<!~)~([^~\n]+?)~(?!~)', 'sub'),
+    ],
     encodeHtml: false,
   ).parseLines(source.replaceAll('\r\n', '\n').split('\n'));
   var recognized = false;
   var blocks = false;
   void inspect(md.Node node) {
     if (node is! md.Element) return;
-    if (['strong', 'em', 'del', 'code', 'a', 'br'].contains(node.tag)) {
+    if ([
+      'strong',
+      'em',
+      'del',
+      'code',
+      'a',
+      'br',
+      'mark',
+      'u',
+      'sup',
+      'sub',
+    ].contains(node.tag)) {
       recognized = true;
     }
     if ([
@@ -83,7 +100,10 @@ MarkdownInsertion? journalMarkdownInsertion(String source) {
   var delta = writer.delta;
   // A single inline fragment must stay on the current paragraph.
   if (!blocks && !source.endsWith('\n') && nodes.length == 1) {
-    delta = delta.slice(0, delta.length - 1);
+    delta = delta.slice(
+      0,
+      delta.toList().fold<int>(0, (n, op) => n + (op.length ?? 0)) - 1,
+    );
   }
   return (delta: delta, blocks: blocks);
 }
@@ -103,6 +123,14 @@ class _MarkdownWriter {
     }
     final next = <String, dynamic>{...attributes};
     switch (node.tag) {
+      case 'mark':
+        next['background'] = '#fff2a8';
+      case 'u':
+        next['underline'] = true;
+      case 'sup':
+        next['script'] = 'super';
+      case 'sub':
+        next['script'] = 'sub';
       case 'strong':
         next['bold'] = true;
       case 'em':
@@ -233,9 +261,20 @@ class _MarkdownWriter {
           final heading = RegExp(r'^h([1-6])$').firstMatch(node.tag);
           paragraph(children, {
             ...attributes,
-            if (heading != null) 'header': int.parse(heading[1]!),
+            if (heading != null)
+              'header': (int.parse(heading[1]!) - 1).clamp(1, 3),
           });
       }
     }
+  }
+}
+
+class _NoteInlineSyntax extends md.InlineSyntax {
+  _NoteInlineSyntax(super.pattern, this.tag);
+  final String tag;
+  @override
+  bool onMatch(md.InlineParser parser, Match match) {
+    parser.addNode(md.Element(tag, parser.document.parseInline(match[1]!)));
+    return true;
   }
 }

@@ -1,3 +1,5 @@
+import '../models/journal_entry.dart';
+import 'journal_markdown.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_quill/flutter_quill.dart' as quill;
 import 'package:flutter_quill/quill_delta.dart';
@@ -26,6 +28,88 @@ class JournalController extends quill.QuillController {
       }
     };
   }
+  static String? _copiedMarkdown;
+  static Delta? _copiedDocument;
+  String? Function(String)? preparePaste;
+  bool _preparingPaste = false;
+
+  @override
+  bool clipboardSelection(bool copy) {
+    if (selection.isCollapsed || (!copy && readOnly)) return false;
+    final range = selection;
+    final delta = document.toDelta().slice(range.start, range.end);
+    final last = delta.last.data;
+    if (last is! String || !last.endsWith('\n')) {
+      final line = document.queryChild(range.end - 1).node;
+      delta.insert(
+        '\n',
+        line?.style.attributes.map((k, v) => MapEntry(k, v.value)),
+      );
+    }
+    final formatted = delta.toList().any(
+      (op) => op.data is! String || (op.attributes?.isNotEmpty ?? false),
+    );
+    final text = formatted
+        ? journalToMarkdown(
+            JournalEntry(
+              id: '',
+              title: '',
+              document: delta.toJson(),
+              createdAt: DateTime(1970),
+              updatedAt: DateTime(1970),
+            ),
+          )
+        : document.getPlainText(
+            range.start,
+            range.end - range.start,
+            includeEmbeds: true,
+          );
+    copiedImageUrl = null;
+    _copiedMarkdown = formatted ? text : null;
+    _copiedDocument = formatted ? delta : null;
+    Clipboard.setData(ClipboardData(text: text));
+    if (!copy)
+      replaceText(
+        range.start,
+        range.end - range.start,
+        '',
+        TextSelection.collapsed(offset: range.start),
+      );
+    return true;
+  }
+
+  /// Remove one continuous inline effect only when the caret lies inside it.
+  bool clearInlineAtCaret(quill.Attribute attribute) {
+    if (!selection.isCollapsed) return false;
+    final position = selection.baseOffset;
+    final active = <bool>[];
+    for (final op in document.toDelta().toJson()) {
+      final attrs = op['attributes'] as Map?;
+      final match = attribute.key == 'background'
+          ? (attrs?['background'] != null)
+          : (attrs?[attribute.key] == attribute.value);
+      final data = op['insert'];
+      if (data is String) {
+        for (var i = 0; i < data.length; i++)
+          active.add(match && data[i] != '\n');
+      } else {
+        active.add(false);
+      }
+    }
+    if (position <= 0 ||
+        position >= active.length ||
+        !active[position - 1] ||
+        !active[position])
+      return false;
+    var start = position - 1;
+    var end = position + 1;
+    while (start > 0 && active[start - 1]) start--;
+    while (end < active.length && active[end]) end++;
+    formatText(start, end - start, quill.Attribute.clone(attribute, null));
+    formatSelection(quill.Attribute.clone(attribute, null));
+    return true;
+  }
+
   int? pendingTable;
   bool _deleting = false;
 
@@ -230,6 +314,36 @@ class JournalController extends quill.QuillController {
   }
 
   bool _replace(int index, int length, Object? data) {
+    if (!_deleting &&
+        data is String &&
+        data == _copiedMarkdown &&
+        _copiedDocument != null) {
+      final copied = _copiedDocument!;
+      replaceText(
+        index,
+        length,
+        copied,
+        TextSelection.collapsed(offset: index),
+      );
+      return false;
+    }
+    if (!_preparingPaste && !_deleting && data is String && data.length > 1) {
+      final next = preparePaste?.call(data);
+      if (next != null) {
+        _preparingPaste = true;
+        try {
+          replaceText(
+            index,
+            length,
+            next,
+            TextSelection.collapsed(offset: index + next.length),
+          );
+        } finally {
+          _preparingPaste = false;
+        }
+        return false;
+      }
+    }
     if (!_deleting && data is String && data.length > 1) {
       final style = document.collectStyle(index, 0).attributes;
       if (style['code']?.value != true && style['code-block']?.value != true) {
@@ -257,9 +371,13 @@ class JournalController extends quill.QuillController {
             change.push(op);
           }
           pendingTable = null;
-          final caret = (index + insertion.length).clamp(
+          final insertedLength = insertion.toList().fold<int>(
             0,
-            document.length - removed + insertion.length - 1,
+            (n, op) => n + (op.length ?? 0),
+          );
+          final caret = (index + insertedLength).clamp(
+            0,
+            document.length - removed + insertedLength - 1,
           );
           // Quill.compose transforms the old selection and ignores its supplied
           // selection; set the post-conversion caret before notifying listeners.
