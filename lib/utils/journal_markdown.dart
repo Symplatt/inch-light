@@ -58,13 +58,18 @@ String journalToMarkdown(JournalEntry entry) {
   var previousCode = false;
   final punctuation = RegExp(r'^[\p{P}]$', unicode: true);
   var ordered = 0;
+  var previousQuote = false;
   void finish(Map attributes) {
     var text = current.toString();
     current = StringBuffer();
     previousChar = null;
     previousCode = false;
     var kind = 'paragraph';
-    if (attributes['list'] != 'ordered') ordered = 0;
+    final inQuote = attributes['blockquote'] == true;
+    if (attributes['list'] != 'ordered' || previousQuote != inQuote) {
+      ordered = 0;
+    }
+    previousQuote = inQuote;
     final header = attributes['header'];
     if (header is int) {
       text = '${'#' * (header + 1).clamp(2, 6)} $text';

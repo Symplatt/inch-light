@@ -58,7 +58,9 @@ quill.DefaultStyles journalStyles({
       null,
       null,
       indentWidthBuilder: (block, _, _, _) => quill.HorizontalSpacing(
-        block.style.attributes.containsKey('blockquote') ? 10 : 24,
+        block.style.attributes.containsKey('blockquote')
+            ? (block.style.attributes.containsKey('list') ? 34 : 10)
+            : 24,
         0,
       ),
       numberPointWidthBuilder: (_, _) => 24,
@@ -135,7 +137,10 @@ Widget? journalLeading(
   if (!['ordered', 'bullet'].contains(type) && !check) {
     return null;
   }
-  final style = textStyle ?? journalBlock(18).style;
+  final baseStyle = textStyle ?? journalBlock(18).style;
+  final style = node.style.attributes.containsKey('blockquote')
+      ? baseStyle.copyWith(color: const Color(0xFF898989))
+      : baseStyle;
   final strut = StrutStyle.fromTextStyle(style);
   final painter = TextPainter(
     text: TextSpan(
@@ -163,39 +168,45 @@ Widget? journalLeading(
     ),
   );
   // Constrain to the first line, not the full height of a wrapped list item.
-  return Align(
-    alignment: Alignment.topLeft,
-    child: SizedBox(
-      width: 24,
-      height: height,
-      child: Align(
-        alignment: Alignment.centerLeft,
-        child: check
-            ? SizedBox.square(
-                key: checkboxKey,
-                dimension: MediaQuery.textScalerOf(context).scale(18),
-                child: ExcludeFocus(
-                  child: Checkbox(
-                    value: config.value,
-                    onChanged: readOnly || config.enabled == false
-                        ? null
-                        : (value) => config.onCheckboxTap(value!),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(3),
+  // Quote inset is additional to the marker gutter, never a narrower gutter.
+  return Padding(
+    padding: EdgeInsets.only(
+      left: node.style.attributes.containsKey('blockquote') ? 10 : 0,
+    ),
+    child: Align(
+      alignment: Alignment.topLeft,
+      child: SizedBox(
+        width: 24,
+        height: height,
+        child: Align(
+          alignment: Alignment.centerLeft,
+          child: check
+              ? SizedBox.square(
+                  key: checkboxKey,
+                  dimension: MediaQuery.textScalerOf(context).scale(18),
+                  child: ExcludeFocus(
+                    child: Checkbox(
+                      value: config.value,
+                      onChanged: readOnly || config.enabled == false
+                          ? null
+                          : (value) => config.onCheckboxTap(value!),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(3),
+                      ),
+                      side: const BorderSide(
+                        color: Color(0xFF707070),
+                        width: 1.4,
+                      ),
+                      activeColor: const Color(0xFF606060),
+                      materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                      visualDensity: VisualDensity.compact,
                     ),
-                    side: const BorderSide(
-                      color: Color(0xFF707070),
-                      width: 1.4,
-                    ),
-                    activeColor: const Color(0xFF606060),
-                    materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                    visualDensity: VisualDensity.compact,
                   ),
-                ),
-              )
-            : type == 'ordered'
-            ? marker('${config.getIndexNumberByIndent}.')
-            : marker('•'),
+                )
+              : type == 'ordered'
+              ? marker('${config.getIndexNumberByIndent}.')
+              : marker('•'),
+        ),
       ),
     ),
   );

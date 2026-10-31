@@ -106,8 +106,6 @@ class _JournalEditorPageState extends State<_JournalEditorView>
   }
 
   void _stayBrowsing() {
-    // Clear route focus history; explicit title/body taps restore eligibility.
-    FocusScope.of(context).unfocus();
     // Route focus restoration and delayed Quill notifications must wait for a new tap.
     _bodyFocus.canRequestFocus = false;
     _titleFocus.canRequestFocus = false;
@@ -115,6 +113,8 @@ class _JournalEditorPageState extends State<_JournalEditorView>
     // Unlike skipRequestKeyboard, this survives every controller notification
     // produced by document replacement and route focus restoration.
     _editor.ignoreFocusOnTextChange = true;
+    // Revoke eligibility before unfocusing: focus listeners can run synchronously.
+    FocusScope.of(context).unfocus();
     SystemChannels.textInput.invokeMethod<void>('TextInput.hide');
   }
 
@@ -575,6 +575,7 @@ class _JournalEditorPageState extends State<_JournalEditorView>
       ),
     );
     if (!mounted) return;
+    _stayBrowsing();
     if (choice == 'markdown') await _copyMarkdown();
     if (choice == 'image' && mounted) {
       await Navigator.of(context).push(
@@ -582,6 +583,7 @@ class _JournalEditorPageState extends State<_JournalEditorView>
           builder: (_) => JournalImagePage(entry: _entry()),
         ),
       );
+      if (mounted) _stayBrowsing();
     }
   }
 

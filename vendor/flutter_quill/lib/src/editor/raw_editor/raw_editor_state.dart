@@ -661,17 +661,21 @@ class QuillRawEditorState extends EditorState
     // So in this case we set clearIndents=true and send it
     // to the next EditableTextBlock
     var prevNodeOl = false;
+    var previousQuote = false;
     var clearIndents = false;
 
     for (final node in doc.root.children) {
       final attrs = node.style.attributes;
+      final inQuote = attrs[Attribute.blockQuote.key] == Attribute.blockQuote;
 
       if (prevNodeOl && attrs[Attribute.list.key] != Attribute.ol ||
-          attrs.isEmpty) {
+          attrs.isEmpty ||
+          previousQuote != inQuote) {
         clearIndents = true;
       }
 
       prevNodeOl = attrs[Attribute.list.key] == Attribute.ol;
+      previousQuote = inQuote;
       final nodeTextDirection = getDirectionOfNode(node, _textDirection);
       if (node is Line) {
         final editableTextLine = _getEditableTextLineFromNode(
@@ -1379,6 +1383,9 @@ class QuillRawEditorState extends EditorState
   /// keyboard become visible.
   @override
   void requestKeyboard() {
+    // A browsing/menu action can revoke focus before the focus tree settles.
+    // Delayed selection callbacks must not reopen an existing input connection.
+    if (!widget.config.focusNode.canRequestFocus) return;
     if (controller.skipRequestKeyboard) {
       controller.skipRequestKeyboard = false;
       return;

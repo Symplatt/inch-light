@@ -72,6 +72,7 @@ mixin RawEditorStateTextInputClientMixin on EditorState
 
   void openConnectionIfNeeded() {
     if (!shouldCreateInputConnection ||
+        !widget.config.focusNode.canRequestFocus ||
         !widget.config.focusNode.hasPrimaryFocus) {
       return;
     }
