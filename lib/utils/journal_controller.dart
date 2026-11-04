@@ -16,6 +16,7 @@ class JournalController extends quill.QuillController {
   }) {
     onReplaceText = _replace;
     onDelete = (position, forward) {
+      if (!forward && handleDividerBackspace()) return;
       if (!forward && handleListBackspace()) return;
       if (!forward && clearLeadingEmptyLines()) return;
       if (!forward && position > 0) {
@@ -112,6 +113,57 @@ class JournalController extends quill.QuillController {
 
   int? pendingTable;
   bool _deleting = false;
+
+  void insertDivider() {
+    final range = selection;
+    final plain = document.toPlainText();
+    final start = range.start.clamp(0, document.length - 1);
+    final end = range.end.clamp(start, document.length - 1);
+    final line = document.queryChild(start).node;
+    final attributes = line is quill.Line
+        ? line.toDelta().last.attributes
+        : null;
+    final leadingBreak = start > 0 && plain[start - 1] != '\n';
+    // Reuse an existing paragraph break, but keep the final editable line.
+    final consumeBreak = plain[end] == '\n' && end < plain.length - 1;
+    final delta = Delta()
+      ..retain(start)
+      ..delete(end - start + (consumeBreak ? 1 : 0));
+    if (leadingBreak) delta.insert('\n', attributes);
+    delta
+      ..insert({'divider': 'hr'})
+      ..insert('\n');
+    document.compose(delta, quill.ChangeSource.local);
+    updateSelection(
+      TextSelection.collapsed(offset: start + (leadingBreak ? 1 : 0) + 2),
+      quill.ChangeSource.local,
+    );
+  }
+
+  bool handleDividerBackspace() {
+    if (_deleting || !selection.isCollapsed || selection.start < 2) {
+      return false;
+    }
+    final start = selection.start;
+    final previous = document.toDelta().slice(start - 2, start).toList();
+    if (previous.length != 2 ||
+        previous.first.data is! Map ||
+        !(previous.first.data as Map).containsKey('divider') ||
+        previous.last.data != '\n') {
+      return false;
+    }
+    document.compose(
+      Delta()
+        ..retain(start - 2)
+        ..delete(2),
+      quill.ChangeSource.local,
+    );
+    updateSelection(
+      TextSelection.collapsed(offset: start - 2),
+      quill.ChangeSource.local,
+    );
+    return true;
+  }
 
   /// Unlist the first item at its start; remove only interior blank items.
   /// Raw deltas prevent Quill's paragraph merge from copying list attributes.
@@ -391,6 +443,12 @@ class JournalController extends quill.QuillController {
       }
     }
     if (_deleting) return true;
+    if (data == '' &&
+        length == 1 &&
+        index == selection.start - 1 &&
+        handleDividerBackspace()) {
+      return false;
+    }
     if (data == '' &&
         length > 0 &&
         selection.isCollapsed &&

@@ -475,7 +475,7 @@ class _TodoPageState extends State<TodoPage> {
             child: ListTile(
               contentPadding: const EdgeInsets.symmetric(
                 horizontal: 16,
-                vertical: 8,
+                vertical: 7,
               ),
               leading: GestureDetector(
                 onTap: () => _completeTask(task, provider),

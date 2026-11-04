@@ -211,7 +211,8 @@ class _JournalImagePageState extends State<_JournalImageView> {
                                   color: Color(0xFF999999),
                                 ),
                               ),
-                            if (widget.entry.tags.isNotEmpty) ...[
+                            if (!_settings.hideTags &&
+                                widget.entry.tags.isNotEmpty) ...[
                               const SizedBox(height: 16),
                               JournalTags(tags: widget.entry.tags),
                             ],

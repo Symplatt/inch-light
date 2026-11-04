@@ -34,10 +34,9 @@ class InlineCodeOffsetMapping {
   }
 
   TextPosition layoutPosition(TextPosition position) => TextPosition(
-    offset: toLayout(
-      position.offset,
-      includePadding: position.affinity == TextAffinity.downstream,
-    ),
+    // Carets belong beside the glyphs, inside the decorative background.
+    // Affinity selects a wrapped line, never the outside of its padding.
+    offset: toLayout(position.offset),
     affinity: position.affinity,
   );
 

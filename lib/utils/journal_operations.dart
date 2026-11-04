@@ -331,7 +331,9 @@ void _normalizeSentenceEnding(List<_Atom> atoms) {
     atoms.insert(last + 1, _Atom('。', attributes));
     return;
   }
-  if (_closingMark(tail) ||
+  if (tail.value == '%' ||
+      tail.value == '％' ||
+      _closingMark(tail) ||
       !RegExp(r'^[\p{P}\p{S}]$', unicode: true).hasMatch(tail.value)) {
     atoms.insert(last + 1, _Atom('。', tail.attributes));
   }

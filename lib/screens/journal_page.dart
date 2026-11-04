@@ -32,7 +32,8 @@ class _JournalView extends StatefulWidget {
   State<_JournalView> createState() => _JournalPageState();
 }
 
-class _JournalPageState extends State<_JournalView> {
+class _JournalPageState extends State<_JournalView>
+    with WidgetsBindingObserver {
   String _query = '';
   bool _selecting = false;
   bool _batchBusy = false;
@@ -165,11 +166,13 @@ class _JournalPageState extends State<_JournalView> {
   );
 
   final _search = TextEditingController();
+  final _searchFocus = FocusNode();
   String? _selectedCollection;
 
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
     _selectedCollection =
         widget.collectionId ??
         context.read<AppProvider>().lastJournalCollection;
@@ -177,8 +180,15 @@ class _JournalPageState extends State<_JournalView> {
 
   @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
     _search.dispose();
+    _searchFocus.dispose();
     super.dispose();
+  }
+
+  @override
+  void didChangeMetrics() {
+    if (mounted) setState(() {});
   }
 
   void _open([JournalEntry? entry]) {
@@ -556,17 +566,31 @@ class _JournalPageState extends State<_JournalView> {
     }
     final collections = provider.journalCollections;
     final query = _query.trim().toLowerCase();
-    final entries = provider.journalEntries.where((entry) {
-      final inScope =
-          (_selectedCollection == null && query.isNotEmpty) ||
-          _inCollection(entry, collections);
-      return inScope &&
-          (query.isEmpty ||
-              entry.title.toLowerCase().contains(query) ||
-              entry.tags.any((tag) => tag.toLowerCase().contains(query)));
-    }).toList();
+    final matches = provider.journalEntries.where(
+      (entry) =>
+          query.isEmpty ||
+          entry.title.toLowerCase().contains(query) ||
+          entry.tags.any((tag) => tag.toLowerCase().contains(query)),
+    );
+    final localEntries = matches
+        .where((e) => _inCollection(e, collections))
+        .toList();
+    final otherEntries = query.isEmpty
+        ? <JournalEntry>[]
+        : matches.where((e) => !_inCollection(e, collections)).toList();
+    final entries = [...localEntries, ...otherEntries];
     final notes = <Widget>[
-      for (final entry in entries)
+      for (final entry in entries) ...[
+        if (query.isNotEmpty &&
+            (entry == localEntries.firstOrNull ||
+                entry == otherEntries.firstOrNull))
+          Padding(
+            padding: const EdgeInsets.symmetric(vertical: 12),
+            child: Text(
+              _inCollection(entry, collections) ? '本合集' : '其他合集',
+              style: const TextStyle(fontSize: 13, color: Color(0xFF606060)),
+            ),
+          ),
         Padding(
           key: ValueKey(entry.id),
           padding: const EdgeInsets.only(bottom: 8),
@@ -592,18 +616,34 @@ class _JournalPageState extends State<_JournalView> {
                       : null,
                 ),
                 titleAlignment: ListTileTitleAlignment.center,
-                title: Text.rich(
-                  journalTitleSpan(
-                    entry.title.isEmpty ? '未命名' : entry.title,
-                    null,
-                  ),
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: const TextStyle(
-                    fontSize: 17,
-                    fontWeight: FontWeight.w500,
-                    color: Color(0xFF3D3D3D),
-                  ),
+                title: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    if (query.isNotEmpty && !_inCollection(entry, collections))
+                      Text(
+                        '来自 ${collections.where((c) => c.id == entry.collectionId).firstOrNull?.title ?? "默认"}',
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(
+                          fontSize: 12,
+                          color: Color(0xFF767676),
+                        ),
+                      ),
+                    Text.rich(
+                      journalTitleSpan(
+                        entry.title.isEmpty ? '未命名' : entry.title,
+                        null,
+                      ),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(
+                        fontSize: 17,
+                        fontWeight: FontWeight.w500,
+                        color: Color(0xFF3D3D3D),
+                      ),
+                    ),
+                  ],
                 ),
                 subtitle: LayoutBuilder(
                   builder: (context, constraints) => Row(
@@ -627,9 +667,15 @@ class _JournalPageState extends State<_JournalView> {
                       if (entry.tags.isNotEmpty) ...[
                         const SizedBox(width: 8),
                         Expanded(
-                          child: SingleChildScrollView(
-                            scrollDirection: Axis.horizontal,
-                            child: JournalTags(tags: entry.tags, compact: true),
+                          child: Transform.translate(
+                            offset: const Offset(0, 1),
+                            child: SingleChildScrollView(
+                              scrollDirection: Axis.horizontal,
+                              child: JournalTags(
+                                tags: entry.tags,
+                                compact: true,
+                              ),
+                            ),
                           ),
                         ),
                       ],
@@ -654,6 +700,7 @@ class _JournalPageState extends State<_JournalView> {
             ),
           ),
         ),
+      ],
     ];
     return PopScope(
       canPop: !_selecting,
@@ -712,7 +759,9 @@ class _JournalPageState extends State<_JournalView> {
             ],
           ],
         ),
-        floatingActionButton: _selecting
+        floatingActionButton: View.of(context).viewInsets.bottom > 0
+            ? null
+            : _selecting
             ? Column(
                 mainAxisSize: MainAxisSize.min,
                 children: [
@@ -753,6 +802,8 @@ class _JournalPageState extends State<_JournalView> {
               child: TextField(
                 key: const ValueKey('record-search'),
                 controller: _search,
+                focusNode: _searchFocus,
+                onTapOutside: (_) => _searchFocus.unfocus(),
                 onChanged: (value) => setState(() {
                   _query = value;
                   _selected.clear();

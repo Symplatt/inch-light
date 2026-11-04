@@ -430,6 +430,7 @@ class _JournalEditorPageState extends State<_JournalEditorView>
   }
 
   Future<void> _insertTable() async {
+    if (_tableCellFocused()) return;
     final selection = _editor.selection;
     FocusScope.of(context).unfocus();
     final table = await showJournalTableDialog(context);
@@ -754,7 +755,8 @@ class _JournalEditorPageState extends State<_JournalEditorView>
           if (_bodyFocus.hasPrimaryFocus &&
               (event is KeyDownEvent || event is KeyRepeatEvent) &&
               event.logicalKey == LogicalKeyboardKey.backspace &&
-              (_editor.handleListBackspace() ||
+              (_editor.handleDividerBackspace() ||
+                  _editor.handleListBackspace() ||
                   _editor.clearLeadingEmptyLines() ||
                   _editor.handleTableBackspace())) {
             return KeyEventResult.handled;
@@ -1107,35 +1109,7 @@ class JournalFormatBar extends StatelessWidget {
   }
 
   void _divider() {
-    final selection = controller.selection;
-    controller.replaceText(
-      selection.start,
-      selection.end - selection.start,
-      const quill.BlockEmbed('divider', 'hr'),
-      null,
-    );
-    // Quill may add a leading newline when inserting inside a paragraph.
-    // Locate the actual embed instead of assuming its offset, and ensure that
-    // there is a separate editable paragraph after a divider at the end.
-    var offset = 0;
-    var nextLine = selection.start;
-    for (final op in controller.document.toDelta().toJson()) {
-      final insert = op['insert'];
-      if (insert is Map && offset >= selection.start) {
-        nextLine = offset + 2;
-        break;
-      }
-      offset += insert is String ? insert.length : 1;
-    }
-    if (nextLine >= controller.document.length) {
-      controller.replaceText(controller.document.length - 1, 0, '\n', null);
-    }
-    controller.updateSelection(
-      TextSelection.collapsed(
-        offset: nextLine.clamp(0, controller.document.length - 1),
-      ),
-      quill.ChangeSource.local,
-    );
+    (controller as JournalController).insertDivider();
     onFormat();
   }
 
@@ -1162,7 +1136,12 @@ class JournalFormatBar extends StatelessWidget {
             child: IconButton(
               key: ValueKey('format-$label'),
               tooltip: label,
-              onPressed: action ?? () => _format(attribute!),
+              onPressed: () {
+                // Cells are plain-text editors with an independent selection.
+                // The saved Quill selection still points into the prose.
+                if (_tableCellFocused()) return;
+                (action ?? () => _format(attribute!))();
+              },
               style: IconButton.styleFrom(
                 iconSize: 24,
                 backgroundColor: selected
@@ -1316,3 +1295,9 @@ class JournalFormatBar extends StatelessWidget {
     },
   );
 }
+
+// Keep unsupported toolbar operations from formatting the stale prose selection.
+bool _tableCellFocused() =>
+    FocusManager.instance.primaryFocus?.context
+        ?.findAncestorWidgetOfExactType<JournalTable>() !=
+    null;

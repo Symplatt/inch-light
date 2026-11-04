@@ -265,7 +265,7 @@ class _SettingsPageState extends State<SettingsPage> {
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Text(
-                          '版本 3.13.7（构建 86）',
+                          '版本 3.13.8（构建 93）',
                           style: TextStyle(color: AppColors.textGrey),
                         ),
                         SizedBox(height: 16),
@@ -276,7 +276,7 @@ class _SettingsPageState extends State<SettingsPage> {
                     ),
                   ),
                 ),
-                actionsPadding: const EdgeInsets.fromLTRB(12, 0, 12, 8),
+                actionsPadding: const EdgeInsets.fromLTRB(12, 12, 12, 8),
                 actions: [
                   TextButton(
                     style: _infoButtonStyle,
@@ -305,7 +305,7 @@ class _SettingsPageState extends State<SettingsPage> {
                     onPressed: () => showLicensePage(
                       context: dialogContext,
                       applicationName: '一日千录',
-                      applicationVersion: '3.13.7',
+                      applicationVersion: '3.13.8',
                       applicationLegalese: '版权所有 © Symplatt',
                     ),
                     child: const Text('开源许可'),

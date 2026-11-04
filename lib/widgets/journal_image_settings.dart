@@ -11,6 +11,7 @@ class JournalImageSettings {
     this.paragraphSpacing = 10,
     this.indent = false,
     this.hideMetadata = false,
+    this.hideTags = false,
     this.topMargin = 54,
     this.bottomMargin = 54,
     this.sideMargin = 24,
@@ -22,6 +23,7 @@ class JournalImageSettings {
     'paragraphSpacing': paragraphSpacing,
     'indent': indent,
     'hideMetadata': hideMetadata,
+    'hideTags': hideTags,
     'topMargin': topMargin,
     'bottomMargin': bottomMargin,
     'sideMargin': sideMargin,
@@ -41,6 +43,7 @@ class JournalImageSettings {
       paragraphSpacing: number('paragraphSpacing', 10, 0, 40),
       indent: !page && json['indent'] == true,
       hideMetadata: json['hideMetadata'] == true,
+      hideTags: !page && json['hideTags'] == true,
       topMargin: number('topMargin', page ? 16 : 54, 0, 120),
       bottomMargin: number('bottomMargin', page ? 32 : 54, 0, 120),
       sideMargin: number('sideMargin', 24, 0, 80),
@@ -74,7 +77,9 @@ class JournalImageSettings {
     final before = previous.toJson();
     // Only A's changed fields replace B's remembered overrides.
     for (final item in toJson().entries) {
-      if (item.key != 'indent' && item.value != before[item.key]) {
+      if (item.key != 'indent' &&
+          item.key != 'hideTags' &&
+          item.value != before[item.key]) {
         image[item.key] = item.value;
       }
     }
@@ -90,6 +95,7 @@ class JournalImageSettings {
   double paragraphSpacing;
   bool indent;
   bool hideMetadata;
+  bool hideTags;
   double topMargin;
   double bottomMargin;
   double sideMargin;
@@ -100,6 +106,7 @@ class JournalImageSettings {
     paragraphSpacing: paragraphSpacing,
     indent: indent,
     hideMetadata: hideMetadata,
+    hideTags: hideTags,
     topMargin: topMargin,
     bottomMargin: bottomMargin,
     sideMargin: sideMargin,
@@ -218,6 +225,13 @@ class _JournalImageSettingsDialogState
                 title: const Text('开头空两格'),
                 value: value.indent,
                 onChanged: (v) => setState(() => value.indent = v),
+              ),
+            if (!widget.page)
+              SwitchListTile(
+                contentPadding: EdgeInsets.zero,
+                title: const Text('隐藏标签'),
+                value: value.hideTags,
+                onChanged: (v) => setState(() => value.hideTags = v),
               ),
             SwitchListTile(
               contentPadding: EdgeInsets.zero,

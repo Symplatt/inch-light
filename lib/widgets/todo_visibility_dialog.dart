@@ -147,7 +147,7 @@ class _TodoVisibilityDialogState extends State<TodoVisibilityDialog> {
           ),
           const Divider(height: 1, thickness: 0.5, color: Color(0xFFE8E8E8)),
           Padding(
-            padding: const EdgeInsets.fromLTRB(24, 16, 16, 16),
+            padding: const EdgeInsets.fromLTRB(24, 22, 16, 16),
             child: Row(
               mainAxisAlignment: MainAxisAlignment.end,
               children: [
@@ -155,7 +155,9 @@ class _TodoVisibilityDialogState extends State<TodoVisibilityDialog> {
                   style: TextButton.styleFrom(
                     backgroundColor: const Color(0xFFF2F3F5),
                     foregroundColor: const Color(0xFF606060),
-                    minimumSize: const Size(76, 40),
+                    fixedSize: const Size(68, 36),
+                    padding: EdgeInsets.zero,
+                    tapTargetSize: MaterialTapTargetSize.shrinkWrap,
                     shape: const StadiumBorder(),
                   ),
                   onPressed: () => Navigator.pop(context),
@@ -166,7 +168,9 @@ class _TodoVisibilityDialogState extends State<TodoVisibilityDialog> {
                   style: FilledButton.styleFrom(
                     backgroundColor: const Color(0xFF171717),
                     foregroundColor: Colors.white,
-                    minimumSize: const Size(76, 40),
+                    fixedSize: const Size(68, 36),
+                    padding: EdgeInsets.zero,
+                    tapTargetSize: MaterialTapTargetSize.shrinkWrap,
                     shape: const StadiumBorder(),
                   ),
                   onPressed: () => Navigator.pop(context, selected),

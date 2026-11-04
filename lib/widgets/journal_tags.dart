@@ -5,8 +5,8 @@ class JournalTags extends StatelessWidget {
   final List<String> tags;
   final bool compact;
   static double compactHeight(BuildContext context) {
-    // Match the metadata's nominal glyph height, without its line leading.
-    return MediaQuery.textScalerOf(context).scale(12);
+    // Include the metadata line's leading when aligning compact tags.
+    return MediaQuery.textScalerOf(context).scale(12) + 2;
   }
 
   @override
