@@ -321,11 +321,11 @@ class RenderParagraphProxy extends RenderProxyBox
         TextSelection(
           baseOffset: inlineCodeOffsets.toLayout(
             range.start,
-            includePadding: false,
+            includePadding: true,
           ),
           extentOffset: inlineCodeOffsets.toLayout(
             range.end,
-            includePadding: true,
+            includePadding: false,
           ),
         ),
         boxHeightStyle: BoxHeightStyle.max,

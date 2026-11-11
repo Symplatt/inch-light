@@ -214,7 +214,7 @@ void main() {
   });
 
   for (final completed in [false, true]) {
-    testWidgets('Collection ignores left swipe in completed=$completed view', (
+    testWidgets('Collection left swipe removes items (completed=$completed)', (
       tester,
     ) async {
       final provider = AppProvider();
@@ -235,8 +235,8 @@ void main() {
       }
       await tester.drag(find.text('完整合集'), const Offset(-700, 0));
       await tester.pumpAndSettle();
-      expect(provider.collections, hasLength(1));
-      expect(provider.normalTasks, hasLength(3));
+      expect(provider.collections, isEmpty);
+      expect(provider.normalTasks.single.title, '合集之外');
       provider.clearCollections();
       provider.addCollection('另一合集');
       provider.addNormalTask(

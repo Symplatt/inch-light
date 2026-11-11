@@ -6,6 +6,7 @@ import android.app.PendingIntent
 import android.app.job.JobScheduler
 import android.content.Intent
 import android.os.Bundle
+import android.view.KeyEvent
 import android.app.Activity
 import androidx.core.content.FileProvider
 import java.io.File
@@ -18,9 +19,30 @@ class MainActivity : FlutterActivity() {
     private val dataImport by lazy { DataImport(this) }
     private var pendingImage: ByteArray? = null
     private var pendingResult: MethodChannel.Result? = null
+    private var workLogVolumeEnabled = false
+    private var workLogVolumeChannel: MethodChannel? = null
+
+    override fun dispatchKeyEvent(event: KeyEvent): Boolean {
+        if (workLogVolumeEnabled &&
+            (event.keyCode == KeyEvent.KEYCODE_VOLUME_DOWN || event.keyCode == KeyEvent.KEYCODE_VOLUME_UP)) {
+            if (event.action == KeyEvent.ACTION_DOWN && event.repeatCount == 0) {
+                workLogVolumeChannel?.invokeMethod("changeDay",
+                    if (event.keyCode == KeyEvent.KEYCODE_VOLUME_DOWN) 1 else -1)
+            }
+            return true
+        }
+        return super.dispatchKeyEvent(event)
+    }
 
     override fun configureFlutterEngine(flutterEngine: FlutterEngine) {
         super.configureFlutterEngine(flutterEngine)
+        workLogVolumeChannel = MethodChannel(flutterEngine.dartExecutor.binaryMessenger, "inch_light/work_log_volume")
+        workLogVolumeChannel?.setMethodCallHandler { call, result ->
+            if (call.method == "setEnabled") {
+                workLogVolumeEnabled = call.arguments == true
+                result.success(null)
+            } else result.notImplemented()
+        }
         MethodChannel(flutterEngine.dartExecutor.binaryMessenger, "inch_light/data_export")
             .setMethodCallHandler { call, result ->
                 if (call.method == "syncBackup") {

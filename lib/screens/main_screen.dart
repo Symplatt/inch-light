@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/gestures.dart';
 import 'package:provider/provider.dart';
 import '../providers/app_provider.dart';
 
@@ -7,6 +8,7 @@ import 'todo_page.dart';
 import 'cycle_page.dart';
 import 'settings_page.dart';
 import 'journal_page.dart';
+import 'tools_page.dart';
 
 class MainScreen extends StatefulWidget {
   const MainScreen({super.key});
@@ -17,9 +19,11 @@ class MainScreen extends StatefulWidget {
 
 class _MainScreenState extends State<MainScreen> {
   late int _currentIndex;
-  final PageController _pageController = PageController();
-  static const _modules = ['todo', 'journal', 'calendar', 'settings'];
+  PageController? _pageController;
+  static const _modules = ['todo', 'journal', 'calendar', 'tools', 'settings'];
   bool _loaded = false;
+  int _openLastToolRequest = 0;
+  bool _openLastToolOnEntry = false;
   double _headerDrag = double.nan;
   Offset _headerStart = Offset.zero;
 
@@ -37,24 +41,24 @@ class _MainScreenState extends State<MainScreen> {
     if (!mounted) return;
     setState(() {
       _currentIndex = _modules.indexOf(provider.lastModule);
+      _pageController = PageController(initialPage: _currentIndex);
       _loaded = true;
-    });
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (mounted && _pageController.hasClients) {
-        _pageController.jumpToPage(_currentIndex);
-      }
     });
   }
 
   @override
   void dispose() {
-    _pageController.dispose();
+    _pageController?.dispose();
     super.dispose();
   }
 
-  void _onTabTapped(int index) {
-    setState(() => _currentIndex = index);
-    _pageController.jumpToPage(index);
+  void _onTabTapped(int index, {bool openLastTool = false}) {
+    setState(() {
+      _currentIndex = index;
+      _openLastToolOnEntry = openLastTool;
+      if (openLastTool) _openLastToolRequest++;
+    });
+    _pageController?.jumpToPage(index);
     final provider = context.read<AppProvider>();
     provider.setLastModule(_modules[index]);
     if (index == 2) provider.markCalendarAlertsSeen();
@@ -63,7 +67,9 @@ class _MainScreenState extends State<MainScreen> {
   @override
   Widget build(BuildContext context) {
     if (!_loaded) return const Scaffold(body: SizedBox.expand());
-    final provider = context.watch<AppProvider>();
+    final alerts = context.select<AppProvider, (bool, bool)>(
+      (p) => (p.hasCalendarAlerts, p.hasNewCalendarAlerts),
+    );
     return Scaffold(
       body: Listener(
         onPointerDown: (event) {
@@ -86,82 +92,111 @@ class _MainScreenState extends State<MainScreen> {
         child: PageView(
           controller: _pageController,
           physics: const NeverScrollableScrollPhysics(),
-          children: const [
-            TodoPage(),
-            JournalPage(),
-            CyclePage(),
-            SettingsPage(),
+          children: [
+            const TodoPage(),
+            const JournalPage(),
+            const CyclePage(),
+            ToolsPage(
+              active: _currentIndex == 3,
+              openLastRequest: _openLastToolRequest,
+              openLastOnEntry: _openLastToolOnEntry,
+            ),
+            const SettingsPage(),
           ],
         ),
       ),
-      bottomNavigationBar: BottomNavigationBar(
-        type: BottomNavigationBarType.fixed,
-        currentIndex: _currentIndex,
-        onTap: _onTabTapped,
-        backgroundColor: AppColors.surface,
-        selectedItemColor: AppColors.primary,
-        unselectedItemColor: AppColors.textGrey,
-        selectedLabelStyle: const TextStyle(fontWeight: FontWeight.w400),
-        elevation: 2,
-        items: [
-          BottomNavigationBarItem(
-            icon: Icon(Icons.check_circle_outline),
-            activeIcon: Icon(Icons.check_circle),
-            label: '待办',
-          ),
-          BottomNavigationBarItem(
-            icon: Icon(Icons.edit_note_outlined),
-            label: '记录',
-          ),
-          BottomNavigationBarItem(
-            icon: Stack(
-              clipBehavior: Clip.none,
-              children: [
-                const Icon(Icons.calendar_month_outlined),
-                if (provider.hasCalendarAlerts)
-                  Positioned(
-                    right: provider.hasNewCalendarAlerts ? -10 : -3,
-                    top: -4,
-                    child: provider.hasNewCalendarAlerts
-                        ? Container(
-                            key: const ValueKey('calendar-new'),
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: 3,
-                              vertical: 1,
-                            ),
-                            decoration: BoxDecoration(
-                              color: AppColors.danger,
-                              borderRadius: BorderRadius.circular(4),
-                            ),
-                            child: const Text(
-                              'new',
-                              style: TextStyle(
-                                color: Colors.white,
-                                fontSize: 9,
-                                height: 1,
+      bottomNavigationBar: RawGestureDetector(
+        gestures: {
+          LongPressGestureRecognizer:
+              GestureRecognizerFactoryWithHandlers<LongPressGestureRecognizer>(
+                () => LongPressGestureRecognizer(
+                  duration: const Duration(seconds: 1),
+                ),
+                (recognizer) => recognizer.onLongPressStart = (details) {
+                  final itemWidth =
+                      MediaQuery.sizeOf(context).width / _modules.length;
+                  if ((details.localPosition.dx / itemWidth).floor() != 3)
+                    return;
+                  _onTabTapped(3, openLastTool: true);
+                },
+              ),
+        },
+        child: BottomNavigationBar(
+          type: BottomNavigationBarType.fixed,
+          currentIndex: _currentIndex,
+          onTap: _onTabTapped,
+          backgroundColor: AppColors.surface,
+          selectedItemColor: AppColors.primary,
+          unselectedItemColor: AppColors.textGrey,
+          selectedLabelStyle: const TextStyle(fontWeight: FontWeight.w400),
+          elevation: 2,
+          items: [
+            BottomNavigationBarItem(
+              icon: Icon(Icons.check_circle_outline),
+              activeIcon: Icon(Icons.check_circle),
+              label: '待办',
+            ),
+            BottomNavigationBarItem(
+              icon: Icon(Icons.edit_note_outlined),
+              label: '记录',
+            ),
+            BottomNavigationBarItem(
+              icon: Stack(
+                clipBehavior: Clip.none,
+                children: [
+                  const Icon(Icons.calendar_month_outlined),
+                  if (alerts.$1)
+                    Positioned(
+                      right: alerts.$2 ? -10 : -3,
+                      top: -4,
+                      child: alerts.$2
+                          ? Container(
+                              key: const ValueKey('calendar-new'),
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 3,
+                                vertical: 1,
+                              ),
+                              decoration: BoxDecoration(
+                                color: AppColors.danger,
+                                borderRadius: BorderRadius.circular(4),
+                              ),
+                              child: const Text(
+                                'new',
+                                style: TextStyle(
+                                  color: Colors.white,
+                                  fontSize: 9,
+                                  height: 1,
+                                ),
+                              ),
+                            )
+                          : Container(
+                              key: const ValueKey('calendar-dot'),
+                              width: 6,
+                              height: 6,
+                              decoration: const BoxDecoration(
+                                color: AppColors.danger,
+                                shape: BoxShape.circle,
                               ),
                             ),
-                          )
-                        : Container(
-                            key: const ValueKey('calendar-dot'),
-                            width: 6,
-                            height: 6,
-                            decoration: const BoxDecoration(
-                              color: AppColors.danger,
-                              shape: BoxShape.circle,
-                            ),
-                          ),
-                  ),
-              ],
+                    ),
+                ],
+              ),
+              label: '时历',
             ),
-            label: '时历',
-          ),
-          BottomNavigationBarItem(
-            icon: Icon(Icons.settings_outlined),
-            activeIcon: Icon(Icons.settings),
-            label: '设置',
-          ),
-        ],
+            BottomNavigationBarItem(
+              icon: Icon(Icons.grid_view_outlined),
+              activeIcon: Icon(Icons.grid_view_rounded),
+              label: '工具',
+              // The default tooltip claims long presses after 500 ms.
+              tooltip: '',
+            ),
+            BottomNavigationBarItem(
+              icon: Icon(Icons.settings_outlined),
+              activeIcon: Icon(Icons.settings),
+              label: '设置',
+            ),
+          ],
+        ),
       ),
     );
   }

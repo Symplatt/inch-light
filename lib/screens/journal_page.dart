@@ -167,6 +167,7 @@ class _JournalPageState extends State<_JournalView>
 
   final _search = TextEditingController();
   final _searchFocus = FocusNode();
+  bool _keyboardVisible = false;
   String? _selectedCollection;
 
   @override
@@ -188,7 +189,18 @@ class _JournalPageState extends State<_JournalView>
 
   @override
   void didChangeMetrics() {
-    if (mounted) setState(() {});
+    final view = View.of(context);
+    final visible = view.viewInsets.bottom / view.devicePixelRatio > 48;
+    if (mounted && visible != _keyboardVisible) {
+      setState(() => _keyboardVisible = visible);
+    }
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    final view = View.of(context);
+    _keyboardVisible = view.viewInsets.bottom / view.devicePixelRatio > 48;
   }
 
   void _open([JournalEntry? entry]) {
@@ -759,7 +771,7 @@ class _JournalPageState extends State<_JournalView>
             ],
           ],
         ),
-        floatingActionButton: View.of(context).viewInsets.bottom > 0
+        floatingActionButton: _keyboardVisible
             ? null
             : _selecting
             ? Column(

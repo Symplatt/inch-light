@@ -172,7 +172,7 @@ class _CyclePageState extends State<CyclePage> {
                       children: [
                         Text(
                           title,
-                          maxLines: 1,
+                          maxLines: 2,
                           overflow: TextOverflow.ellipsis,
                           style: const TextStyle(
                             fontSize: 16,
@@ -201,7 +201,12 @@ class _CyclePageState extends State<CyclePage> {
                     ),
                   ),
                   const SizedBox(width: 12),
-                  Expanded(child: _countdown(deadline, now)),
+                  Expanded(
+                    child: ValueListenableBuilder<DateTime>(
+                      valueListenable: context.read<AppProvider>().clock,
+                      builder: (_, instant, _) => _countdown(deadline, instant),
+                    ),
+                  ),
                 ],
               ),
             ),

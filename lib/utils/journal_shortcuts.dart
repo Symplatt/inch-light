@@ -13,10 +13,12 @@ bool applyJournalShortcut(quill.QuillController controller) {
           ?.value ==
       true)
     return false;
-  final plain = controller.document.toPlainText();
-  final end = selection.baseOffset.clamp(0, plain.length);
-  final start = plain.lastIndexOf('\n', end - 1) + 1;
-  final prefix = plain.substring(start, end);
+  final line = controller.document.queryChild(selection.baseOffset).node;
+  if (line is! quill.Line) return false;
+  final start = line.documentOffset;
+  final plain = line.toPlainText();
+  final end = (selection.baseOffset - start).clamp(0, plain.length);
+  final prefix = plain.substring(0, end);
   quill.Attribute? attribute;
   final heading = RegExp(r'^(#{1,3}) $').firstMatch(prefix);
   if (heading != null) {

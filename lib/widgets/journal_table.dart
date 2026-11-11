@@ -172,6 +172,8 @@ class _JournalTableState extends State<JournalTable> {
   bool _menuOpen = false;
   final Map<String, TextEditingController> _controllers = {};
   final Map<String, FocusNode> _focus = {};
+  Object? _widthConfiguration;
+  List<double>? _widths;
   String _key(String row, int column) => '$row:$column';
 
   @override
@@ -182,6 +184,16 @@ class _JournalTableState extends State<JournalTable> {
   }
 
   void _sync() {
+    final keys = {
+      for (final row in _data.rows)
+        for (var c = 0; c < _data.columns; c++) _key(row.id, c),
+    };
+    // Removed cells must release their input connections and focus listeners.
+    for (final key
+        in _controllers.keys.where((key) => !keys.contains(key)).toList()) {
+      _controllers.remove(key)!.dispose();
+      _focus.remove(key)!.dispose();
+    }
     for (final row in _data.rows) {
       for (var c = 0; c < _data.columns; c++) {
         final key = _key(row.id, c);
@@ -330,13 +342,25 @@ class _JournalTableState extends State<JournalTable> {
   @override
   Widget build(BuildContext context) => LayoutBuilder(
     builder: (context, constraints) {
-      final widths = journalTableWidths(
-        _data,
+      final scaler = MediaQuery.textScalerOf(context);
+      final configuration = (
+        _data.encode(),
         constraints.maxWidth,
-        MediaQuery.textScalerOf(context),
-        fontSize: widget.fontSize,
-        letterSpacing: widget.letterSpacing,
+        scaler,
+        widget.fontSize,
+        widget.letterSpacing,
       );
+      if (configuration != _widthConfiguration) {
+        _widthConfiguration = configuration;
+        _widths = journalTableWidths(
+          _data,
+          constraints.maxWidth,
+          scaler,
+          fontSize: widget.fontSize,
+          letterSpacing: widget.letterSpacing,
+        );
+      }
+      final widths = _widths!;
       return Stack(
         children: [
           Padding(

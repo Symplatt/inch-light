@@ -59,7 +59,10 @@ void main() {
         await t.ensureVisible(action);
         await t.tap(action);
         await t.pumpAndSettle();
-        expect(find.byType(AlertDialog), findsOneWidget);
+        expect(
+          find.byWidgetPredicate((widget) => widget is AlertDialog),
+          findsOneWidget,
+        );
         expect(find.text('确认导入').hitTestable(), findsOneWidget);
         await t.tap(find.text('确认导入'));
         await t.pumpAndSettle();

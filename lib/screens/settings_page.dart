@@ -164,20 +164,20 @@ class _SettingsPageState extends State<SettingsPage> {
           children: [
             Container(
               key: circleKey,
-              width: 18,
-              height: 18,
+              width: 14,
+              height: 14,
               decoration: BoxDecoration(
                 shape: BoxShape.circle,
                 border: Border.all(
                   color: selected ? AppColors.primary : AppColors.textGrey,
-                  width: 1.7,
+                  width: 1.2,
                 ),
               ),
               child: selected
                   ? Center(
                       child: Container(
-                        width: 10,
-                        height: 10,
+                        width: 8,
+                        height: 8,
                         decoration: const BoxDecoration(
                           shape: BoxShape.circle,
                           color: AppColors.primary,
@@ -187,7 +187,10 @@ class _SettingsPageState extends State<SettingsPage> {
                   : null,
             ),
             const SizedBox(width: 8),
-            Text(label, style: const TextStyle(fontSize: 14)),
+            Text(
+              label,
+              style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w400),
+            ),
           ],
         ),
       ),
@@ -226,7 +229,7 @@ class _SettingsPageState extends State<SettingsPage> {
             key: ValueKey(
               'journal-sort-title-${collections ? 'collections' : 'entries'}',
             ),
-            style: const TextStyle(fontSize: 15),
+            style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
           ),
           const SizedBox(height: 4),
           Wrap(
@@ -265,7 +268,7 @@ class _SettingsPageState extends State<SettingsPage> {
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Text(
-                          '版本 3.13.8（构建 93）',
+                          '版本 3.17.0（构建 118）',
                           style: TextStyle(color: AppColors.textGrey),
                         ),
                         SizedBox(height: 16),
@@ -305,7 +308,7 @@ class _SettingsPageState extends State<SettingsPage> {
                     onPressed: () => showLicensePage(
                       context: dialogContext,
                       applicationName: '一日千录',
-                      applicationVersion: '3.13.8',
+                      applicationVersion: '3.17.0',
                       applicationLegalese: '版权所有 © Symplatt',
                     ),
                     child: const Text('开源许可'),
@@ -327,7 +330,7 @@ class _SettingsPageState extends State<SettingsPage> {
           child: ListView(
             padding: const EdgeInsets.fromLTRB(16, 4, 16, 96),
             children: [
-              const SectionHeading(title: '事项顺序'),
+              const SectionHeading(title: '事项顺序', fontSize: 16),
               Card(
                 margin: EdgeInsets.zero,
                 elevation: 0,
@@ -361,7 +364,7 @@ class _SettingsPageState extends State<SettingsPage> {
                 ),
               ),
               const SizedBox(height: 24),
-              const SectionHeading(title: '记录排序'),
+              const SectionHeading(title: '记录排序', fontSize: 16),
               Card(
                 margin: EdgeInsets.zero,
                 elevation: 0,
@@ -381,7 +384,7 @@ class _SettingsPageState extends State<SettingsPage> {
                 ),
               ),
               const SizedBox(height: 24),
-              const SectionHeading(title: '时历顺序'),
+              const SectionHeading(title: '时历顺序', fontSize: 16),
               Card(
                 margin: EdgeInsets.zero,
                 elevation: 0,
@@ -415,7 +418,82 @@ class _SettingsPageState extends State<SettingsPage> {
                 ),
               ),
               const SizedBox(height: 24),
-              const SectionHeading(title: '数据管理'),
+              const SectionHeading(title: '工具', fontSize: 16),
+              Card(
+                margin: EdgeInsets.zero,
+                elevation: 0,
+                color: AppColors.surface,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(16),
+                  side: const BorderSide(color: Color(0xFFE7E7E7)),
+                ),
+                child: Semantics(
+                  label: '进入模块自动跳转上次使用工具',
+                  checked: provider.autoOpenLastTool,
+                  excludeSemantics: true,
+                  child: InkWell(
+                    borderRadius: BorderRadius.circular(16),
+                    splashColor: const Color(0x0F000000),
+                    highlightColor: const Color(0x08000000),
+                    onTap: () async {
+                      try {
+                        await provider.setAutoOpenLastTool(
+                          !provider.autoOpenLastTool,
+                        );
+                      } catch (_) {
+                        if (context.mounted) _showMessage(context, '保存失败，请重试');
+                      }
+                    },
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 20,
+                        vertical: 8,
+                      ),
+                      child: SizedBox(
+                        height: 44,
+                        child: Row(
+                          children: [
+                            Container(
+                              width: 14,
+                              height: 14,
+                              decoration: BoxDecoration(
+                                color: provider.autoOpenLastTool
+                                    ? Colors.black
+                                    : Colors.white,
+                                borderRadius: BorderRadius.circular(4),
+                                border: Border.all(
+                                  color: Colors.black,
+                                  width: 1.2,
+                                ),
+                              ),
+                              child: provider.autoOpenLastTool
+                                  ? const Icon(
+                                      Icons.check,
+                                      size: 10,
+                                      color: Colors.white,
+                                    )
+                                  : null,
+                            ),
+                            const SizedBox(width: 8),
+                            const Expanded(
+                              child: Text(
+                                '进入模块自动跳转上次使用工具',
+                                style: TextStyle(
+                                  fontSize: 16,
+                                  fontWeight: FontWeight.w400,
+                                  color: Colors.black,
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 24),
+              const SectionHeading(title: '数据管理', fontSize: 16),
               Card(
                 margin: EdgeInsets.zero,
                 elevation: 0,

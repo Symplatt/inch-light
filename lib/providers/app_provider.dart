@@ -8,6 +8,8 @@ import 'package:uuid/uuid.dart';
 
 import '../models/task_model.dart';
 import '../models/journal_entry.dart';
+import '../models/work_log.dart';
+import '../models/meal_menu.dart';
 
 import '../utils/schedule.dart';
 import '../utils/backup_preferences.dart';
@@ -22,10 +24,23 @@ class AppProvider with ChangeNotifier, WidgetsBindingObserver {
   String? _backupSnapshot;
   String? _backupDay;
   Future<void> _backupWrite = Future.value();
+  Timer? _backupTimer;
+  List<JournalEntry>? _sortedJournalEntries;
+  List<JournalCollection>? _sortedJournalCollections;
 
   @override
   void notifyListeners() {
+    _sortedJournalEntries = null;
+    _sortedJournalCollections = null;
     super.notifyListeners();
+    if (kIsWeb || defaultTargetPlatform != TargetPlatform.android) return;
+    // Coalesce rapid edits after the input frame instead of encoding the entire
+    // library synchronously inside every listener notification.
+    _backupTimer?.cancel();
+    _backupTimer = Timer(const Duration(milliseconds: 700), _syncBackup);
+  }
+
+  void _syncBackup() {
     if (!_backupReady ||
         kIsWeb ||
         defaultTargetPlatform != TargetPlatform.android) {
@@ -62,9 +77,8 @@ class AppProvider with ChangeNotifier, WidgetsBindingObserver {
         .where((c) => !ids.contains(c.id))
         .map((c) => c.id)
         .toSet();
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.setStringList('hidden_todo_collections', hidden.toList());
     _hiddenTodoCollections = hidden;
+    await _saveData();
     notifyListeners();
   }
 
@@ -99,6 +113,7 @@ class AppProvider with ChangeNotifier, WidgetsBindingObserver {
   final DateTime Function() _journalNow;
   final DateTime Function() _now;
   DateTime get now => _now();
+  late final ValueNotifier<DateTime> clock = ValueNotifier(now);
   bool _recoverable(DateTime deletedAt) {
     final age = _journalNow().difference(deletedAt);
     return !age.isNegative && age < const Duration(minutes: 1);
@@ -142,30 +157,33 @@ class AppProvider with ChangeNotifier, WidgetsBindingObserver {
   }
 
   List<JournalCollection> get journalCollections {
+    if (_sortedJournalCollections != null) return _sortedJournalCollections!;
     final names = _journalCollectionSort == JournalSort.name
         ? {for (final c in _journalCollections) c.id: JournalNameKey(c.title)}
         : <String, JournalNameKey>{};
-    return List.unmodifiable(
+    final indices = {
+      for (var i = 0; i < _journalCollections.length; i++)
+        _journalCollections[i].id: i,
+    };
+    final edited = {
+      for (final c in _journalCollections)
+        c.id: c.updatedAt ?? DateTime.fromMillisecondsSinceEpoch(0),
+    };
+    for (final entry in _journalEntries) {
+      final previous = edited[entry.collectionId];
+      if (previous != null && entry.updatedAt.isAfter(previous)) {
+        edited[entry.collectionId!] = entry.updatedAt;
+      }
+    }
+    return _sortedJournalCollections = List.unmodifiable(
       List<JournalCollection>.from(_journalCollections)..sort((a, b) {
         if (_journalCollectionSort == JournalSort.name) {
           final result = names[a.id]!.compareTo(names[b.id]!);
           if (result != 0) return result;
-          return _journalCollections
-              .indexOf(a)
-              .compareTo(_journalCollections.indexOf(b));
+          return indices[a.id]!.compareTo(indices[b.id]!);
         }
-        DateTime edited(JournalCollection c) => _journalEntries
-            .where((e) => e.collectionId == c.id)
-            .fold(
-              c.updatedAt ?? DateTime.fromMillisecondsSinceEpoch(0),
-              (latest, e) => e.updatedAt.isAfter(latest) ? e.updatedAt : latest,
-            );
-        final result = edited(b).compareTo(edited(a));
-        return result != 0
-            ? result
-            : _journalCollections
-                  .indexOf(a)
-                  .compareTo(_journalCollections.indexOf(b));
+        final result = edited[b.id]!.compareTo(edited[a.id]!);
+        return result != 0 ? result : indices[a.id]!.compareTo(indices[b.id]!);
       }),
     );
   }
@@ -243,13 +261,14 @@ class AppProvider with ChangeNotifier, WidgetsBindingObserver {
 
   Future<void> _journalWrite = Future.value();
   List<JournalEntry> get journalEntries {
+    if (_sortedJournalEntries != null) return _sortedJournalEntries!;
     final names = _journalEntrySort == JournalSort.name
         ? {
             for (final e in _journalEntries)
               e.id: JournalNameKey(e.title.isEmpty ? '未命名' : e.title),
           }
         : <String, JournalNameKey>{};
-    return List.unmodifiable(
+    return _sortedJournalEntries = List.unmodifiable(
       List<JournalEntry>.from(_journalEntries)..sort(
         (a, b) => a.isPinned != b.isPinned
             ? (a.isPinned ? -1 : 1)
@@ -371,12 +390,153 @@ class AppProvider with ChangeNotifier, WidgetsBindingObserver {
   }
 
   final List<CalendarCountdown> _countdowns = [];
+  MealData _meals = MealData.empty();
+  MealData get meals => _meals;
+  Future<void> _mealWrite = Future.value();
+
+  Future<void> updateMeals(MealData Function(MealData) update) {
+    final write = _mealWrite.then((_) async {
+      await ready;
+      final next = update(_meals);
+      final prefs = await SharedPreferences.getInstance();
+      if (!await prefs.setString('meal_menus', jsonEncode(next.toJson()))) {
+        throw StateError('菜单保存失败，请重试');
+      }
+      _meals = next;
+      notifyListeners();
+    });
+    _mealWrite = write.catchError((Object _) {});
+    return write;
+  }
+
+  WorkLogData _workLog = WorkLogData.empty();
+  WorkLogData get workLog => _workLog;
+  Future<void> _workLogWrite = Future.value();
+
+  List<({String day, WorkLogItem item, int index, DateTime deletedAt})>
+  _recentWorkLogDeletions = [];
+
+  int get recoverableWorkLogCount =>
+      _recentWorkLogDeletions.where((e) => _recoverable(e.deletedAt)).length;
+
+  Future<int> restoreRecentWorkLogItems() async {
+    var count = 0;
+    await updateWorkLog((data) {
+      var next = data;
+      for (final entry in _recentWorkLogDeletions.reversed) {
+        if (!_recoverable(entry.deletedAt) ||
+            next.days.values
+                .expand((items) => items)
+                .any((item) => item.id == entry.item.id))
+          continue;
+        final items = [...?next.days[entry.day]];
+        var item = entry.item;
+        if (!data.columns.any((c) => c.id == item.columnId)) {
+          final target = data.columns.firstWhere(
+            (c) => item.columnId == 'skill'
+                ? c.id == 'study' || c.name == '学习'
+                : c.id == 'other' || c.name == '其他',
+          );
+          item = WorkLogItem(id: item.id, columnId: target.id, text: item.text);
+        }
+        items.insert(entry.index.clamp(0, items.length), item);
+        next = WorkLogData(
+          columns: next.columns,
+          days: {...next.days, entry.day: items},
+        );
+        count++;
+      }
+      return next;
+    });
+    return count;
+  }
+
+  Future<void> updateWorkLog(
+    WorkLogData Function(WorkLogData) update, {
+    bool rememberDeletions = true,
+  }) {
+    // Live items and recovery copies share one atomic, serialized write.
+    final write = _workLogWrite.then((_) async {
+      await ready;
+      final next = update(_workLog);
+      final liveIds = next.days.values
+          .expand((items) => items)
+          .map((item) => item.id)
+          .toSet();
+      final recent = rememberDeletions
+          ? _recentWorkLogDeletions
+                .where(
+                  (e) =>
+                      _recoverable(e.deletedAt) && !liveIds.contains(e.item.id),
+                )
+                .toList()
+          : <({String day, WorkLogItem item, int index, DateTime deletedAt})>[];
+      if (rememberDeletions) {
+        for (final day in _workLog.days.entries) {
+          for (var index = day.value.length - 1; index >= 0; index--) {
+            final item = day.value[index];
+            if (!liveIds.contains(item.id))
+              recent.add((
+                day: day.key,
+                item: item,
+                index: index,
+                deletedAt: _journalNow(),
+              ));
+          }
+        }
+      }
+      final prefs = await SharedPreferences.getInstance();
+      final encoded = jsonEncode({
+        ...next.toJson(),
+        'recentlyDeleted': [
+          for (final entry in recent)
+            {
+              'day': entry.day,
+              'item': entry.item.toJson(),
+              'index': entry.index,
+              'deletedAt': entry.deletedAt.toIso8601String(),
+            },
+        ],
+      });
+      if (!await prefs.setString('work_log', encoded))
+        throw StateError('工作日志保存失败，请重试');
+      _workLog = next;
+      _recentWorkLogDeletions = recent;
+      if (!_disposed) notifyListeners();
+    });
+    _workLogWrite = write.catchError((Object _) {});
+    return write;
+  }
+
+  bool hasJournalEntry(String id) =>
+      _journalEntries.any((entry) => entry.id == id);
   List<CalendarCountdown> get countdowns => List.unmodifiable(_countdowns);
   Timer? _maintenanceTimer;
   bool _disposed = false;
   bool _looseTasksFirst = true;
   bool _countdownsFirst = true;
   String _lastModule = 'todo';
+  bool _autoOpenLastTool = false;
+  String? _lastTool;
+  bool get autoOpenLastTool => _autoOpenLastTool;
+  String? get lastTool => _lastTool;
+
+  Future<void> setAutoOpenLastTool(bool value) async {
+    await ready;
+    final prefs = await SharedPreferences.getInstance();
+    if (!await prefs.setBool('auto_open_last_tool', value)) {
+      throw StateError('Unable to save tool preference');
+    }
+    _autoOpenLastTool = value;
+    if (!_disposed) notifyListeners();
+  }
+
+  Future<void> setLastTool(String value) async {
+    await ready;
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString('last_tool', value);
+    _lastTool = value;
+  }
   String? _lastJournalCollection;
   String? get lastJournalCollection =>
       _journalCollections.any((c) => c.id == _lastJournalCollection)
@@ -407,7 +567,9 @@ class AppProvider with ChangeNotifier, WidgetsBindingObserver {
   }
 
   Future<void> setLastModule(String value) async {
-    if (!['todo', 'journal', 'calendar', 'settings'].contains(value)) return;
+    if (!['todo', 'journal', 'calendar', 'tools', 'settings'].contains(value)) {
+      return;
+    }
     await ready;
     _lastModule = value;
     final prefs = await SharedPreferences.getInstance();
@@ -510,6 +672,8 @@ class AppProvider with ChangeNotifier, WidgetsBindingObserver {
     WidgetsBinding.instance.removeObserver(this);
     _disposed = true;
     _maintenanceTimer?.cancel();
+    _backupTimer?.cancel();
+    clock.dispose();
     super.dispose();
   }
 
@@ -517,6 +681,10 @@ class AppProvider with ChangeNotifier, WidgetsBindingObserver {
   void didChangeAppLifecycleState(AppLifecycleState state) {
     if (state == AppLifecycleState.resumed) {
       _maintainData();
+    } else if (state == AppLifecycleState.inactive ||
+        state == AppLifecycleState.paused) {
+      _backupTimer?.cancel();
+      _syncBackup();
     }
   }
 
@@ -537,6 +705,8 @@ class AppProvider with ChangeNotifier, WidgetsBindingObserver {
         (prefs.getStringList('hidden_todo_collections') ?? []).toSet();
     _looseTasksFirst = prefs.getBool('loose_tasks_first') ?? true;
     _countdownsFirst = prefs.getBool('countdowns_first') ?? true;
+    _autoOpenLastTool = prefs.getBool('auto_open_last_tool') ?? false;
+    _lastTool = prefs.getString('last_tool');
     _journalCollectionSort =
         prefs.getString('journal_collection_sort') == 'name'
         ? JournalSort.name
@@ -546,7 +716,8 @@ class AppProvider with ChangeNotifier, WidgetsBindingObserver {
         : JournalSort.edited;
     _lastJournalCollection = prefs.getString('last_journal_collection');
     final module = prefs.getString('last_module');
-    _lastModule = ['todo', 'journal', 'calendar', 'settings'].contains(module)
+    _lastModule =
+        ['todo', 'journal', 'calendar', 'tools', 'settings'].contains(module)
         ? module!
         : 'todo';
     _seenCalendarAlerts =
@@ -586,6 +757,32 @@ class AppProvider with ChangeNotifier, WidgetsBindingObserver {
     final prefs = await SharedPreferences.getInstance();
     _preferences = prefs;
     _loadPreferences(prefs);
+    final mealJson = prefs.getString('meal_menus');
+    if (mealJson != null) _meals = MealData.fromJson(jsonDecode(mealJson) as Map<String, dynamic>);
+    final workLogJson = prefs.getString('work_log');
+    if (workLogJson != null) {
+      _workLog = WorkLogData.fromJson(
+        jsonDecode(workLogJson) as Map<String, dynamic>,
+      );
+      final saved = jsonDecode(workLogJson) as Map<String, dynamic>;
+      for (final raw in saved['recentlyDeleted'] as List? ?? const []) {
+        try {
+          final deletedAt = DateTime.parse(raw['deletedAt'] as String);
+          if (_recoverable(deletedAt)) {
+            _recentWorkLogDeletions.add((
+              day: raw['day'] as String,
+              item: WorkLogItem.fromJson(
+                Map<String, dynamic>.from(raw['item'] as Map),
+              ),
+              index: raw['index'] as int,
+              deletedAt: deletedAt,
+            ));
+          }
+        } catch (_) {
+          // An invalid recovery copy must not block loading live items.
+        }
+      }
+    }
     void safeLoad(
       String key,
       List<dynamic> list,
@@ -658,19 +855,35 @@ class AppProvider with ChangeNotifier, WidgetsBindingObserver {
     await _checkAndResetDailyTasks();
   }
 
-  Future<void> _saveData() async {
-    final prefs = await SharedPreferences.getInstance();
+  Future<void> _taskWrite = Future.value();
+  Future<void> _saveData() {
     String encode(List<dynamic> list) =>
         json.encode(list.map((e) => e.toJson()).toList());
-    await prefs.setString('daily_tasks', encode(_dailyTasks));
-    await prefs.setString('normal_tasks', encode(_normalTasks));
-    await prefs.setString('cycle_tasks', encode(_cycleTasks));
-    await prefs.setString('collections_data', encode(_collections));
-    await prefs.setStringList(
-      'hidden_todo_collections',
-      _hiddenTodoCollections.toList(),
-    );
-    await prefs.setString('calendar_countdowns', encode(_countdowns));
+    // Capture once before awaiting. Later edits queue behind this snapshot and
+    // unchanged sections avoid a platform-channel/disk write altogether.
+    final sections = {
+      'daily_tasks': encode(_dailyTasks),
+      'normal_tasks': encode(_normalTasks),
+      'cycle_tasks': encode(_cycleTasks),
+      'collections_data': encode(_collections),
+      'calendar_countdowns': encode(_countdowns),
+    };
+    final hidden = _hiddenTodoCollections.toList();
+    final write = _taskWrite.then((_) async {
+      final prefs = await SharedPreferences.getInstance();
+      for (final section in sections.entries) {
+        if (prefs.getString(section.key) != section.value &&
+            !await prefs.setString(section.key, section.value)) {
+          throw StateError('事项保存失败');
+        }
+      }
+      if (!listEquals(prefs.getStringList('hidden_todo_collections'), hidden) &&
+          !await prefs.setStringList('hidden_todo_collections', hidden)) {
+        throw StateError('隐藏合集保存失败');
+      }
+    });
+    _taskWrite = write.catchError((Object _) {});
+    return write;
   }
 
   Future<void> _checkAndResetDailyTasks() async {
@@ -706,6 +919,8 @@ class AppProvider with ChangeNotifier, WidgetsBindingObserver {
       'normal_tasks': _normalTasks.map((e) => e.toJson()).toList(),
       'cycle_tasks': _cycleTasks.map((e) => e.toJson()).toList(),
       'collections': _collections.map((e) => e.toJson()).toList(),
+      'work_log': _workLog.toJson(),
+      'meal_menus': _meals.toJson(),
       if (_preferences != null) 'preferences': backupPreferences(_preferences!),
     };
     return jsonEncode(data);
@@ -732,10 +947,16 @@ class AppProvider with ChangeNotifier, WidgetsBindingObserver {
         'calendar_countdowns',
         'journal_entries',
         'journal_collections',
+        'work_log',
+        'meal_menus',
       ].any(data.containsKey)) {
         return false;
       }
+      final meals = data.containsKey('meal_menus') ? MealData.fromJson(Map<String, dynamic>.from(data['meal_menus'])) : null;
       final preferences = parseBackupPreferences(data['preferences']);
+      final workLog = data.containsKey('work_log')
+          ? WorkLogData.fromJson(Map<String, dynamic>.from(data['work_log']))
+          : null;
       final daily = parse('daily_tasks', TaskItem.fromJson, _dailyTasks);
       final entries = parse(
         'journal_entries',
@@ -786,6 +1007,9 @@ class AppProvider with ChangeNotifier, WidgetsBindingObserver {
       if (data.containsKey('journal_collections')) {
         await _persistJournalCollections(journalCollections);
       }
+      if (meals != null) await updateMeals((_) => meals);
+      if (workLog != null)
+        await updateWorkLog((_) => workLog, rememberDeletions: false);
       notifyListeners();
       return true;
     } catch (e) {
@@ -1047,10 +1271,13 @@ class AppProvider with ChangeNotifier, WidgetsBindingObserver {
   }
 
   DateTime? _lastMaintenanceDay;
+  Set<String> _lastCalendarAlertIds = {};
   void _maintainData() {
     if (_disposed) return;
+    final recoveredCount = _recentlyDeleted.length;
     _recentlyDeleted.removeWhere((_, item) => !_recoverable(item.deletedAt));
     final now = _now();
+    clock.value = now;
     final day = DateTime(now.year, now.month, now.day);
     if (_lastMaintenanceDay != day) {
       _lastMaintenanceDay = day;
@@ -1075,8 +1302,20 @@ class AppProvider with ChangeNotifier, WidgetsBindingObserver {
       }
     }
     final collectionsChanged = _removeCompletedCollections();
-    if (changed || cyclesChanged || collectionsChanged) _saveData();
-    notifyListeners();
+    final dataChanged = changed || cyclesChanged || collectionsChanged;
+    final alerts = calendarAlertIds;
+    final alertsChanged = !setEquals(alerts, _lastCalendarAlertIds);
+    _lastCalendarAlertIds = alerts;
+    if (dataChanged) _saveData();
+    if (dataChanged ||
+        alertsChanged ||
+        recoveredCount != _recentlyDeleted.length) {
+      notifyListeners();
+    } else if (_backupDay != workLogDateKey(now) &&
+        !(_backupTimer?.isActive ?? false)) {
+      // A new calendar day still needs its backup even without business edits.
+      _syncBackup();
+    }
   }
 
   // Remove completed groups without discarding their completed task history.

@@ -59,8 +59,11 @@ class _JournalEditorPageState extends State<_JournalEditorView>
   List<dynamic>? _countedDocument;
   int _cachedWordCount = 0;
   late final AppProvider _provider;
-  final _titleFocus = FocusNode();
+  final _titleFocus = FocusNode(canRequestFocus: false);
+  bool _allowTitleFocus = false;
   final _bodyFocus = FocusNode();
+  final _editingScope = FocusScopeNode();
+  bool _allowDocumentFocus = true;
   final _bodyScroll = ScrollController();
   final _pageScroll = ScrollController();
   final _renderEditorKey = GlobalKey<quill.EditorState>();
@@ -83,6 +86,7 @@ class _JournalEditorPageState extends State<_JournalEditorView>
   bool _restoring = false;
   bool _shortcutPending = false;
   bool _leaving = false;
+  bool _keyboardVisible = false;
   String? _newTableId;
   JournalImageSettings _pageStyle = JournalImageSettings(
     topMargin: 16,
@@ -106,6 +110,18 @@ class _JournalEditorPageState extends State<_JournalEditorView>
   }
 
   void _stayBrowsing() {
+    // Block focus restoration for prose, title and embedded table fields alike.
+    // Only a fresh pointer event inside the document enables editing again.
+    _editingScope.descendantsAreFocusable = false;
+    _newTableId = null;
+    // TextField reapplies its canRequestFocus property on widget updates.
+    // Keep that property disabled until an actual title tap enables editing.
+    if (_allowTitleFocus || _allowDocumentFocus) {
+      setState(() {
+        _allowTitleFocus = false;
+        _allowDocumentFocus = false;
+      });
+    }
     // Route focus restoration and delayed Quill notifications must wait for a new tap.
     _bodyFocus.canRequestFocus = false;
     _titleFocus.canRequestFocus = false;
@@ -219,7 +235,19 @@ class _JournalEditorPageState extends State<_JournalEditorView>
   }
 
   @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    final view = View.of(context);
+    _keyboardVisible = view.viewInsets.bottom / view.devicePixelRatio > 48;
+  }
+
+  @override
   void didChangeMetrics() {
+    final view = View.of(context);
+    final visible = view.viewInsets.bottom / view.devicePixelRatio > 48;
+    if (mounted && visible != _keyboardVisible) {
+      setState(() => _keyboardVisible = visible);
+    }
     if (_editingScrollAnchor != null) {
       _editingScrollTimer?.cancel();
       _editingScrollTimer = Timer(
@@ -359,7 +387,7 @@ class _JournalEditorPageState extends State<_JournalEditorView>
     if (snapshot == _saved) return true;
     final entry = _entry();
     if (widget.entry == null &&
-        !_provider.journalEntries.any((e) => e.id == _id) &&
+        !_provider.hasJournalEntry(_id) &&
         entry.title.trim().isEmpty &&
         entry.content.trim().isEmpty &&
         entry.tags.isEmpty &&
@@ -426,7 +454,7 @@ class _JournalEditorPageState extends State<_JournalEditorView>
   }
 
   Future<void> _finish() async {
-    if (await _save() && mounted) FocusScope.of(context).unfocus();
+    if (await _save() && mounted) _stayBrowsing();
   }
 
   Future<void> _insertTable() async {
@@ -672,6 +700,7 @@ class _JournalEditorPageState extends State<_JournalEditorView>
     _editor.dispose();
     _titleFocus.dispose();
     _bodyFocus.dispose();
+    _editingScope.dispose();
     _bodyScroll.dispose();
     _pageScroll.dispose();
     super.dispose();
@@ -843,7 +872,7 @@ class _JournalEditorPageState extends State<_JournalEditorView>
   Widget build(BuildContext context) {
     // Some Android IMEs leave a one-pixel inset while their panel is hidden.
     // Ignore that residue so the toolbar cannot appear alone at screen bottom.
-    final keyboardVisible = MediaQuery.viewInsetsOf(context).bottom > 48;
+    final keyboardVisible = _keyboardVisible;
     return Localizations.override(
       context: context,
       locale: const Locale('zh'),
@@ -957,88 +986,105 @@ class _JournalEditorPageState extends State<_JournalEditorView>
                 Expanded(
                   child: SizedBox(
                     key: _pageViewportKey,
-                    child: SingleChildScrollView(
-                      key: const ValueKey('record-page-scroll'),
-                      controller: _pageScroll,
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.stretch,
-                        children: [
-                          Padding(
-                            padding: EdgeInsets.fromLTRB(
-                              _pageStyle.sideMargin,
-                              _pageStyle.topMargin,
-                              _pageStyle.sideMargin,
-                              20,
-                            ),
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Listener(
-                                  onPointerDown: (_) {
-                                    _titleFocus.canRequestFocus = true;
-                                  },
-                                  child: TextField(
-                                    key: const ValueKey('record-title'),
-                                    controller: _title,
-                                    focusNode: _titleFocus,
-                                    style: TextStyle(
-                                      fontSize: _pageStyle.fontSize * 30 / 18,
-                                      letterSpacing: _pageStyle.letterSpacing,
-                                      fontWeight: _titleBold
-                                          ? FontWeight.w600
-                                          : FontWeight.w400,
-                                    ),
-                                    maxLines: null,
-                                    textInputAction: TextInputAction.next,
-                                    onSubmitted: (_) {
-                                      _bodyFocus.canRequestFocus = true;
-                                      _editor.ignoreFocusOnTextChange = false;
-                                      _editor.skipRequestKeyboard = false;
-                                      if (_title.selection.isCollapsed &&
-                                          _title.selection.extentOffset ==
-                                              _title.text.length) {
-                                        _editor.replaceText(
-                                          0,
-                                          0,
-                                          '\n',
-                                          const TextSelection.collapsed(
-                                            offset: 0,
-                                          ),
-                                        );
-                                      }
-                                      _bodyFocus.requestFocus();
-                                    },
-                                    decoration: const InputDecoration(
-                                      hintText: '标题',
-                                      hintStyle: TextStyle(
-                                        color: Color(0xFFCCCCCC),
-                                      ),
-                                      border: InputBorder.none,
-                                      isDense: true,
-                                      contentPadding: EdgeInsets.zero,
-                                    ),
-                                  ),
+                    child: Listener(
+                      onPointerDown: (_) {
+                        _editingScope.descendantsAreFocusable = true;
+                        if (!_allowDocumentFocus) {
+                          setState(() => _allowDocumentFocus = true);
+                        }
+                      },
+                      child: FocusScope(
+                        node: _editingScope,
+                        descendantsAreFocusable: _allowDocumentFocus,
+                        child: SingleChildScrollView(
+                          key: const ValueKey('record-page-scroll'),
+                          controller: _pageScroll,
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.stretch,
+                            children: [
+                              Padding(
+                                padding: EdgeInsets.fromLTRB(
+                                  _pageStyle.sideMargin,
+                                  _pageStyle.topMargin,
+                                  _pageStyle.sideMargin,
+                                  20,
                                 ),
-                                if (!_pageStyle.hideMetadata)
-                                  const SizedBox(height: 22),
-                                if (!_pageStyle.hideMetadata)
-                                  Text(
-                                    '${DateFormat('M月d日 HH:mm').format(_updatedAt)}  |  $_wordCount字',
-                                    key: const ValueKey('record-metadata'),
-                                    style: const TextStyle(
-                                      fontSize: 14,
-                                      color: Color(0xFF999999),
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Listener(
+                                      onPointerDown: (_) {
+                                        setState(() => _allowTitleFocus = true);
+                                        _titleFocus.canRequestFocus = true;
+                                      },
+                                      child: TextField(
+                                        key: const ValueKey('record-title'),
+                                        controller: _title,
+                                        focusNode: _titleFocus,
+                                        canRequestFocus: _allowTitleFocus,
+                                        style: TextStyle(
+                                          fontSize:
+                                              _pageStyle.fontSize * 30 / 18,
+                                          letterSpacing:
+                                              _pageStyle.letterSpacing,
+                                          fontWeight: _titleBold
+                                              ? FontWeight.w600
+                                              : FontWeight.w400,
+                                        ),
+                                        maxLines: null,
+                                        textInputAction: TextInputAction.next,
+                                        onSubmitted: (_) {
+                                          _bodyFocus.canRequestFocus = true;
+                                          _editor.ignoreFocusOnTextChange =
+                                              false;
+                                          _editor.skipRequestKeyboard = false;
+                                          if (_title.selection.isCollapsed &&
+                                              _title.selection.extentOffset ==
+                                                  _title.text.length) {
+                                            _editor.replaceText(
+                                              0,
+                                              0,
+                                              '\n',
+                                              const TextSelection.collapsed(
+                                                offset: 0,
+                                              ),
+                                            );
+                                          }
+                                          _bodyFocus.requestFocus();
+                                        },
+                                        decoration: const InputDecoration(
+                                          hintText: '标题',
+                                          hintStyle: TextStyle(
+                                            color: Color(0xFFCCCCCC),
+                                          ),
+                                          border: InputBorder.none,
+                                          isDense: true,
+                                          contentPadding: EdgeInsets.zero,
+                                        ),
+                                      ),
                                     ),
-                                  ),
-                                if (_tags.isNotEmpty) ...[
-                                  const SizedBox(height: 16),
-                                  JournalTags(tags: _tags),
-                                ],
-                              ],
-                            ),
+                                    if (!_pageStyle.hideMetadata)
+                                      const SizedBox(height: 22),
+                                    if (!_pageStyle.hideMetadata)
+                                      Text(
+                                        '${DateFormat('M月d日 HH:mm').format(_updatedAt)}  |  $_wordCount字',
+                                        key: const ValueKey('record-metadata'),
+                                        style: const TextStyle(
+                                          fontSize: 14,
+                                          color: Color(0xFF999999),
+                                        ),
+                                      ),
+                                    if (_tags.isNotEmpty) ...[
+                                      const SizedBox(height: 16),
+                                      JournalTags(tags: _tags),
+                                    ],
+                                  ],
+                                ),
+                              ),
+                              _bodyEditor(context),
+                            ],
                           ),
-                          _bodyEditor(context),
-                        ],
+                        ),
                       ),
                     ),
                   ),
@@ -1098,6 +1144,17 @@ class JournalFormatBar extends StatelessWidget {
         (controller as JournalController).clearInlineAtCaret(attribute)) {
       onFormat();
       return;
+    }
+    if (controller is JournalController) {
+      final editor = controller as JournalController;
+      if (attribute.key == quill.Attribute.list.key) {
+        editor.formatList(attribute);
+        onFormat();
+        return;
+      }
+      if (attribute.key == quill.Attribute.header.key && !_active(attribute)) {
+        editor.clearHeadingEmphasis();
+      }
     }
     final isAlignment = attribute.key == quill.Attribute.align.key;
     controller.formatSelection(
@@ -1213,17 +1270,6 @@ class JournalFormatBar extends StatelessWidget {
                   selectedOverride: ['checked', 'unchecked'].contains(
                     selectionStyle.attributes[quill.Attribute.list.key]?.value,
                   ),
-                  action: () {
-                    final current = selectionStyle
-                        .attributes[quill.Attribute.list.key]
-                        ?.value;
-                    controller.formatSelection(
-                      ['checked', 'unchecked'].contains(current)
-                          ? quill.Attribute.clone(quill.Attribute.list, null)
-                          : quill.Attribute.unchecked,
-                    );
-                    onFormat();
-                  },
                 ),
                 button(
                   '倾斜',

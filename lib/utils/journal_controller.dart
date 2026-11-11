@@ -114,6 +114,57 @@ class JournalController extends quill.QuillController {
   int? pendingTable;
   bool _deleting = false;
 
+  void clearHeadingEmphasis() {
+    final first = document.queryChild(selection.start).node;
+    final last = document
+        .queryChild(selection.isCollapsed ? selection.end : selection.end - 1)
+        .node;
+    if (first is! quill.Line || last is! quill.Line) return;
+    final start = first.documentOffset;
+    final length = last.documentOffset + last.length - start;
+    for (final attribute in [quill.Attribute.bold, quill.Attribute.italic]) {
+      final cleared = quill.Attribute.clone(attribute, null);
+      formatText(start, length, cleared);
+      // Also clear pending typing styles at a collapsed caret.
+      formatSelection(cleared);
+    }
+  }
+
+  void formatList(quill.Attribute attribute) {
+    final line = document.queryChild(selection.start).node;
+    final current = line?.style.attributes[quill.Attribute.list.key]?.value;
+    final checklist = current == 'checked' || current == 'unchecked';
+    final same =
+        current == attribute.value ||
+        (checklist && attribute == quill.Attribute.unchecked);
+    final next = same ? quill.Attribute.clone(attribute, null) : attribute;
+    if (!selection.isCollapsed ||
+        current == null ||
+        same ||
+        line is! quill.Line) {
+      formatSelection(next);
+      return;
+    }
+    final quote = line.style.attributes[quill.Attribute.blockQuote.key]?.value;
+    bool inList(quill.Line candidate) =>
+        candidate.style.attributes[quill.Attribute.list.key]?.value != null &&
+        candidate.style.attributes[quill.Attribute.blockQuote.key]?.value ==
+            quote;
+    var start = line.documentOffset;
+    var end = start + line.length;
+    while (start > 0) {
+      final previous = document.queryChild(start - 1).node;
+      if (previous is! quill.Line || !inList(previous)) break;
+      start = previous.documentOffset;
+    }
+    while (end < document.length) {
+      final following = document.queryChild(end).node;
+      if (following is! quill.Line || !inList(following)) break;
+      end += following.length;
+    }
+    formatText(start, end - start, next);
+  }
+
   void insertDivider() {
     final range = selection;
     final plain = document.toPlainText();
@@ -355,14 +406,8 @@ class JournalController extends quill.QuillController {
 
   bool get onEmbedLine {
     if (!selection.isCollapsed) return true;
-    final selected = selection.baseOffset;
-    var at = 0;
-    for (final op in document.toDelta().toJson()) {
-      final insert = op['insert'];
-      if (insert is Map && (selected == at || selected == at + 1)) return true;
-      at += insert is String ? insert.length : 1;
-    }
-    return false;
+    final line = document.queryChild(selection.baseOffset).node;
+    return line is quill.Line && line.hasEmbed;
   }
 
   bool _replace(int index, int length, Object? data) {

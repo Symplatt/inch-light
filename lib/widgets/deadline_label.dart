@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart' show DateFormat;
 import '../utils/deadline.dart';
+import 'package:provider/provider.dart';
+import '../providers/app_provider.dart';
 
 class DeadlineLabel extends StatelessWidget {
   const DeadlineLabel({
@@ -17,7 +19,17 @@ class DeadlineLabel extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final instant = now ?? DateTime.now();
+    final provider = context.read<AppProvider?>();
+    if (now != null || provider == null) {
+      return _label(context, now ?? DateTime.now());
+    }
+    return ValueListenableBuilder<DateTime>(
+      valueListenable: provider.clock,
+      builder: (context, instant, _) => _label(context, instant),
+    );
+  }
+
+  Widget _label(BuildContext context, DateTime instant) {
     final days = greenDeadlineDays(deadline, now: instant);
     final color = blue
         ? const Color(0xFF5787B5)

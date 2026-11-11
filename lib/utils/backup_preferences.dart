@@ -1,12 +1,17 @@
 import 'package:shared_preferences/shared_preferences.dart';
 
-const _boolKeys = {'loose_tasks_first', 'countdowns_first'};
+const _boolKeys = {
+  'loose_tasks_first',
+  'countdowns_first',
+  'auto_open_last_tool',
+};
 const _listKeys = {
   'hidden_todo_collections',
   'journal_operation_chain',
   'calendar_seen_alerts',
 };
 const _stringKeys = {
+  'last_tool',
   'journal_collection_sort',
   'journal_entry_sort',
   'last_module',

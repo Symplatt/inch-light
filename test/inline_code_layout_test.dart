@@ -94,8 +94,8 @@ void main() {
         expect(background.first.left, greaterThanOrEqualTo(before.right - .2));
         expect(background.last.right, lessThanOrEqualTo(after.left + .2));
         if (width == 700) {
-          expect(codeStart.left - before.right, closeTo(10 * scale, .2));
-          expect(after.left - codeEnd.right, closeTo(10 * scale, .2));
+          expect(codeStart.left - before.right, closeTo(8 * scale, .2));
+          expect(after.left - codeEnd.right, closeTo(8 * scale, .2));
         }
         for (var i = 0; i < '这句话有行内代码但是有些BUG'.length; i++) {
           final char = box(i, i + 1);

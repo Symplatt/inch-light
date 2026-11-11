@@ -315,7 +315,7 @@ class _TodoPageState extends State<TodoPage> {
                       provider.toggleCollectionExpand(collection.id),
                   tilePadding: const EdgeInsets.symmetric(
                     horizontal: 16,
-                    vertical: 4,
+                    vertical: 2,
                   ),
                   subtitle: nearest == null
                       ? null
@@ -475,7 +475,7 @@ class _TodoPageState extends State<TodoPage> {
             child: ListTile(
               contentPadding: const EdgeInsets.symmetric(
                 horizontal: 16,
-                vertical: 7,
+                vertical: 3,
               ),
               leading: GestureDetector(
                 onTap: () => _completeTask(task, provider),
@@ -820,7 +820,7 @@ class _TodoPageState extends State<TodoPage> {
                     ),
                     Row(
                       children: [
-                        for (final offset in [0, 1]) ...[
+                        for (final offset in [0, 1, 2]) ...[
                           TextButton(
                             style: TextButton.styleFrom(
                               padding: const EdgeInsets.symmetric(
@@ -828,18 +828,20 @@ class _TodoPageState extends State<TodoPage> {
                               ),
                             ),
                             onPressed: () => setState(() {
-                              selectedDeadline = endOfDay(offset);
+                              selectedDeadline = offset == 2
+                                  ? endOfWeek()
+                                  : endOfDay(offset);
                             }),
                             child: Row(
                               mainAxisSize: MainAxisSize.min,
                               children: [
                                 const Icon(Icons.today_outlined, size: 18),
                                 const SizedBox(width: 4),
-                                Text(offset == 0 ? '今日截止' : '明日截止'),
+                                Text(const ['近日', '明日', '周日'][offset]),
                               ],
                             ),
                           ),
-                          if (offset == 0) const SizedBox(width: 12),
+                          if (offset < 2) const SizedBox(width: 4),
                         ],
                         const Spacer(),
                         TextButton(
@@ -1119,7 +1121,7 @@ class _TodoPageState extends State<TodoPage> {
                     ),
                     Row(
                       children: [
-                        for (final offset in [0, 1])
+                        for (final offset in [0, 1, 2])
                           TextButton.icon(
                             style: TextButton.styleFrom(
                               padding: const EdgeInsets.symmetric(
@@ -1127,9 +1129,11 @@ class _TodoPageState extends State<TodoPage> {
                               ),
                             ),
                             icon: const Icon(Icons.today_outlined, size: 18),
-                            label: Text(offset == 0 ? '今日截止' : '明日截止'),
+                            label: Text(const ['近日', '明日', '周日'][offset]),
                             onPressed: () => setState(() {
-                              selectedDeadline = endOfDay(offset);
+                              selectedDeadline = offset == 2
+                                  ? endOfWeek()
+                                  : endOfDay(offset);
                             }),
                           ),
                         const Spacer(),

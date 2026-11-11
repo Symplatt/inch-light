@@ -15,6 +15,11 @@ DateTime endOfDay(int daysFromToday, {DateTime? now}) {
   return DateTime(today.year, today.month, today.day + daysFromToday, 23, 59);
 }
 
+DateTime endOfWeek({DateTime? now}) {
+  final today = now ?? DateTime.now();
+  return endOfDay(DateTime.sunday - today.weekday, now: today);
+}
+
 int? greenDeadlineDays(DateTime deadline, {DateTime? now}) {
   final remaining = deadline.difference(now ?? DateTime.now());
   return remaining > const Duration(hours: 24) ? remaining.inDays : null;

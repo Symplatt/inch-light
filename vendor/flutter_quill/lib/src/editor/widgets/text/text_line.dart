@@ -364,8 +364,9 @@ class _TextLineState extends State<TextLine> {
         (item) => item.offset == position && item.leading == leading,
       ))
         return;
-      // A nonbreaking, invisible layout glyph reserves 7px of background
-      // padding plus a 3px outside gap. The proxy maps it out of all editing
+      // At paragraph start reserve only the background inset; other boundaries
+      // keep a small outside gap as well as the inset.
+      // The proxy maps these decorative glyphs out of all editing
       // coordinates; storage, copying and IME text remain unchanged.
       final size = lineStyle.fontSize ?? 18;
       final scale = MediaQuery.textScalerOf(context).scale(size) / size;
@@ -375,7 +376,7 @@ class _TextLineState extends State<TextLine> {
           semanticsLabel: '',
           style: TextStyle(
             fontSize: 0,
-            letterSpacing: (leading && position == 0 ? 7 : 10) * scale,
+            letterSpacing: (leading && position == 0 ? 5 : 8) * scale,
             wordSpacing: 0,
             color: Colors.transparent,
             backgroundColor: Colors.transparent,
@@ -1562,17 +1563,22 @@ class RenderEditableTextLine extends RenderEditableBox {
               ? (_body! as RenderParagraphProxy).child
               : null;
           final fontSize = paragraph?.text.style?.fontSize ?? 18;
-          final gap = paragraph == null
-              ? 3.0
-              : 3 * paragraph.textScaler.scale(fontSize) / fontSize;
-          for (var index = 0; index < rects.length; index++) {
-            final rect = rects[index].shift(effectiveOffset);
-            // Text boxes start halfway through the invisible spacing glyph.
-            // Include its leading half so a paragraph-start background is at x=0.
-            final left =
-                rect.left +
-                (index == 0 ? (range.start == 0 ? -gap * 7 / 6 : gap) : 0);
-            final right = rect.right - (index == rects.length - 1 ? gap : 0);
+          // Measure the actual code glyphs so both painted edges use the same
+          // inset, independent of the invisible spacing glyph's half advance.
+          final inset = paragraph == null
+              ? 5.0
+              : 5 * paragraph.textScaler.scale(fontSize) / fontSize;
+          for (final box in rects) {
+            final rect = box.shift(effectiveOffset);
+            // Anchor the first background to the paragraph edge; font side
+            // bearings and the invisible spacer must not add a left margin.
+            final paragraphLeading = range.start == 0 &&
+                identical(box, rects.first) &&
+                paragraph?.textDirection == TextDirection.ltr &&
+                const {TextAlign.left, TextAlign.start, TextAlign.justify}
+                    .contains(paragraph?.textAlign);
+            final left = paragraphLeading ? effectiveOffset.dx : rect.left - inset;
+            final right = rect.right + inset;
             if (inlineCodeStyle.radius == null) {
               final paintRect = Rect.fromLTRB(
                 left,
