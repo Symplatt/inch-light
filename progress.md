@@ -1,7 +1,9 @@
-# 3.17.1+123 正式包已安装，发布中（2026-11-13）
+# 3.17.1+123 已发布（2026-11-13）
 
 - 三架构正式包核验通过，ARM64保留数据覆盖安装成功。详情docs/3.17.1-build-validation.md。
-- 待完成commit、Push、Tag、Release和资产一致性核验。
+- 源码cb1a6e2已推送，v3.17.1标签和GitHub Release已发布。三架构远端资产digest与本地SHA256一致，已安装ARM64包SHA256一致。
+- 发布地址：https://github.com/Symplatt/inch-light/releases/tag/v3.17.1
+- 交互验证范围与未验证项目见验证记录。
 
 # 删除全文交互修订已安装（2026-11-13）
 
