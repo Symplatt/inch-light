@@ -8,7 +8,28 @@ class ToolIcon extends StatelessWidget {
   Widget build(BuildContext context) => Center(
     child: SizedBox.square(
       dimension: 44,
-      child: CustomPaint(painter: _ToolIconPainter(meal)),
+      child: meal
+          ? CustomPaint(painter: _ToolIconPainter(meal))
+          : Center(
+              child: ClipRect(
+                child: SizedBox(
+                  width: 44,
+                  height: 38,
+                  // Crop the supplied artwork at display time to omit its frame.
+                  child: Stack(
+                    children: [
+                      Positioned(
+                        left: -160 * 44 / 950,
+                        top: -250 * 44 / 950,
+                        width: 1254 * 44 / 950,
+                        height: 1254 * 44 / 950,
+                        child: Image.asset('assets/work_log_reference.png'),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ),
     ),
   );
 }

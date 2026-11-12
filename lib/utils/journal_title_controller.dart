@@ -94,6 +94,7 @@ TextSpan journalTitleSpan(String source, TextStyle? style) {
 
 /// Operations edit the formatted content, never interpret markup as punctuation.
 String transformJournalTitle(String source, JournalOperation operation) {
+  if (operation == JournalOperation.deleteAllContent) return source;
   final delta = Delta();
   var formatted = false;
   void collect(TextSpan span, TextStyle inherited) {

@@ -179,7 +179,9 @@ class _TextLineState extends State<TextLine> {
           node is leaf.QuillText &&
           node.style.attributes[Attribute.inlineCode.key]?.value == true;
       if (code != inCode) {
-        padding.add(InlineCodePadding(offset, leading: code));
+        if (offset != 0 || !code) {
+          padding.add(InlineCodePadding(offset, leading: code));
+        }
         inCode = code;
       }
       offset += node.length;
@@ -368,6 +370,7 @@ class _TextLineState extends State<TextLine> {
       // keep a small outside gap as well as the inset.
       // The proxy maps these decorative glyphs out of all editing
       // coordinates; storage, copying and IME text remain unchanged.
+      if (leading && position == 0) return;
       final size = lineStyle.fontSize ?? 18;
       final scale = MediaQuery.textScalerOf(context).scale(size) / size;
       children.add(
@@ -1572,12 +1575,21 @@ class RenderEditableTextLine extends RenderEditableBox {
             final rect = box.shift(effectiveOffset);
             // Anchor the first background to the paragraph edge; font side
             // bearings and the invisible spacer must not add a left margin.
-            final paragraphLeading = range.start == 0 &&
+            final paragraphLeading =
+                range.start == 0 &&
                 identical(box, rects.first) &&
                 paragraph?.textDirection == TextDirection.ltr &&
-                const {TextAlign.left, TextAlign.start, TextAlign.justify}
-                    .contains(paragraph?.textAlign);
-            final left = paragraphLeading ? effectiveOffset.dx : rect.left - inset;
+                const {
+                  TextAlign.left,
+                  TextAlign.start,
+                  TextAlign.justify,
+                }.contains(paragraph?.textAlign);
+            final left = paragraphLeading
+                ? effectiveOffset.dx
+                : (rect.left - inset).clamp(
+                    effectiveOffset.dx,
+                    double.infinity,
+                  );
             final right = rect.right + inset;
             if (inlineCodeStyle.radius == null) {
               final paintRect = Rect.fromLTRB(

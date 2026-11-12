@@ -113,22 +113,110 @@ class _MealPageState extends State<MealPage> {
       ).showSnackBar(const SnackBar(content: Text('请先新增菜品')));
       return;
     }
-    final dish = menu.pickDish(_random);
+    var dish = menu.pickDish(_random);
     final eat = await showDialog<bool>(
       context: context,
-      builder: (ctx) => AppAlertDialog(
-        title: const Text('随机选菜'),
-        content: Text(dish.name),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx),
-            child: const Text('取消'),
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, updateDialog) => AppDialog(
+          backgroundColor: AppColors.surface,
+          surfaceTintColor: Colors.transparent,
+          insetPadding: const EdgeInsets.symmetric(
+            horizontal: 24,
+            vertical: 24,
           ),
-          TextButton(
-            onPressed: () => Navigator.pop(ctx, true),
-            child: const Text('今天吃了'),
+          constraints: const BoxConstraints(maxWidth: 360),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(24),
           ),
-        ],
+          child: SizedBox(
+            width: 336,
+            child: SingleChildScrollView(
+              padding: const EdgeInsets.all(24),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  const Text(
+                    '随机选菜',
+                    style: TextStyle(
+                      fontSize: 14,
+                      fontWeight: FontWeight.w400,
+                      color: AppColors.textGrey,
+                    ),
+                  ),
+                  Padding(
+                    padding: const EdgeInsets.only(top: 20, bottom: 32),
+                    child: Text(
+                      dish.name,
+                      style: const TextStyle(
+                        fontSize: 28,
+                        height: 1.35,
+                        fontWeight: FontWeight.w400,
+                        color: AppColors.textDark,
+                      ),
+                    ),
+                  ),
+                  OverflowBar(
+                    alignment: MainAxisAlignment.spaceBetween,
+                    overflowAlignment: OverflowBarAlignment.end,
+                    spacing: 12,
+                    overflowSpacing: 8,
+                    children: [
+                      TextButton(
+                        style: TextButton.styleFrom(
+                          minimumSize: const Size(0, 48),
+                          padding: EdgeInsets.zero,
+                          foregroundColor: AppColors.textGrey,
+                          textStyle: const TextStyle(
+                            fontSize: 14,
+                            fontWeight: FontWeight.w400,
+                          ),
+                        ),
+                        onPressed: () => updateDialog(() {
+                          final alternatives = menu.dishes
+                              .where((d) => d.id != dish.id)
+                              .toList();
+                          if (alternatives.isNotEmpty) {
+                            dish = menu
+                                .withDishes(alternatives)
+                                .pickDish(_random);
+                          }
+                        }),
+                        child: const Text('再换一道'),
+                      ),
+                      TextButton(
+                        style: TextButton.styleFrom(
+                          minimumSize: const Size(0, 48),
+                          padding: EdgeInsets.zero,
+                          foregroundColor: AppColors.textGrey,
+                          textStyle: const TextStyle(
+                            fontSize: 14,
+                            fontWeight: FontWeight.w400,
+                          ),
+                        ),
+                        onPressed: () => Navigator.pop(ctx),
+                        child: const Text('不想吃了'),
+                      ),
+                      TextButton(
+                        style: TextButton.styleFrom(
+                          minimumSize: const Size(0, 48),
+                          padding: EdgeInsets.zero,
+                          foregroundColor: AppColors.textGrey,
+                          textStyle: const TextStyle(
+                            fontSize: 14,
+                            fontWeight: FontWeight.w400,
+                          ),
+                        ),
+                        onPressed: () => Navigator.pop(ctx, true),
+                        child: const Text('就决定是你了'),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
       ),
     );
     if (eat == true && mounted) await _eat(menu.id, dish.id);
@@ -379,7 +467,8 @@ class _DishListState extends State<_DishList> {
         final removed = _items.removeAt(i);
         _key.currentState!.removeItem(
           i,
-          (_, animation) => _card(removed, animation, removing: true),
+          (_, animation) =>
+              _card(removed, animation, removing: true, number: i + 1),
           duration: _duration,
         );
       }
@@ -398,6 +487,7 @@ class _DishListState extends State<_DishList> {
     MealDish dish,
     Animation<double> animation, {
     bool removing = false,
+    required int number,
   }) => SizeTransition(
     sizeFactor: CurvedAnimation(parent: animation, curve: Curves.easeInOut),
     child: FadeTransition(
@@ -414,6 +504,34 @@ class _DishListState extends State<_DishList> {
             border: Border.all(color: const Color(0xFFE7E8EB)),
           ),
           child: ListTile(
+            leading: Container(
+              width: max(
+                32,
+                MediaQuery.textScalerOf(context).scale(16) *
+                    ('$number'.length * 0.65 + 0.8),
+              ),
+              height: max(
+                32,
+                MediaQuery.textScalerOf(context).scale(16) *
+                    ('$number'.length * 0.65 + 0.8),
+              ),
+              alignment: Alignment.center,
+              decoration: const BoxDecoration(
+                color: Color(0xFFF0F1F3),
+                shape: BoxShape.circle,
+              ),
+              child: Text(
+                '$number',
+                textAlign: TextAlign.center,
+                style: const TextStyle(
+                  fontSize: 16,
+                  height: 1,
+                  fontWeight: FontWeight.w400,
+                ),
+              ),
+            ),
+            minLeadingWidth: 24,
+            horizontalTitleGap: 12,
             minTileHeight: 64,
             minVerticalPadding: 6,
             contentPadding: const EdgeInsets.fromLTRB(16, 0, 8, 0),
@@ -434,7 +552,20 @@ class _DishListState extends State<_DishList> {
             onLongPress: removing ? null : () => widget.onEdit(dish),
             trailing: IconButton(
               tooltip: '今天吃了${dish.name}',
-              icon: const Icon(Icons.restaurant_outlined),
+              style: IconButton.styleFrom(
+                fixedSize: const Size(48, 48),
+                foregroundColor: AppColors.textGrey,
+                side: const BorderSide(color: Color(0xFFD8DBE1)),
+                shape: const CircleBorder(),
+              ),
+              icon: Builder(
+                builder: (context) => CustomPaint(
+                  size: const Size.square(22),
+                  painter: _MealBowlPainter(
+                    color: IconTheme.of(context).color ?? AppColors.textGrey,
+                  ),
+                ),
+              ),
               onPressed: removing || widget.onEat == null
                   ? null
                   : () => widget.onEat!(dish),
@@ -449,7 +580,8 @@ class _DishListState extends State<_DishList> {
     key: _key,
     initialItemCount: _items.length,
     padding: const EdgeInsets.fromLTRB(16, 8, 16, 24),
-    itemBuilder: (_, index, animation) => _card(_items[index], animation),
+    itemBuilder: (_, index, animation) =>
+        _card(_items[index], animation, number: index + 1),
   );
 }
 
@@ -521,4 +653,43 @@ class _MealNameDialogState extends State<_MealNameDialog> {
       ],
     ),
   );
+}
+
+// 用归一化路径保持参考图中碗口、碗足与两根筷子的比例。
+class _MealBowlPainter extends CustomPainter {
+  const _MealBowlPainter({required this.color});
+
+  final Color color;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    canvas.save();
+    canvas.scale(size.width / 24, size.height / 24);
+    final ink = Paint()
+      ..color = color
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 1.9
+      ..strokeCap = StrokeCap.round
+      ..strokeJoin = StrokeJoin.round;
+
+    canvas.drawLine(const Offset(12.7, 12), const Offset(18.7, 2.1), ink);
+    canvas.drawLine(const Offset(16.1, 12), const Offset(22.1, 4.8), ink);
+    final bowl = Path()
+      ..moveTo(1.1, 12.3)
+      ..lineTo(21.8, 12.3)
+      ..cubicTo(21.5, 18.3, 17.4, 22.6, 11.5, 22.6)
+      ..cubicTo(5.5, 22.6, 1.4, 18.3, 1.1, 12.3)
+      ..close();
+    canvas.drawPath(bowl, ink);
+    final foot = Path()
+      ..moveTo(7.4, 22.3)
+      ..lineTo(7.3, 23)
+      ..quadraticBezierTo(11.5, 22, 15.7, 23)
+      ..lineTo(15.6, 22.3);
+    canvas.drawPath(foot, ink);
+    canvas.restore();
+  }
+
+  @override
+  bool shouldRepaint(_MealBowlPainter oldDelegate) => color != oldDelegate.color;
 }

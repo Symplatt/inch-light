@@ -837,7 +837,7 @@ class _TodoPageState extends State<TodoPage> {
                               children: [
                                 const Icon(Icons.today_outlined, size: 18),
                                 const SizedBox(width: 4),
-                                Text(const ['近日', '明日', '周日'][offset]),
+                                Text(const ['今日', '明日', '周日'][offset]),
                               ],
                             ),
                           ),
@@ -1129,7 +1129,7 @@ class _TodoPageState extends State<TodoPage> {
                               ),
                             ),
                             icon: const Icon(Icons.today_outlined, size: 18),
-                            label: Text(const ['近日', '明日', '周日'][offset]),
+                            label: Text(const ['今日', '明日', '周日'][offset]),
                             onPressed: () => setState(() {
                               selectedDeadline = offset == 2
                                   ? endOfWeek()

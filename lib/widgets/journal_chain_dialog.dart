@@ -89,7 +89,10 @@ class _JournalChainDialogState extends State<JournalChainDialog> {
                   Expanded(
                     child: Text(
                       journalOperationName(operation),
-                      style: const TextStyle(
+                      style: TextStyle(
+                        color: operation == JournalOperation.deleteAllContent
+                            ? Colors.red
+                            : null,
                         fontSize: 15,
                         fontWeight: FontWeight.w400,
                       ),

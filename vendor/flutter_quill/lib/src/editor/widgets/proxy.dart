@@ -283,16 +283,58 @@ class RenderParagraphProxy extends RenderProxyBox
   @override
   double get preferredLineHeight => _prototypePainter.preferredLineHeight;
 
+  double get _codeInset {
+    if (inlineCodeOffsets.padding.isEmpty) return 0;
+    final size = child?.text.style?.fontSize ?? 18;
+    return 5 * _prototypePainter.textScaler.scale(size) / size;
+  }
+
+  List<TextBox> _shiftBoxes(List<TextBox> boxes) => boxes
+      .map(
+        (box) => TextBox.fromLTRBD(
+          box.left + _codeInset,
+          box.top,
+          box.right + _codeInset,
+          box.bottom,
+          box.direction,
+        ),
+      )
+      .toList();
+
+  @override
+  void paint(PaintingContext context, Offset offset) {
+    if (child != null)
+      context.paintChild(child!, offset + Offset(_codeInset, 0));
+  }
+
+  @override
+  bool hitTestChildren(BoxHitTestResult result, {required Offset position}) =>
+      child != null &&
+      result.addWithPaintOffset(
+        offset: Offset(_codeInset, 0),
+        position: position,
+        hitTest: (result, position) =>
+            child!.hitTest(result, position: position),
+      );
+
+  @override
+  void applyPaintTransform(RenderBox child, Matrix4 transform) {
+    transform.translateByDouble(_codeInset, 0, 0, 1);
+  }
+
   @override
   Offset getOffsetForCaret(TextPosition position, Rect caretPrototype) =>
       child!.getOffsetForCaret(
         inlineCodeOffsets.layoutPosition(position),
         caretPrototype,
-      );
+      ) +
+      Offset(_codeInset, 0);
 
   @override
   TextPosition getPositionForOffset(Offset offset) =>
-      inlineCodeOffsets.documentPosition(child!.getPositionForOffset(offset));
+      inlineCodeOffsets.documentPosition(
+        child!.getPositionForOffset(offset - Offset(_codeInset, 0)),
+      );
 
   @override
   double? getFullHeightForCaret(TextPosition position) =>
@@ -310,30 +352,39 @@ class RenderParagraphProxy extends RenderProxyBox
   }
 
   @override
-  List<TextBox> getBoxesForSelection(TextSelection selection) =>
-      child!.getBoxesForSelection(
-        inlineCodeOffsets.layoutSelection(selection),
-        boxHeightStyle: BoxHeightStyle.max,
-      );
+  List<TextBox> getBoxesForSelection(TextSelection selection) => _shiftBoxes(
+    child!.getBoxesForSelection(
+      inlineCodeOffsets.layoutSelection(selection),
+      boxHeightStyle: BoxHeightStyle.max,
+    ),
+  );
 
-  List<TextBox> getInlineCodeBoxes(TextRange range) =>
-      child!.getBoxesForSelection(
-        TextSelection(
-          baseOffset: inlineCodeOffsets.toLayout(
-            range.start,
-            includePadding: true,
-          ),
-          extentOffset: inlineCodeOffsets.toLayout(
-            range.end,
-            includePadding: false,
-          ),
+  List<TextBox> getInlineCodeBoxes(TextRange range) => _shiftBoxes(
+    child!.getBoxesForSelection(
+      TextSelection(
+        baseOffset: inlineCodeOffsets.toLayout(
+          range.start,
+          includePadding: true,
         ),
-        boxHeightStyle: BoxHeightStyle.max,
-      );
+        extentOffset: inlineCodeOffsets.toLayout(
+          range.end,
+          includePadding: false,
+        ),
+      ),
+      boxHeightStyle: BoxHeightStyle.max,
+    ),
+  );
 
   @override
   void performLayout() {
-    super.performLayout();
+    final inset = _codeInset;
+    child!.layout(
+      constraints.deflate(EdgeInsets.symmetric(horizontal: inset)),
+      parentUsesSize: true,
+    );
+    size = constraints.constrain(
+      Size(child!.size.width + inset * 2, child!.size.height),
+    );
     _prototypePainter.layout(
       minWidth: constraints.minWidth,
       maxWidth: constraints.maxWidth,

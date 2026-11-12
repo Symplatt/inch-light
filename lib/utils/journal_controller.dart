@@ -138,10 +138,7 @@ class JournalController extends quill.QuillController {
         current == attribute.value ||
         (checklist && attribute == quill.Attribute.unchecked);
     final next = same ? quill.Attribute.clone(attribute, null) : attribute;
-    if (!selection.isCollapsed ||
-        current == null ||
-        same ||
-        line is! quill.Line) {
+    if (!selection.isCollapsed || current == null || line is! quill.Line) {
       formatSelection(next);
       return;
     }

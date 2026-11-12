@@ -13,7 +13,8 @@ enum JournalOperation {
   shuffleBullets('打乱无序列表'),
   checkAll('勾选全部'),
   uncheckAll('清空勾选'),
-  addSentencePeriods('补全句号');
+  addSentencePeriods('补全句号'),
+  deleteAllContent('删除全文');
 
   const JournalOperation(this.label);
   final String label;
@@ -387,6 +388,7 @@ Set<JournalOperation> availableJournalOperations(
   final result = <JournalOperation>{
     JournalOperation.removeLeadingPunctuation,
     JournalOperation.normalizeSpaces,
+    JournalOperation.deleteAllContent,
   };
   if (titleBold) result.add(JournalOperation.removeBold);
   var hasLetters = RegExp(r'[A-Za-z]').hasMatch(title);
@@ -446,6 +448,12 @@ List<dynamic> transformJournalDocument(
   JournalOperation operation, {
   Random? random,
 }) {
+  // Quill requires a terminal newline even for a completely empty document.
+  if (operation == JournalOperation.deleteAllContent) {
+    return [
+      {'insert': '\n'},
+    ];
+  }
   var lines = _lines(document);
   if (operation == JournalOperation.clearBlankLines) {
     lines = lines.where((line) => !line.blank).toList();

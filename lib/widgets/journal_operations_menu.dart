@@ -1,5 +1,6 @@
 import 'app_dialog.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/gestures.dart';
 import '../utils/journal_operations.dart';
 import 'journal_format_icon.dart';
 
@@ -7,6 +8,7 @@ List<PopupMenuEntry<JournalOperation>> journalOperationsMenu(
   BuildContext context, {
   required VoidCallback runChain,
   required VoidCallback editChain,
+  required VoidCallback deleteAllDirect,
   required Set<JournalOperation> available,
 }) {
   void closeThen(VoidCallback action) {
@@ -23,6 +25,7 @@ List<PopupMenuEntry<JournalOperation>> journalOperationsMenu(
     ),
   );
   Widget icon(JournalOperation operation) => switch (operation) {
+    JournalOperation.deleteAllContent => const Icon(Icons.delete_outline, size: 20),
     JournalOperation.clearBlankLines => const Icon(
       Icons.format_clear,
       size: 20,
@@ -56,11 +59,8 @@ List<PopupMenuEntry<JournalOperation>> journalOperationsMenu(
       size: 20,
     ),
   };
-  PopupMenuItem<JournalOperation> item(JournalOperation operation) =>
-      PopupMenuItem(
-        value: operation,
-        height: 40,
-        child: Row(
+  PopupMenuItem<JournalOperation> item(JournalOperation operation) {
+    final content = Row(
           children: [
             IconTheme(
               data: const IconThemeData(color: Color(0xFF606060)),
@@ -74,8 +74,33 @@ List<PopupMenuEntry<JournalOperation>> journalOperationsMenu(
               ),
             ),
           ],
-        ),
-      );
+        );
+    return PopupMenuItem(
+      value: operation,
+      height: 40,
+      child: operation == JournalOperation.deleteAllContent
+          ? RawGestureDetector(
+              behavior: HitTestBehavior.opaque,
+              gestures: {
+                LongPressGestureRecognizer:
+                    GestureRecognizerFactoryWithHandlers<LongPressGestureRecognizer>(
+                  () => LongPressGestureRecognizer(
+                    duration: const Duration(seconds: 1),
+                  ),
+                  (recognizer) {
+                    recognizer.onLongPress = () => closeThen(deleteAllDirect);
+                  },
+                ),
+              },
+              child: SizedBox(
+                width: double.infinity,
+                height: 40,
+                child: content,
+              ),
+            )
+          : content,
+    );
+  }
   return [
     PopupMenuItem<JournalOperation>(
       enabled: false,
@@ -107,6 +132,7 @@ List<PopupMenuEntry<JournalOperation>> journalOperationsMenu(
                       '文本整理：管理标点、整理空格、清除空行或打乱无序列表。\n\n'
                       '格式调整：升降标题、取消加粗或将首字母大写。\n\n'
                       '选框操作：勾选全部或清空勾选。\n\n'
+                      '删除全文：保留标题和标签，清空全部正文，可撤回。长按该选项满 1 秒可跳过确认，直接执行。\n\n'
                       '连携操作：按设定顺序一次执行多项操作，点击铅笔编辑。',
                     ),
                     actions: [
@@ -130,6 +156,7 @@ List<PopupMenuEntry<JournalOperation>> journalOperationsMenu(
       JournalOperation.normalizeSpaces,
       JournalOperation.clearBlankLines,
       JournalOperation.shuffleBullets,
+      JournalOperation.deleteAllContent,
     ])
       if (available.contains(operation)) item(operation),
     if ([

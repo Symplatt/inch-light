@@ -511,6 +511,31 @@ class _JournalEditorPageState extends State<_JournalEditorView>
     if (_editor.deleteTable(id)) _bodyFocus.requestFocus();
   }
 
+  Future<void> _selectOperation(JournalOperation operation) async {
+    if (operation == JournalOperation.deleteAllContent) {
+      _stayBrowsing();
+      final confirmed = await showDialog<bool>(
+        context: context,
+        builder: (ctx) => AppAlertDialog(
+          title: const Text('删除全文？'),
+          content: const Text('保留标题和标签，删除全部正文内容。'),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(ctx, false),
+              child: const Text('取消'),
+            ),
+            TextButton(
+              onPressed: () => Navigator.pop(ctx, true),
+              child: const Text('删除'),
+            ),
+          ],
+        ),
+      );
+      if (!mounted || confirmed != true) return;
+    }
+    await _operate(operation);
+  }
+
   Future<void> _operate(
     JournalOperation operation, {
     List<JournalOperation>? chain,
@@ -942,7 +967,7 @@ class _JournalEditorPageState extends State<_JournalEditorView>
                       ),
                       onOpened: _stayBrowsing,
                       requestFocus: false,
-                      onSelected: _operate,
+                      onSelected: _selectOperation,
                       color: Colors.white,
                       surfaceTintColor: Colors.transparent,
                       elevation: 4,
@@ -972,6 +997,7 @@ class _JournalEditorPageState extends State<_JournalEditorView>
                         ),
                         runChain: _runChain,
                         editChain: _editChain,
+                        deleteAllDirect: () => _operate(JournalOperation.deleteAllContent),
                       ),
                     ),
                   ),
