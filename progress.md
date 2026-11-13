@@ -1,3 +1,11 @@
+# 3.18.0+128 已发布并安装正式包（2026-11-13）
+
+- 正式三架构包核验通过，ARM64保留数据覆盖安装成功，实际3.18.0（2128），firstInstallTime保持2026-11-05 03:34:21。已安装APK与本地/Release ARM64 SHA256相同。
+- 源码de23cdb已推送，v3.18.0 Tag和GitHub Release已创建，三资产远端digest/字节数与本地一致，Release正文与CHANGELOG一致。
+- 发布地址：https://github.com/Symplatt/inch-light/releases/tag/v3.18.0
+- 临时范围事项及笔记“鹅”已删除，用户原有数据保留。用户明确省略后续测试，正式安装后剩余功能检查未继续执行。
+- GitHub Actions仍在进行中，未验证结果。未验证项及博士生前推三年的自主规则详见docs/3.18.0-build-validation.md。
+
 # 3.18.0+128 正式包已覆盖安装，发布中（2026-11-13）
 
 - 正式三架构包构建核验通过，ARM64保留数据安装成功，实际2128，首次安装时间保持，已安装包与本地ARM64正式包SHA256一致。
