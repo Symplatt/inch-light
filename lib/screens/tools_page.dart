@@ -7,6 +7,9 @@ import '../utils/journal_sort.dart';
 import '../widgets/tool_icon.dart';
 import 'work_log_page.dart';
 import 'meal_page.dart';
+import 'project_updates_page.dart';
+import 'academic_peers_page.dart';
+import 'last_time_page.dart';
 
 class ToolsPage extends StatefulWidget {
   const ToolsPage({
@@ -55,12 +58,17 @@ class _ToolsPageState extends State<ToolsPage> {
   static final _tools = [
     (id: 'meals', name: '吃什么'),
     (id: 'work_log', name: '工作日志'),
+    (id: 'project_updates', name: '歪脖扣腚'),
+    (id: 'academic_peers', name: '座下弟子'),
+    (id: 'last_time', name: '上一次'),
   ]..sort((a, b) => JournalNameKey(a.name).compareTo(JournalNameKey(b.name)));
 
   void _openTool(String id) {
     context.read<AppProvider>().setLastTool(id);
     setState(() => _selectedTool = id);
   }
+
+  void _backToTools() => setState(() => _selectedTool = null);
 
   @override
   Widget build(BuildContext context) {
@@ -70,9 +78,13 @@ class _ToolsPageState extends State<ToolsPage> {
         onPopInvokedWithResult: (didPop, result) {
           if (!didPop) setState(() => _selectedTool = null);
         },
-        child: _selectedTool == 'meals'
-            ? MealPage(onBack: () => setState(() => _selectedTool = null))
-            : WorkLogPage(onBack: () => setState(() => _selectedTool = null)),
+        child: switch (_selectedTool) {
+          'meals' => MealPage(onBack: _backToTools),
+          'project_updates' => ProjectUpdatesPage(onBack: _backToTools),
+          'academic_peers' => AcademicPeersPage(onBack: _backToTools),
+          'last_time' => LastTimePage(onBack: _backToTools),
+          _ => WorkLogPage(onBack: _backToTools),
+        },
       );
     }
     return Scaffold(
@@ -119,7 +131,10 @@ class _ToolsPageState extends State<ToolsPage> {
                                 color: const Color(0xFFE7E8EB),
                               ),
                             ),
-                            child: ToolIcon(meal: tool.id == 'meals'),
+                            child: ToolIcon(
+                              meal: tool.id == 'meals',
+                              toolId: tool.id,
+                            ),
                           ),
                           const SizedBox(height: 8),
                           Text(

@@ -34,19 +34,39 @@ import '../widgets/journal_table.dart';
 import '../widgets/journal_format_icon.dart';
 
 class JournalEditorPage extends StatelessWidget {
-  const JournalEditorPage({super.key, this.entry, this.collectionId});
+  const JournalEditorPage({
+    super.key,
+    this.entry,
+    this.collectionId,
+    this.saveEntry,
+    this.projectMode = false,
+  }) : assert(!projectMode || saveEntry != null);
   final JournalEntry? entry;
   final String? collectionId;
+  final Future<void> Function(JournalEntry)? saveEntry;
+  final bool projectMode;
   @override
   Widget build(BuildContext context) => JournalTheme(
-    child: _JournalEditorView(entry: entry, collectionId: collectionId),
+    child: _JournalEditorView(
+      entry: entry,
+      collectionId: collectionId,
+      saveEntry: saveEntry,
+      projectMode: projectMode,
+    ),
   );
 }
 
 class _JournalEditorView extends StatefulWidget {
-  const _JournalEditorView({this.entry, this.collectionId});
+  const _JournalEditorView({
+    this.entry,
+    this.collectionId,
+    this.saveEntry,
+    this.projectMode = false,
+  });
   final JournalEntry? entry;
   final String? collectionId;
+  final Future<void> Function(JournalEntry)? saveEntry;
+  final bool projectMode;
   @override
   State<_JournalEditorView> createState() => _JournalEditorPageState();
 }
@@ -94,10 +114,16 @@ class _JournalEditorPageState extends State<_JournalEditorView>
   );
   List<JournalOperation> _chain = [];
 
+  String get _chainKey => widget.projectMode
+      ? 'project_journal_operation_chain'
+      : 'journal_operation_chain';
+
   Future<void> _loadPreferences() async {
-    final style = await JournalImageSettings.load(page: true);
+    final style = widget.projectMode
+        ? JournalImageSettings(topMargin: 16, bottomMargin: 32)
+        : await JournalImageSettings.load(page: true);
     final prefs = await SharedPreferences.getInstance();
-    final names = prefs.getStringList('journal_operation_chain') ?? [];
+    final names = prefs.getStringList(_chainKey) ?? [];
     if (!mounted) return;
     setState(() {
       _pageStyle = style;
@@ -163,7 +189,7 @@ class _JournalEditorPageState extends State<_JournalEditorView>
     if (!mounted || next == null) return;
     final prefs = await SharedPreferences.getInstance();
     final saved = await prefs.setStringList(
-      'journal_operation_chain',
+      _chainKey,
       next.map((op) => op.name).toList(),
     );
     if (!mounted) return;
@@ -395,7 +421,7 @@ class _JournalEditorPageState extends State<_JournalEditorView>
       return true;
     }
     try {
-      await _provider.saveJournalEntry(entry);
+      await (widget.saveEntry ?? _provider.saveJournalEntry)(entry);
       _saved = snapshot;
       return true;
     } catch (_) {
@@ -619,11 +645,12 @@ class _JournalEditorPageState extends State<_JournalEditorView>
               title: const Text('复制 Markdown'),
               onTap: () => Navigator.pop(context, 'markdown'),
             ),
-            ListTile(
-              leading: const Icon(Icons.image_outlined),
-              title: const Text('导出长图'),
-              onTap: () => Navigator.pop(context, 'image'),
-            ),
+            if (!widget.projectMode)
+              ListTile(
+                leading: const Icon(Icons.image_outlined),
+                title: const Text('导出长图'),
+                onTap: () => Navigator.pop(context, 'image'),
+              ),
           ],
         ),
       ),
@@ -929,7 +956,7 @@ class _JournalEditorPageState extends State<_JournalEditorView>
                   icon: const JournalActionIcon(JournalActionSymbol.redo),
                 ),
               ],
-              if (!keyboardVisible)
+              if (!keyboardVisible && !widget.projectMode)
                 IconButton(
                   tooltip: '页面设置',
                   onPressed: _configurePage,
@@ -997,7 +1024,8 @@ class _JournalEditorPageState extends State<_JournalEditorView>
                         ),
                         runChain: _runChain,
                         editChain: _editChain,
-                        deleteAllDirect: () => _operate(JournalOperation.deleteAllContent),
+                        deleteAllDirect: () =>
+                            _operate(JournalOperation.deleteAllContent),
                       ),
                     ),
                   ),

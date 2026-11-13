@@ -2,6 +2,54 @@ import 'app_dialog.dart';
 import 'package:flutter/material.dart';
 import '../constants/app_colors.dart';
 
+class JournalCollectionListDialog extends StatelessWidget {
+  const JournalCollectionListDialog({
+    super.key,
+    required this.title,
+    required this.children,
+  });
+  final String title;
+  final List<Widget> children;
+
+  @override
+  Widget build(BuildContext context) => AppAlertDialog(
+    constraints: BoxConstraints(
+      maxHeight: MediaQuery.sizeOf(context).height * .65,
+    ),
+    title: Text(title),
+    content: SizedBox(
+      width: double.maxFinite,
+      child: ListView(shrinkWrap: true, children: children),
+    ),
+  );
+}
+
+class JournalCollectionListTile extends StatelessWidget {
+  const JournalCollectionListTile({
+    super.key,
+    required this.name,
+    required this.onTap,
+    this.trailing,
+    this.selected = false,
+  });
+  final String name;
+  final VoidCallback onTap;
+  final Widget? trailing;
+  final bool selected;
+
+  @override
+  Widget build(BuildContext context) => ListTile(
+    contentPadding: EdgeInsets.zero,
+    dense: true,
+    visualDensity: VisualDensity.compact,
+    minVerticalPadding: 8,
+    title: Text(name),
+    trailing: trailing,
+    selected: selected,
+    onTap: onTap,
+  );
+}
+
 class JournalDialogFrame extends StatelessWidget {
   const JournalDialogFrame({
     super.key,

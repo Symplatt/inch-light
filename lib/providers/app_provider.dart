@@ -10,6 +10,9 @@ import '../models/task_model.dart';
 import '../models/journal_entry.dart';
 import '../models/work_log.dart';
 import '../models/meal_menu.dart';
+import '../models/project_updates.dart';
+import '../models/academic_peers.dart';
+import '../models/last_time.dart';
 
 import '../utils/schedule.dart';
 import '../utils/backup_preferences.dart';
@@ -409,6 +412,63 @@ class AppProvider with ChangeNotifier, WidgetsBindingObserver {
     return write;
   }
 
+  ProjectUpdatesData _projectUpdates = ProjectUpdatesData.empty();
+  ProjectUpdatesData get projectUpdates => _projectUpdates;
+  Future<void> _projectUpdatesWrite = Future.value();
+
+  Future<void> updateProjectUpdates(ProjectUpdatesData Function(ProjectUpdatesData) update) {
+    final write = _projectUpdatesWrite.then((_) async {
+      await ready;
+      final next = update(_projectUpdates);
+      final prefs = await SharedPreferences.getInstance();
+      if (!await prefs.setString('project_updates', jsonEncode(next.toJson()))) {
+        throw StateError('项目更新保存失败，请重试');
+      }
+      _projectUpdates = next;
+      notifyListeners();
+    });
+    _projectUpdatesWrite = write.catchError((Object _) {});
+    return write;
+  }
+
+  AcademicPeersData _academicPeers = AcademicPeersData();
+  AcademicPeersData get academicPeers => _academicPeers;
+  Future<void> _academicPeersWrite = Future.value();
+
+  Future<void> updateAcademicPeers(AcademicPeersData Function(AcademicPeersData) update) {
+    final write = _academicPeersWrite.then((_) async {
+      await ready;
+      final next = update(_academicPeers);
+      final prefs = await SharedPreferences.getInstance();
+      if (!await prefs.setString('academic_peers', jsonEncode(next.toJson()))) {
+        throw StateError('同门资料保存失败，请重试');
+      }
+      _academicPeers = next;
+      notifyListeners();
+    });
+    _academicPeersWrite = write.catchError((Object _) {});
+    return write;
+  }
+
+  LastTimeData _lastTime = LastTimeData();
+  LastTimeData get lastTime => _lastTime;
+  Future<void> _lastTimeWrite = Future.value();
+
+  Future<void> updateLastTime(LastTimeData Function(LastTimeData) update) {
+    final write = _lastTimeWrite.then((_) async {
+      await ready;
+      final next = update(_lastTime);
+      final prefs = await SharedPreferences.getInstance();
+      if (!await prefs.setString('last_time', jsonEncode(next.toJson()))) {
+        throw StateError('事项保存失败，请重试');
+      }
+      _lastTime = next;
+      notifyListeners();
+    });
+    _lastTimeWrite = write.catchError((Object _) {});
+    return write;
+  }
+
   WorkLogData _workLog = WorkLogData.empty();
   WorkLogData get workLog => _workLog;
   Future<void> _workLogWrite = Future.value();
@@ -759,6 +819,18 @@ class AppProvider with ChangeNotifier, WidgetsBindingObserver {
     _loadPreferences(prefs);
     final mealJson = prefs.getString('meal_menus');
     if (mealJson != null) _meals = MealData.fromJson(jsonDecode(mealJson) as Map<String, dynamic>);
+    final projectUpdatesJson = prefs.getString('project_updates');
+    if (projectUpdatesJson != null) {
+      _projectUpdates = ProjectUpdatesData.fromJson(jsonDecode(projectUpdatesJson) as Map<String, dynamic>);
+    }
+    final academicPeersJson = prefs.getString('academic_peers');
+    if (academicPeersJson != null) {
+      _academicPeers = AcademicPeersData.fromJson(jsonDecode(academicPeersJson) as Map<String, dynamic>);
+    }
+    final lastTimeJson = prefs.getString('last_time');
+    if (lastTimeJson != null) {
+      _lastTime = LastTimeData.fromJson(jsonDecode(lastTimeJson) as Map<String, dynamic>);
+    }
     final workLogJson = prefs.getString('work_log');
     if (workLogJson != null) {
       _workLog = WorkLogData.fromJson(
@@ -921,6 +993,9 @@ class AppProvider with ChangeNotifier, WidgetsBindingObserver {
       'collections': _collections.map((e) => e.toJson()).toList(),
       'work_log': _workLog.toJson(),
       'meal_menus': _meals.toJson(),
+      'project_updates': _projectUpdates.toJson(),
+      'academic_peers': _academicPeers.toJson(),
+      'last_time': _lastTime.toJson(),
       if (_preferences != null) 'preferences': backupPreferences(_preferences!),
     };
     return jsonEncode(data);
@@ -949,10 +1024,22 @@ class AppProvider with ChangeNotifier, WidgetsBindingObserver {
         'journal_collections',
         'work_log',
         'meal_menus',
+        'project_updates',
+        'academic_peers',
+        'last_time',
       ].any(data.containsKey)) {
         return false;
       }
       final meals = data.containsKey('meal_menus') ? MealData.fromJson(Map<String, dynamic>.from(data['meal_menus'])) : null;
+      final projectUpdates = data.containsKey('project_updates')
+          ? ProjectUpdatesData.fromJson(Map<String, dynamic>.from(data['project_updates']))
+          : null;
+      final academicPeers = data.containsKey('academic_peers')
+          ? AcademicPeersData.fromJson(Map<String, dynamic>.from(data['academic_peers']))
+          : null;
+      final lastTime = data.containsKey('last_time')
+          ? LastTimeData.fromJson(Map<String, dynamic>.from(data['last_time']))
+          : null;
       final preferences = parseBackupPreferences(data['preferences']);
       final workLog = data.containsKey('work_log')
           ? WorkLogData.fromJson(Map<String, dynamic>.from(data['work_log']))
@@ -1008,6 +1095,9 @@ class AppProvider with ChangeNotifier, WidgetsBindingObserver {
         await _persistJournalCollections(journalCollections);
       }
       if (meals != null) await updateMeals((_) => meals);
+      if (projectUpdates != null) await updateProjectUpdates((_) => projectUpdates);
+      if (academicPeers != null) await updateAcademicPeers((_) => academicPeers);
+      if (lastTime != null) await updateLastTime((_) => lastTime);
       if (workLog != null)
         await updateWorkLog((_) => workLog, rememberDeletions: false);
       notifyListeners();

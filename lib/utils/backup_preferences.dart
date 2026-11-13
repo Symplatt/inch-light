@@ -8,6 +8,7 @@ const _boolKeys = {
 const _listKeys = {
   'hidden_todo_collections',
   'journal_operation_chain',
+  'project_journal_operation_chain',
   'calendar_seen_alerts',
 };
 const _stringKeys = {

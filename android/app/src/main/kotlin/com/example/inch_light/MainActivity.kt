@@ -6,6 +6,8 @@ import android.app.PendingIntent
 import android.app.job.JobScheduler
 import android.content.Intent
 import android.os.Bundle
+import android.os.Handler
+import android.os.Looper
 import android.view.KeyEvent
 import android.app.Activity
 import androidx.core.content.FileProvider
@@ -21,17 +23,51 @@ class MainActivity : FlutterActivity() {
     private var pendingResult: MethodChannel.Result? = null
     private var workLogVolumeEnabled = false
     private var workLogVolumeChannel: MethodChannel? = null
+    private val volumeHandler = Handler(Looper.getMainLooper())
+    private var heldVolumeKey: Int? = null
+    private val repeatVolumePage = object : Runnable {
+        override fun run() {
+            val key = heldVolumeKey ?: return
+            if (!workLogVolumeEnabled) return
+            changeWorkLogDay(key)
+            volumeHandler.postDelayed(this, 500)
+        }
+    }
+
+    private fun changeWorkLogDay(key: Int) {
+        workLogVolumeChannel?.invokeMethod("changeDay",
+            if (key == KeyEvent.KEYCODE_VOLUME_DOWN) 1 else -1)
+    }
+
+    private fun stopVolumePaging() {
+        volumeHandler.removeCallbacks(repeatVolumePage)
+        heldVolumeKey = null
+    }
 
     override fun dispatchKeyEvent(event: KeyEvent): Boolean {
         if (workLogVolumeEnabled &&
             (event.keyCode == KeyEvent.KEYCODE_VOLUME_DOWN || event.keyCode == KeyEvent.KEYCODE_VOLUME_UP)) {
             if (event.action == KeyEvent.ACTION_DOWN && event.repeatCount == 0) {
-                workLogVolumeChannel?.invokeMethod("changeDay",
-                    if (event.keyCode == KeyEvent.KEYCODE_VOLUME_DOWN) 1 else -1)
+                stopVolumePaging()
+                heldVolumeKey = event.keyCode
+                changeWorkLogDay(event.keyCode)
+                volumeHandler.postDelayed(repeatVolumePage, 1000)
+            } else if (event.action == KeyEvent.ACTION_UP && heldVolumeKey == event.keyCode) {
+                stopVolumePaging()
             }
             return true
         }
         return super.dispatchKeyEvent(event)
+    }
+
+    override fun onPause() {
+        stopVolumePaging()
+        super.onPause()
+    }
+
+    override fun onWindowFocusChanged(hasFocus: Boolean) {
+        if (!hasFocus) stopVolumePaging()
+        super.onWindowFocusChanged(hasFocus)
     }
 
     override fun configureFlutterEngine(flutterEngine: FlutterEngine) {
@@ -40,6 +76,7 @@ class MainActivity : FlutterActivity() {
         workLogVolumeChannel?.setMethodCallHandler { call, result ->
             if (call.method == "setEnabled") {
                 workLogVolumeEnabled = call.arguments == true
+                if (!workLogVolumeEnabled) stopVolumePaging()
                 result.success(null)
             } else result.notImplemented()
         }

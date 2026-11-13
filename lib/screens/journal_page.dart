@@ -73,23 +73,7 @@ class _JournalPageState extends State<_JournalView>
       );
       if (confirmed != true) return;
     } else {
-      target = await showDialog<String>(
-        context: context,
-        builder: (ctx) => AppSimpleDialog(
-          title: const Text('移动到合集'),
-          children: [
-            SimpleDialogOption(
-              onPressed: () => Navigator.pop(ctx, ''),
-              child: const Text('默认'),
-            ),
-            for (final folder in provider.journalCollections)
-              SimpleDialogOption(
-                onPressed: () => Navigator.pop(ctx, folder.id),
-                child: Text(folder.title),
-              ),
-          ],
-        ),
-      );
+      target = await _pickMoveCollection();
       if (target == null) return;
     }
     if (!mounted) return;
@@ -391,23 +375,7 @@ class _JournalPageState extends State<_JournalView>
           entry.copyWith(isBottom: !entry.isBottom),
         );
       } else {
-        final target = await showDialog<String>(
-          context: context,
-          builder: (context) => AppSimpleDialog(
-            title: const Text('移动到合集'),
-            children: [
-              SimpleDialogOption(
-                onPressed: () => Navigator.pop(context, ''),
-                child: const Text('默认'),
-              ),
-              for (final folder in provider.journalCollections)
-                SimpleDialogOption(
-                  onPressed: () => Navigator.pop(context, folder.id),
-                  child: Text(folder.title),
-                ),
-            ],
-          ),
-        );
+        final target = await _pickMoveCollection();
         if (target != null) {
           await provider.saveJournalEntry(
             entry.copyWith(
@@ -451,6 +419,33 @@ class _JournalPageState extends State<_JournalView>
     });
   }
 
+  Future<String?> _pickMoveCollection() {
+    final provider = context.read<AppProvider>();
+    return showDialog<String>(
+      context: context,
+      builder: (ctx) => JournalCollectionListDialog(
+        title: '移动到合集',
+        children: [
+          JournalCollectionListTile(
+            name: '默认',
+            trailing: Text(
+              '${provider.journalEntries.where((e) => e.collectionId == null).length}',
+            ),
+            onTap: () => Navigator.pop(ctx, ''),
+          ),
+          for (final folder in provider.journalCollections)
+            JournalCollectionListTile(
+              name: folder.title,
+              trailing: Text(
+                '${provider.journalEntries.where((e) => e.collectionId == folder.id).length}',
+              ),
+              onTap: () => Navigator.pop(ctx, folder.id),
+            ),
+        ],
+      ),
+    );
+  }
+
   Future<void> _showCollections() async {
     final provider = context.read<AppProvider>();
     await showDialog<void>(
@@ -459,12 +454,8 @@ class _JournalPageState extends State<_JournalView>
         listenable: provider,
         builder: (context, _) {
           final folders = provider.journalCollections;
-          Widget tile(String? id, String name) => ListTile(
-            contentPadding: EdgeInsets.zero,
-            dense: true,
-            visualDensity: VisualDensity.compact,
-            minVerticalPadding: 8,
-            title: Text(name),
+          Widget tile(String? id, String name) => JournalCollectionListTile(
+            name: name,
             trailing: Text(
               '${provider.journalEntries.where((e) => id == null ? e.collectionId == null : e.collectionId == id).length}',
             ),
@@ -474,41 +465,32 @@ class _JournalPageState extends State<_JournalView>
               _selectCollection(id);
             },
           );
-          return AppAlertDialog(
-            constraints: BoxConstraints(
-              maxHeight: MediaQuery.sizeOf(context).height * .65,
-            ),
-            title: Text('合集 · ${folders.length + 1}'),
-            content: SizedBox(
-              width: double.maxFinite,
-              child: ListView(
-                shrinkWrap: true,
-                children: [
-                  tile(null, '默认'),
-                  for (final folder in folders)
-                    SwipeDeleteCard(
-                      key: ValueKey('collection-list-${folder.id}'),
-                      id: folder.id,
-                      bottomMargin: 0,
-                      onDeleted: () async {
-                        try {
-                          await provider.removeJournalCollection(
-                            folder.id,
-                            deleteEntries: false,
-                          );
-                        } catch (_) {
-                          _error('合集删除失败，请重试');
-                          rethrow;
-                        }
-                      },
-                      child: Material(
-                        color: AppColors.surface,
-                        child: tile(folder.id, folder.title),
-                      ),
-                    ),
-                ],
-              ),
-            ),
+          return JournalCollectionListDialog(
+            title: '合集 · ${folders.length + 1}',
+            children: [
+              tile(null, '默认'),
+              for (final folder in folders)
+                SwipeDeleteCard(
+                  key: ValueKey('collection-list-${folder.id}'),
+                  id: folder.id,
+                  bottomMargin: 0,
+                  onDeleted: () async {
+                    try {
+                      await provider.removeJournalCollection(
+                        folder.id,
+                        deleteEntries: false,
+                      );
+                    } catch (_) {
+                      _error('合集删除失败，请重试');
+                      rethrow;
+                    }
+                  },
+                  child: Material(
+                    color: AppColors.surface,
+                    child: tile(folder.id, folder.title),
+                  ),
+                ),
+            ],
           );
         },
       ),
