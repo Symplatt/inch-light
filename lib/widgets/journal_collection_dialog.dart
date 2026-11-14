@@ -17,9 +17,14 @@ class JournalCollectionListDialog extends StatelessWidget {
       maxHeight: MediaQuery.sizeOf(context).height * .65,
     ),
     title: Text(title),
+    contentPadding: appSelectionContentPadding,
     content: SizedBox(
       width: double.maxFinite,
-      child: ListView(shrinkWrap: true, children: children),
+      child: ListView(
+        padding: EdgeInsets.zero,
+        shrinkWrap: true,
+        children: children,
+      ),
     ),
   );
 }
@@ -41,9 +46,12 @@ class JournalCollectionListTile extends StatelessWidget {
   Widget build(BuildContext context) => ListTile(
     contentPadding: EdgeInsets.zero,
     dense: true,
-    visualDensity: VisualDensity.compact,
-    minVerticalPadding: 8,
-    title: Text(name),
+    minTileHeight: 40,
+    minVerticalPadding: 0,
+    title: Text(
+      name,
+      style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w400),
+    ),
     trailing: trailing,
     selected: selected,
     onTap: onTap,

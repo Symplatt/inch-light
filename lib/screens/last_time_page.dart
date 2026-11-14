@@ -10,6 +10,11 @@ import '../widgets/app_dialog.dart';
 import '../widgets/swipe_delete_card.dart';
 import '../widgets/tool_edit_dialog.dart';
 
+final _sortedLastTimeCategories =
+    lastTimeCategories.where((category) => category != '其他').toList()
+      ..sort((a, b) => JournalNameKey(a).compareTo(JournalNameKey(b)))
+      ..add('其他');
+
 String _lastDateLabel(LastTimeItem item) => item.startDate == null
     ? toolDateText(item.lastDate)
     : '${toolDateText(item.startDate!)} 至 ${toolDateText(item.lastDate)}';
@@ -64,28 +69,163 @@ class _LastTimePageState extends State<LastTimePage>
     );
   }
 
+  String _periodSummary(LastTimeItem item) {
+    final overdue = item.overdueDays(_now);
+    return '${item.period!.label} · ${overdue > 0 ? '已推迟 $overdue 天' : '距下次还有 ${item.remainingDays(_now)} 天'}';
+  }
+
   Future<void> _view(LastTimeItem item) async {
     final action = await showDialog<String>(
       context: context,
-      builder: (ctx) => AppAlertDialog(
-        title: Text(item.name),
-        content: Text(
-          '${item.category}\n上次日期 ${_lastDateLabel(item)}\n距上次 ${item.elapsedDays(_now)} 天',
+      builder: (ctx) => AppDialog(
+        backgroundColor: AppColors.surface,
+        surfaceTintColor: Colors.transparent,
+        insetPadding: const EdgeInsets.symmetric(horizontal: 24, vertical: 24),
+        constraints: const BoxConstraints(maxWidth: 400),
+        child: SingleChildScrollView(
+          child: Padding(
+            padding: const EdgeInsets.all(24),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            item.name,
+                            style: const TextStyle(
+                              fontSize: 22,
+                              fontWeight: FontWeight.w400,
+                              color: AppColors.textDark,
+                            ),
+                          ),
+                          const SizedBox(height: 6),
+                          Text(
+                            item.category,
+                            style: const TextStyle(
+                              fontSize: 12,
+                              color: AppColors.textGrey,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    IconButton(
+                      tooltip: '关闭',
+                      onPressed: () => Navigator.pop(ctx),
+                      constraints: const BoxConstraints.tightFor(
+                        width: 48,
+                        height: 48,
+                      ),
+                      icon: const Icon(Icons.close, size: 20),
+                      color: AppColors.textGrey,
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 24),
+                Container(
+                  padding: const EdgeInsets.all(16),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFF3F4F6),
+                    borderRadius: BorderRadius.circular(16),
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const Text(
+                        '距上次',
+                        style: TextStyle(
+                          fontSize: 12,
+                          color: AppColors.textGrey,
+                        ),
+                      ),
+                      const SizedBox(height: 4),
+                      Text.rich(
+                        TextSpan(
+                          children: [
+                            TextSpan(
+                              text: '${item.elapsedDays(_now)}',
+                              style: const TextStyle(
+                                fontSize: 36,
+                                fontWeight: FontWeight.w400,
+                              ),
+                            ),
+                            const TextSpan(
+                              text: ' 天',
+                              style: TextStyle(
+                                fontSize: 14,
+                                color: AppColors.textGrey,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                      const SizedBox(height: 12),
+                      const Text(
+                        '上次日期',
+                        style: TextStyle(
+                          fontSize: 12,
+                          color: AppColors.textGrey,
+                        ),
+                      ),
+                      const SizedBox(height: 4),
+                      Text(
+                        _lastDateLabel(item),
+                        style: const TextStyle(fontSize: 14),
+                      ),
+                      if (item.period != null) ...[
+                        const SizedBox(height: 12),
+                        Text(
+                          _periodSummary(item),
+                          style: const TextStyle(
+                            fontSize: 14,
+                            color: AppColors.textGrey,
+                          ),
+                        ),
+                      ],
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 20),
+                OverflowBar(
+                  alignment: MainAxisAlignment.spaceBetween,
+                  overflowAlignment: OverflowBarAlignment.end,
+                  spacing: 12,
+                  overflowSpacing: 8,
+                  children: [
+                    TextButton(
+                      style: TextButton.styleFrom(
+                        minimumSize: const Size(64, 48),
+                        foregroundColor: AppColors.textGrey,
+                        textStyle: const TextStyle(fontWeight: FontWeight.w400),
+                      ),
+                      onPressed: () => Navigator.pop(ctx, 'edit'),
+                      child: const Text('编辑'),
+                    ),
+                    FilledButton(
+                      style: FilledButton.styleFrom(
+                        minimumSize: const Size(120, 48),
+                        backgroundColor: AppColors.textDark,
+                        textStyle: const TextStyle(fontWeight: FontWeight.w400),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                      ),
+                      onPressed: () => Navigator.pop(ctx, 'today'),
+                      child: const Text('记为今天'),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ),
         ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx, 'edit'),
-            child: const Text('编辑'),
-          ),
-          TextButton(
-            onPressed: () => Navigator.pop(ctx, 'today'),
-            child: const Text('记为今天'),
-          ),
-          TextButton(
-            onPressed: () => Navigator.pop(ctx),
-            child: const Text('关闭'),
-          ),
-        ],
       ),
     );
     if (!mounted) return;
@@ -155,39 +295,31 @@ class _LastTimePageState extends State<LastTimePage>
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
               Padding(
-                padding: const EdgeInsets.fromLTRB(16, 8, 16, 12),
-                child: Text(
-                  '共 ${items.length} 项',
-                  style: const TextStyle(
-                    fontSize: 12,
-                    color: AppColors.textGrey,
+                padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
+                child: ClipRect(
+                  child: SingleChildScrollView(
+                    scrollDirection: Axis.horizontal,
+                    child: Row(
+                      spacing: 8,
+                      children: [
+                        for (final category in <String?>[
+                          null,
+                          ..._sortedLastTimeCategories,
+                        ])
+                          ChoiceChip(
+                            label: Text(category ?? '全部'),
+                            selected: _category == category,
+                            showCheckmark: false,
+                            selectedColor: const Color(0xFFE8EAED),
+                            backgroundColor: AppColors.surface,
+                            side: const BorderSide(color: Color(0xFFE7E8EB)),
+                            shape: const StadiumBorder(),
+                            onSelected: (_) =>
+                                setState(() => _category = category),
+                          ),
+                      ],
+                    ),
                   ),
-                ),
-              ),
-              SingleChildScrollView(
-                scrollDirection: Axis.horizontal,
-                padding: const EdgeInsets.symmetric(horizontal: 16),
-                child: Row(
-                  children: [
-                    for (final category in <String?>[
-                      null,
-                      ...lastTimeCategories,
-                    ])
-                      Padding(
-                        padding: const EdgeInsets.only(right: 8),
-                        child: ChoiceChip(
-                          label: Text(category ?? '全部'),
-                          selected: _category == category,
-                          showCheckmark: false,
-                          selectedColor: const Color(0xFFE8EAED),
-                          backgroundColor: AppColors.surface,
-                          side: const BorderSide(color: Color(0xFFE7E8EB)),
-                          shape: const StadiumBorder(),
-                          onSelected: (_) =>
-                              setState(() => _category = category),
-                        ),
-                      ),
-                  ],
                 ),
               ),
               const SizedBox(height: 8),
@@ -250,6 +382,19 @@ class _LastTimePageState extends State<LastTimePage>
                                                 color: AppColors.textGrey,
                                               ),
                                             ),
+                                            if (item.period != null) ...[
+                                              const SizedBox(height: 6),
+                                              Text(
+                                                _periodSummary(item),
+                                                style: TextStyle(
+                                                  fontSize: 12,
+                                                  color:
+                                                      item.overdueDays(_now) > 0
+                                                      ? const Color(0xFF986B5E)
+                                                      : AppColors.textGrey,
+                                                ),
+                                              ),
+                                            ],
                                           ],
                                         ),
                                       ),
@@ -305,8 +450,22 @@ class _LastTimeDialogState extends State<_LastTimeDialog> {
   late DateTime _date = widget.item?.lastDate ?? DateTime.now();
   late DateTime _start = widget.item?.startDate ?? _date;
   late bool _range = widget.item?.startDate != null;
+  late LastTimePeriodType? _periodType = widget.item?.period?.type;
+  late final _periodDays = TextEditingController(
+    text: widget.item?.period?.type == LastTimePeriodType.days
+        ? '${widget.item!.period!.value}'
+        : '',
+  );
+  late int _weekday = widget.item?.period?.type == LastTimePeriodType.weekly
+      ? widget.item!.period!.value
+      : DateTime.now().weekday;
+  late int _monthDay = widget.item?.period?.type == LastTimePeriodType.monthly
+      ? widget.item!.period!.value
+      : DateTime.now().day;
+
   @override
   void dispose() {
+    _periodDays.dispose();
     _name.dispose();
     super.dispose();
   }
@@ -333,7 +492,7 @@ class _LastTimeDialogState extends State<_LastTimeDialog> {
                 isExpanded: true,
                 decoration: toolInputDecoration('分类'),
                 items: [
-                  for (final category in lastTimeCategories)
+                  for (final category in _sortedLastTimeCategories)
                     DropdownMenuItem(value: category, child: Text(category)),
                 ],
                 onChanged: enabled ? (value) => _category = value! : null,
@@ -391,6 +550,70 @@ class _LastTimeDialogState extends State<_LastTimeDialog> {
             );
           },
         ),
+        const SizedBox(height: 12),
+        ToolSelectField<String>(
+          label: '预设周期（选填）',
+          selectionTitle: '预设周期',
+          value: _periodType?.name ?? 'none',
+          items: const [
+            DropdownMenuItem(value: 'none', child: Text('不设置')),
+            DropdownMenuItem(value: 'days', child: Text('每几天')),
+            DropdownMenuItem(value: 'weekly', child: Text('每周')),
+            DropdownMenuItem(value: 'monthly', child: Text('每月')),
+          ],
+          onChanged: enabled
+              ? (value) => setState(() {
+                  _periodType = value == 'none'
+                      ? null
+                      : LastTimePeriodType.values.byName(value!);
+                })
+              : null,
+        ),
+        if (_periodType != null) ...[
+          const SizedBox(height: 12),
+          if (_periodType == LastTimePeriodType.days)
+            TextFormField(
+              controller: _periodDays,
+              enabled: enabled,
+              keyboardType: TextInputType.number,
+              decoration: toolInputDecoration('间隔天数').copyWith(suffixText: '天'),
+              validator: (value) {
+                final days = int.tryParse(value?.trim() ?? '');
+                return days == null || days < 1 || days > 3652059
+                    ? '请输入有效的正整数天数'
+                    : null;
+              },
+            ),
+          if (_periodType == LastTimePeriodType.weekly)
+            ToolSelectField<int>(
+              label: '星期',
+              value: _weekday,
+              items: [
+                for (var day = 1; day <= 7; day++)
+                  DropdownMenuItem(
+                    value: day,
+                    child: Text(
+                      '周${['一', '二', '三', '四', '五', '六', '日'][day - 1]}',
+                    ),
+                  ),
+              ],
+              onChanged: enabled
+                  ? (value) => setState(() => _weekday = value!)
+                  : null,
+            ),
+          if (_periodType == LastTimePeriodType.monthly)
+            ToolSelectField<int>(
+              label: '日期',
+              value: _monthDay,
+              items: [
+                for (var day = 1; day <= 31; day++)
+                  DropdownMenuItem(value: day, child: Text('$day 日')),
+              ],
+              onChanged: enabled
+                  ? (value) => setState(() => _monthDay = value!)
+                  : null,
+            ),
+        ],
       ],
     ),
     save: () => widget.provider.updateLastTime((data) {
@@ -404,6 +627,16 @@ class _LastTimeDialogState extends State<_LastTimeDialog> {
         category: _category,
         lastDate: DateUtils.dateOnly(_date),
         startDate: _range ? DateUtils.dateOnly(_start) : null,
+        period: _periodType == null
+            ? null
+            : LastTimePeriod(
+                type: _periodType!,
+                value: switch (_periodType!) {
+                  LastTimePeriodType.days => int.parse(_periodDays.text.trim()),
+                  LastTimePeriodType.weekly => _weekday,
+                  LastTimePeriodType.monthly => _monthDay,
+                },
+              ),
       );
       final items = [...data.items];
       final index = items.indexWhere((i) => i.id == item.id);

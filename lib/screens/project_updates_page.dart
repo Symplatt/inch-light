@@ -1,7 +1,11 @@
+import '../utils/clipboard.dart';
+import '../utils/journal_markdown.dart';
 import '../models/journal_entry.dart';
 import 'journal_editor_page.dart';
 
 import 'package:flutter/material.dart';
+import 'package:flutter/gestures.dart';
+import 'package:flutter/semantics.dart' show CustomSemanticsAction;
 import 'package:provider/provider.dart';
 import 'package:uuid/uuid.dart';
 import '../constants/app_colors.dart';
@@ -60,6 +64,35 @@ class _ProjectUpdatesPageState extends State<ProjectUpdatesPage> {
     );
   }
 
+  Future<void> _clearUpdates(UpdateProject project) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AppAlertDialog(
+        title: const Text('清空更新记录？'),
+        content: Text(
+          '删除“${project.name}”下全部 ${project.updates.length} 条更新记录。',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text('取消'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('清空', style: TextStyle(color: AppColors.danger)),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true || !mounted) return;
+    await _update((data) {
+      final current = data.projects
+          .where((p) => p.id == project.id)
+          .firstOrNull;
+      return current == null ? data : data.replace(current.withUpdates([]));
+    });
+  }
+
   Future<void> _update(
     ProjectUpdatesData Function(ProjectUpdatesData) change,
   ) async {
@@ -84,42 +117,41 @@ class _ProjectUpdatesPageState extends State<ProjectUpdatesPage> {
       context: context,
       builder: (ctx) => AppAlertDialog(
         title: const Text('切换项目'),
+        contentPadding: appSelectionContentPadding,
         content: SizedBox(
           width: 320,
           child: ListView(
             shrinkWrap: true,
+            padding: EdgeInsets.zero,
             children: [
               for (final project in projects)
-                ListTile(
-                  contentPadding: EdgeInsets.zero,
-                  title: Text(project.name),
-                  onTap: () =>
-                      Navigator.pop(ctx, (id: project.id, action: 'select')),
-                  onLongPress: () =>
-                      Navigator.pop(ctx, (id: project.id, action: 'edit')),
-                  trailing: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      if (project.id == data.selected?.id)
-                        const Icon(Icons.check, size: 20),
-                      PopupMenuButton<String>(
-                        tooltip: '项目操作',
-                        onSelected: (action) => Navigator.pop(ctx, (
-                          id: project.id,
-                          action: action,
-                        )),
-                        itemBuilder: (_) => [
-                          const PopupMenuItem(
-                            value: 'edit',
-                            child: Text('编辑项目'),
-                          ),
-                          const PopupMenuItem(
-                            value: 'delete',
-                            child: Text('删除项目'),
-                          ),
-                        ],
+                Dismissible(
+                  key: ValueKey(project.id),
+                  direction: DismissDirection.endToStart,
+                  background: const SwipeDeleteBackground(),
+                  confirmDismiss: (_) async {
+                    Navigator.pop(ctx, (id: project.id, action: 'delete'));
+                    return false;
+                  },
+                  child: ListTile(
+                    contentPadding: EdgeInsets.zero,
+                    dense: true,
+                    minTileHeight: 40,
+                    minVerticalPadding: 0,
+                    title: Text(
+                      project.name,
+                      style: const TextStyle(
+                        fontSize: 14,
+                        fontWeight: FontWeight.w400,
                       ),
-                    ],
+                    ),
+                    onTap: () =>
+                        Navigator.pop(ctx, (id: project.id, action: 'select')),
+                    onLongPress: () =>
+                        Navigator.pop(ctx, (id: project.id, action: 'edit')),
+                    trailing: project.id == data.selected?.id
+                        ? const Icon(Icons.check, size: 20)
+                        : null,
                   ),
                 ),
             ],
@@ -140,21 +172,6 @@ class _ProjectUpdatesPageState extends State<ProjectUpdatesPage> {
               ProjectUpdatesData(projects: d.projects, selectedId: project.id),
         );
     }
-  }
-
-  void _editUpdate(UpdateProject project, [ProjectUpdate? update]) {
-    if (update == null) {
-      _openNote(project);
-      return;
-    }
-    showDialog<void>(
-      context: context,
-      builder: (_) => _ProjectUpdateDialog(
-        provider: context.read<AppProvider>(),
-        projectId: project.id,
-        update: update,
-      ),
-    );
   }
 
   void _openNote(UpdateProject project, [ProjectUpdate? update]) {
@@ -183,10 +200,16 @@ class _ProjectUpdatesPageState extends State<ProjectUpdatesPage> {
             final index = updates.indexWhere((u) => u.id == id);
             final saved = ProjectUpdate(
               id: id,
-              version: entry.title.trim().isEmpty ? '未命名更新' : entry.title,
+              version: entry.title.trim().isEmpty ? '版本更新' : entry.title.trim(),
+              completed: index < 0 ? false : updates[index].completed,
               date: index < 0 ? now : updates[index].date,
               content: entry.content,
-              note: entry,
+              note: JournalEntry.fromJson({
+                ...entry.toJson(),
+                'title': entry.title.trim().isEmpty
+                    ? '版本更新'
+                    : entry.title.trim(),
+              }),
             );
             if (index < 0) {
               updates.add(saved);
@@ -200,12 +223,56 @@ class _ProjectUpdatesPageState extends State<ProjectUpdatesPage> {
     );
   }
 
+  Future<void> _toggleCompleted(String projectId, String updateId) => _update((
+    data,
+  ) {
+    final current = data.projects.firstWhere((p) => p.id == projectId);
+    return data.replace(
+      current.withUpdates(
+        current.updates
+            .map((u) => u.id == updateId ? u.withCompleted(!u.completed) : u)
+            .toList(),
+      ),
+    );
+  });
+
+  Future<void> _copyUpdate(ProjectUpdate update) async {
+    try {
+      final note =
+          update.note ??
+          JournalEntry(
+            id: update.id,
+            title: update.version,
+            document: [
+              {'insert': '${update.content}\n'},
+            ],
+            createdAt: update.date,
+            updatedAt: update.date,
+          );
+      // Project updates export their title and body without legacy note tags.
+      await copyText(
+        journalToMarkdown(
+          JournalEntry.fromJson({...note.toJson(), 'tags': <String>[]}),
+        ),
+      );
+      if (!mounted) return;
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('Markdown 已复制')));
+    } catch (_) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('复制失败，请重试')));
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final provider = context.watch<AppProvider>();
     final project = provider.projectUpdates.selected;
     final updates = [...?project?.updates]
-      ..sort((a, b) => b.date.compareTo(a.date));
+      ..sort((a, b) => b.editedAt.compareTo(a.editedAt));
     return Scaffold(
       appBar: AppBar(
         leading: BackButton(onPressed: widget.onBack),
@@ -256,8 +323,18 @@ class _ProjectUpdatesPageState extends State<ProjectUpdatesPage> {
             width: 40,
             child: IconButton(
               tooltip: '新增更新',
-              onPressed: project == null ? null : () => _editUpdate(project),
+              onPressed: project == null ? null : () => _openNote(project),
               icon: const Icon(Icons.add),
+            ),
+          ),
+          SizedBox(
+            width: 40,
+            child: IconButton(
+              tooltip: '清空当前项目更新',
+              onPressed: project == null || updates.isEmpty
+                  ? null
+                  : () => _clearUpdates(project),
+              icon: const Icon(Icons.playlist_remove),
             ),
           ),
           SizedBox(
@@ -303,49 +380,99 @@ class _ProjectUpdatesPageState extends State<ProjectUpdatesPage> {
                         );
                       }),
                       child: Material(
-                        color: AppColors.surface,
+                        color: update.completed
+                            ? const Color(0xFFF0F1F3)
+                            : AppColors.surface,
                         shape: RoundedRectangleBorder(
                           borderRadius: BorderRadius.circular(16),
                           side: const BorderSide(color: Color(0xFFE7E8EB)),
                         ),
-                        child: InkWell(
-                          borderRadius: BorderRadius.circular(16),
+                        child: Semantics(
+                          button: true,
+                          checked: update.completed,
                           onTap: () => _openNote(project!, update),
-                          onLongPress: () => _editUpdate(project!, update),
-                          child: Padding(
-                            padding: const EdgeInsets.all(16),
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.stretch,
-                              children: [
-                                Wrap(
-                                  alignment: WrapAlignment.spaceBetween,
-                                  crossAxisAlignment: WrapCrossAlignment.center,
-                                  spacing: 16,
-                                  runSpacing: 4,
+                          onLongPress: () => _copyUpdate(update),
+                          customSemanticsActions: {
+                            CustomSemanticsAction(
+                              label: update.completed ? '标为未完成' : '标为已完成',
+                            ): () =>
+                                _toggleCompleted(project!.id, update.id),
+                          },
+                          child: RawGestureDetector(
+                            excludeFromSemantics: true,
+                            gestures: {
+                              LongPressGestureRecognizer:
+                                  GestureRecognizerFactoryWithHandlers<
+                                    LongPressGestureRecognizer
+                                  >(
+                                    () => LongPressGestureRecognizer(
+                                      duration: const Duration(seconds: 1),
+                                    ),
+                                    (recognizer) =>
+                                        recognizer.onLongPress = () =>
+                                            _copyUpdate(update),
+                                  ),
+                            },
+                            child: InkWell(
+                              excludeFromSemantics: true,
+                              borderRadius: BorderRadius.circular(16),
+                              onTap: () => _openNote(project!, update),
+                              onDoubleTap: () =>
+                                  _toggleCompleted(project!.id, update.id),
+                              child: Padding(
+                                padding: const EdgeInsets.all(16),
+                                child: Column(
+                                  crossAxisAlignment:
+                                      CrossAxisAlignment.stretch,
                                   children: [
-                                    Text(
-                                      update.version,
-                                      style: const TextStyle(fontSize: 16),
+                                    Row(
+                                      crossAxisAlignment:
+                                          CrossAxisAlignment.baseline,
+                                      textBaseline: TextBaseline.alphabetic,
+                                      children: [
+                                        Expanded(
+                                          child: Text(
+                                            update.version,
+                                            maxLines: 1,
+                                            overflow: TextOverflow.ellipsis,
+                                            style: TextStyle(
+                                              fontSize: 16,
+                                              height: 1.25,
+                                              decoration: update.completed
+                                                  ? TextDecoration.lineThrough
+                                                  : TextDecoration.none,
+                                            ),
+                                          ),
+                                        ),
+                                        const SizedBox(width: 8),
+                                        Text(
+                                          toolDateText(update.editedAt),
+                                          style: const TextStyle(
+                                            fontSize: 12,
+                                            color: AppColors.textGrey,
+                                          ),
+                                        ),
+                                      ],
                                     ),
-                                    Text(
-                                      toolDateText(update.date),
-                                      style: const TextStyle(
-                                        fontSize: 12,
-                                        color: AppColors.textGrey,
+                                    if (update.content.trim().isNotEmpty) ...[
+                                      const SizedBox(height: 8),
+                                      Text(
+                                        update.content.replaceAll(
+                                          RegExp(r'\s+'),
+                                          '',
+                                        ),
+                                        maxLines: 2,
+                                        overflow: TextOverflow.ellipsis,
+                                        style: const TextStyle(
+                                          fontSize: 14,
+                                          height: 1.45,
+                                          color: AppColors.textGrey,
+                                        ),
                                       ),
-                                    ),
+                                    ],
                                   ],
                                 ),
-                                if (update.content.isNotEmpty) ...[
-                                  const SizedBox(height: 8),
-                                  Text(
-                                    update.content,
-                                    maxLines: 3,
-                                    overflow: TextOverflow.ellipsis,
-                                    style: const TextStyle(fontSize: 14),
-                                  ),
-                                ],
-                              ],
+                              ),
                             ),
                           ),
                         ),
@@ -405,78 +532,6 @@ class _ProjectNameDialogState extends State<_ProjectNameDialog> {
       return data.replace(
         UpdateProject(id: current.id, name: name, updates: current.updates),
       );
-    }),
-  );
-}
-
-class _ProjectUpdateDialog extends StatefulWidget {
-  const _ProjectUpdateDialog({
-    required this.provider,
-    required this.projectId,
-    this.update,
-  });
-  final AppProvider provider;
-  final String projectId;
-  final ProjectUpdate? update;
-  @override
-  State<_ProjectUpdateDialog> createState() => _ProjectUpdateDialogState();
-}
-
-class _ProjectUpdateDialogState extends State<_ProjectUpdateDialog> {
-  late final _version = TextEditingController(text: widget.update?.version);
-
-  late DateTime _date = widget.update?.date ?? DateTime.now();
-  @override
-  void dispose() {
-    _version.dispose();
-
-    super.dispose();
-  }
-
-  @override
-  Widget build(BuildContext context) => ToolEditDialog(
-    title: widget.update == null ? '新增更新' : '编辑更新',
-    fields: (enabled) => Column(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        TextFormField(
-          controller: _version,
-          enabled: enabled,
-          autofocus: true,
-          decoration: const InputDecoration(labelText: '版本号'),
-          validator: requiredToolText,
-        ),
-        const SizedBox(height: 16),
-        ToolDateField(
-          label: '更新日期',
-          initialDate: _date,
-          enabled: enabled,
-          onChanged: (date) => _date = date,
-        ),
-      ],
-    ),
-    save: () => widget.provider.updateProjectUpdates((data) {
-      final project = data.projects.firstWhere((p) => p.id == widget.projectId);
-      final update = ProjectUpdate(
-        id: widget.update?.id ?? const Uuid().v4(),
-        version: _version.text.trim(),
-        date: _date,
-        content: widget.update?.content ?? '',
-        note: widget.update?.note == null
-            ? null
-            : JournalEntry.fromJson({
-                ...widget.update!.note!.toJson(),
-                'title': _version.text.trim(),
-              }),
-      );
-      final updates = [...project.updates];
-      final index = updates.indexWhere((u) => u.id == update.id);
-      if (index < 0) {
-        updates.add(update);
-      } else {
-        updates[index] = update;
-      }
-      return data.replace(project.withUpdates(updates));
     }),
   );
 }

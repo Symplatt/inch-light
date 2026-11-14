@@ -21,6 +21,110 @@ InputDecoration toolInputDecoration(String hint) => InputDecoration(
   ),
 );
 
+class ToolSelectField<T> extends StatelessWidget {
+  const ToolSelectField({
+    super.key,
+    required this.label,
+    required this.value,
+    required this.items,
+    required this.onChanged,
+    this.selectionTitle,
+  });
+
+  final String label;
+  final String? selectionTitle;
+  final T value;
+  final List<DropdownMenuItem<T>> items;
+  final ValueChanged<T?>? onChanged;
+
+  Future<void> _select(BuildContext context) async {
+    final selected = await showDialog<T>(
+      context: context,
+      builder: (ctx) => AppAlertDialog(
+        backgroundColor: Colors.white,
+        surfaceTintColor: Colors.transparent,
+        title: Text(selectionTitle ?? label),
+        contentPadding: appSelectionContentPadding,
+        content: SizedBox(
+          width: 320,
+          child: ListView(
+            padding: EdgeInsets.zero,
+            shrinkWrap: true,
+            children: [
+              for (final item in items)
+                ListTile(
+                  contentPadding: EdgeInsets.zero,
+                  dense: true,
+                  minTileHeight: 40,
+                  minVerticalPadding: 0,
+                  title: DefaultTextStyle.merge(
+                    style: const TextStyle(
+                      fontSize: 14,
+                      fontWeight: FontWeight.w400,
+                    ),
+                    child: item.child,
+                  ),
+                  trailing: item.value == value
+                      ? const Icon(Icons.check, size: 20)
+                      : null,
+                  enabled: item.enabled,
+                  onTap: () => Navigator.pop(ctx, item.value),
+                ),
+            ],
+          ),
+        ),
+      ),
+    );
+    if (selected != null && context.mounted) onChanged?.call(selected);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final selected = items.firstWhere((item) => item.value == value);
+    return Material(
+      color: const Color(0xFFF3F4F6),
+      borderRadius: BorderRadius.circular(12),
+      child: InkWell(
+        borderRadius: BorderRadius.circular(12),
+        onTap: onChanged == null ? null : () => _select(context),
+        child: Padding(
+          padding: const EdgeInsets.all(14),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  Expanded(
+                    child: Text(
+                      label,
+                      style: const TextStyle(
+                        fontSize: 12,
+                        color: Color(0xFF777777),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  const Icon(
+                    Icons.expand_more,
+                    size: 16,
+                    color: Color(0xFF777777),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 8),
+              DefaultTextStyle.merge(
+                style: const TextStyle(fontSize: 14),
+                child: selected.child,
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
 /// Keep failed writes in the form so a retry preserves the user's input.
 class ToolEditDialog extends StatefulWidget {
   const ToolEditDialog({

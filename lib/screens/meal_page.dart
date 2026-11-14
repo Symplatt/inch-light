@@ -82,15 +82,26 @@ class _MealPageState extends State<MealPage> {
       context: context,
       builder: (ctx) => AppAlertDialog(
         title: const Text('切换菜单'),
+        contentPadding: appSelectionContentPadding,
         content: SizedBox(
           width: 320,
           child: ListView(
+            padding: EdgeInsets.zero,
             shrinkWrap: true,
             children: [
               for (final menu in data.menus)
                 ListTile(
                   contentPadding: EdgeInsets.zero,
-                  title: Text(menu.name),
+                  dense: true,
+                  minTileHeight: 40,
+                  minVerticalPadding: 0,
+                  title: Text(
+                    menu.name,
+                    style: const TextStyle(
+                      fontSize: 14,
+                      fontWeight: FontWeight.w400,
+                    ),
+                  ),
                   trailing: menu.id == data.selected.id
                       ? const Icon(Icons.check, size: 20)
                       : null,

@@ -64,7 +64,7 @@ class _AcademicPeersPageState extends State<AcademicPeersPage> {
       appBar: AppBar(
         leading: BackButton(onPressed: widget.onBack),
         title: const Text(
-          '座下弟子',
+          '我的同门',
           style: TextStyle(fontWeight: FontWeight.w400),
         ),
         actions: [
@@ -189,13 +189,6 @@ class _AcademicPeersPageState extends State<AcademicPeersPage> {
                                     ),
                                   ],
                                 ),
-                                if (peer.note.isNotEmpty) ...[
-                                  const SizedBox(height: 6),
-                                  Text(
-                                    peer.note,
-                                    style: const TextStyle(fontSize: 14),
-                                  ),
-                                ],
                               ],
                             ),
                           ),

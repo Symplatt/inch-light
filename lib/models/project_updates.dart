@@ -7,12 +7,24 @@ class ProjectUpdate {
     required this.date,
     required String content,
     this.note,
+    this.completed = false,
   }) : _content = content;
   final String id;
   final String version;
   final DateTime date;
   final String _content;
   final JournalEntry? note;
+  final bool completed;
+  DateTime get editedAt => note?.updatedAt ?? date;
+
+  ProjectUpdate withCompleted(bool value) => ProjectUpdate(
+    id: id,
+    version: version,
+    date: date,
+    content: content,
+    note: note,
+    completed: value,
+  );
   String get content => note?.content ?? _content;
 
   Map<String, dynamic> toJson() => {
@@ -20,6 +32,7 @@ class ProjectUpdate {
     'version': version,
     'date': date.toIso8601String(),
     'content': content,
+    'completed': completed,
     if (note != null) 'note': note!.toJson(),
   };
 
@@ -29,6 +42,7 @@ class ProjectUpdate {
       version: json['version'] as String,
       date: DateTime.parse(json['date'] as String),
       content: json['content'] as String,
+      completed: json['completed'] as bool? ?? false,
       note: json['note'] == null
           ? null
           : JournalEntry.fromJson(Map<String, dynamic>.from(json['note'])),

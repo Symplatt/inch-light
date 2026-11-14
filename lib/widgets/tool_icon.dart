@@ -24,8 +24,13 @@ class ToolIcon extends StatelessWidget {
                 ],
               ),
             )
-          : const {'project_updates', 'last_time'}.contains(toolId)
-          ? CustomPaint(painter: _NewToolIconPainter(toolId!))
+          : toolId == 'project_updates'
+          ? Image.asset(
+              'assets/project_updates_reference.png',
+              fit: BoxFit.contain,
+            )
+          : toolId == 'last_time'
+          ? const CustomPaint(painter: _LastTimeIconPainter())
           : meal
           ? CustomPaint(painter: _ToolIconPainter(meal))
           : Center(
@@ -52,9 +57,8 @@ class ToolIcon extends StatelessWidget {
   );
 }
 
-class _NewToolIconPainter extends CustomPainter {
-  const _NewToolIconPainter(this.toolId);
-  final String toolId;
+class _LastTimeIconPainter extends CustomPainter {
+  const _LastTimeIconPainter();
 
   @override
   void paint(Canvas canvas, Size size) {
@@ -66,74 +70,26 @@ class _NewToolIconPainter extends CustomPainter {
       ..strokeWidth = 1.7
       ..strokeCap = StrokeCap.round
       ..strokeJoin = StrokeJoin.round;
-    switch (toolId) {
-      case 'project_updates':
-        // The face turns toward the hand behind the hip.
-        canvas.drawPath(
-          Path()
-            ..moveTo(20, 15)
-            ..cubicTo(12, 16, 10, 8, 15, 5)
-            ..cubicTo(19, 2, 24, 5, 24, 9)
-            ..lineTo(27, 11)
-            ..lineTo(24, 12)
-            ..quadraticBezierTo(24, 16, 20, 15)
-            ..lineTo(19, 19),
-          ink,
-        );
-        canvas.drawCircle(const Offset(22, 9), .7, Paint()..color = ink.color);
-        canvas.drawPath(
-          Path()
-            ..moveTo(17, 17)
-            ..quadraticBezierTo(11, 22, 12, 30)
-            ..lineTo(9, 39)
-            ..lineTo(14, 40)
-            ..moveTo(12, 29)
-            ..quadraticBezierTo(20, 27, 22, 32)
-            ..lineTo(26, 39)
-            ..lineTo(31, 39)
-            ..moveTo(21, 18)
-            ..quadraticBezierTo(27, 19, 29, 24)
-            ..quadraticBezierTo(31, 29, 25, 30)
-            ..lineTo(22, 28)
-            ..moveTo(21, 20)
-            ..lineTo(23, 25)
-            ..lineTo(20, 29)
-            ..moveTo(16, 21)
-            ..lineTo(9, 24)
-            ..lineTo(7, 30)
-            ..moveTo(31, 28)
-            ..lineTo(34, 27)
-            ..moveTo(32, 32)
-            ..lineTo(35, 33),
-          ink,
-        );
-      default:
-        canvas.drawPath(
-          Path()
-            ..moveTo(9, 14)
-            ..cubicTo(13, 4, 27, 3, 34, 13)
-            ..cubicTo(43, 27, 29, 42, 15, 35)
-            ..quadraticBezierTo(7, 31, 7, 23)
-            ..moveTo(5, 10)
-            ..lineTo(8, 17)
-            ..lineTo(15, 14)
-            ..moveTo(22, 12)
-            ..lineTo(22, 23)
-            ..lineTo(29, 27),
-          ink,
-        );
-        canvas.drawCircle(
-          const Offset(22, 23),
-          1.5,
-          Paint()..color = ink.color,
-        );
-    }
+    canvas.drawPath(
+      Path()
+        ..moveTo(9, 14)
+        ..cubicTo(13, 4, 27, 3, 34, 13)
+        ..cubicTo(43, 27, 29, 42, 15, 35)
+        ..quadraticBezierTo(7, 31, 7, 23)
+        ..moveTo(5, 10)
+        ..lineTo(8, 17)
+        ..lineTo(15, 14)
+        ..moveTo(22, 12)
+        ..lineTo(22, 23)
+        ..lineTo(29, 27),
+      ink,
+    );
+    canvas.drawCircle(const Offset(22, 23), 1.5, Paint()..color = ink.color);
     canvas.restore();
   }
 
   @override
-  bool shouldRepaint(_NewToolIconPainter oldDelegate) =>
-      toolId != oldDelegate.toolId;
+  bool shouldRepaint(_LastTimeIconPainter oldDelegate) => false;
 }
 
 class _ToolIconPainter extends CustomPainter {

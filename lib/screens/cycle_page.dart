@@ -8,6 +8,7 @@ import '../providers/app_provider.dart';
 import '../utils/countdown.dart';
 import '../widgets/date_time_sheet.dart';
 import '../widgets/section_heading.dart';
+import '../widgets/tool_edit_dialog.dart';
 import '../widgets/swipe_delete_card.dart';
 
 const _frequencyLabels = ['每天', '每周', '每月', '每年'];
@@ -342,55 +343,77 @@ class _CalendarEditorState extends State<_CalendarEditor> {
       fontWeight: FontWeight.w400,
     ),
     content: SizedBox(
-      width: 460,
+      width: 320,
       child: SingleChildScrollView(
         child: Column(
           mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            SegmentedButton<bool>(
-              segments: const [
-                ButtonSegment(value: false, label: Text('倒计时')),
-                ButtonSegment(value: true, label: Text('周期')),
-              ],
-              selected: {_cycle},
-              onSelectionChanged: _editing
-                  ? null
-                  : (v) => setState(() => _cycle = v.first),
-            ),
-            const SizedBox(height: 16),
             TextField(
               controller: _title,
-              decoration: const InputDecoration(hintText: '事项名称'),
+              decoration: toolInputDecoration('事项名称').copyWith(counterText: ''),
               maxLength: 100,
             ),
-            if (_cycle)
-              DropdownButton<CycleFrequency>(
-                isExpanded: true,
-                value: _frequency,
-                items: CycleFrequency.values
-                    .map(
-                      (f) => DropdownMenuItem(
-                        value: f,
-                        child: Text(_frequencyLabels[f.index]),
+            const SizedBox(height: 12),
+            LayoutBuilder(
+              builder: (context, constraints) {
+                final typeField = ToolSelectField<bool>(
+                  label: '类型',
+                  value: _cycle,
+                  items: const [
+                    DropdownMenuItem(value: false, child: Text('倒计时')),
+                    DropdownMenuItem(value: true, child: Text('周期')),
+                  ],
+                  onChanged: _editing
+                      ? null
+                      : (value) => setState(() => _cycle = value!),
+                );
+                if (!_cycle) return typeField;
+                final frequencyField = ToolSelectField<CycleFrequency>(
+                  label: '频率',
+                  value: _frequency,
+                  items: [
+                    for (final frequency in CycleFrequency.values)
+                      DropdownMenuItem(
+                        value: frequency,
+                        child: Text(_frequencyLabels[frequency.index]),
                       ),
-                    )
-                    .toList(),
-                onChanged: (v) => setState(() => _frequency = v!),
-              ),
-            SwitchListTile(
-              contentPadding: EdgeInsets.zero,
-              title: const Text('全天'),
-              value: _allDay,
-              onChanged: (v) => setState(() => _allDay = v),
+                  ],
+                  onChanged: (value) => setState(() => _frequency = value!),
+                );
+                if (constraints.maxWidth <
+                    260 * MediaQuery.textScalerOf(context).scale(1)) {
+                  return Column(
+                    children: [
+                      typeField,
+                      const SizedBox(height: 12),
+                      frequencyField,
+                    ],
+                  );
+                }
+                return Row(
+                  children: [
+                    Expanded(child: typeField),
+                    const SizedBox(width: 12),
+                    Expanded(child: frequencyField),
+                  ],
+                );
+              },
             ),
-            ListTile(
-              contentPadding: EdgeInsets.zero,
-              title: Text(
-                DateFormat(
-                  _allDay ? 'yyyy-MM-dd' : 'yyyy-MM-dd HH:mm',
-                ).format(_date),
+            const SizedBox(height: 12),
+            SwitchListTile(
+              contentPadding: const EdgeInsets.symmetric(horizontal: 14),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(12),
               ),
-              trailing: const Icon(Icons.calendar_today_outlined, size: 20),
+              tileColor: const Color(0xFFF3F4F6),
+              title: const Text('全天', style: TextStyle(fontSize: 14)),
+              value: _allDay,
+              onChanged: (value) => setState(() => _allDay = value),
+            ),
+            const SizedBox(height: 12),
+            InkWell(
+              borderRadius: BorderRadius.circular(12),
               onTap: () async {
                 final picked = await showDateTimeSheet(
                   context,
@@ -399,9 +422,52 @@ class _CalendarEditorState extends State<_CalendarEditor> {
                 );
                 if (picked != null && mounted) setState(() => _date = picked);
               },
+              child: Container(
+                padding: const EdgeInsets.all(14),
+                decoration: BoxDecoration(
+                  color: const Color(0xFFF3F4F6),
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        Expanded(
+                          child: Text(
+                            _allDay ? '日期' : '日期与时间',
+                            style: const TextStyle(
+                              fontSize: 12,
+                              color: AppColors.textGrey,
+                            ),
+                          ),
+                        ),
+                        const Icon(
+                          Icons.calendar_today_outlined,
+                          size: 16,
+                          color: AppColors.textGrey,
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 8),
+                    Text(
+                      DateFormat(
+                        _allDay ? 'yyyy-MM-dd' : 'yyyy-MM-dd HH:mm',
+                      ).format(_date),
+                      style: const TextStyle(fontSize: 14),
+                    ),
+                  ],
+                ),
+              ),
             ),
             if (_error != null)
-              Text(_error!, style: const TextStyle(color: AppColors.danger)),
+              Padding(
+                padding: const EdgeInsets.only(top: 12),
+                child: Text(
+                  _error!,
+                  style: const TextStyle(color: AppColors.danger),
+                ),
+              ),
           ],
         ),
       ),
@@ -411,7 +477,7 @@ class _CalendarEditorState extends State<_CalendarEditor> {
         onPressed: () => Navigator.pop(context),
         child: const Text('取消'),
       ),
-      FilledButton(onPressed: _save, child: const Text('确定')),
+      TextButton(onPressed: _save, child: const Text('保存')),
     ],
   );
   void _save() {

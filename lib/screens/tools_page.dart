@@ -59,7 +59,7 @@ class _ToolsPageState extends State<ToolsPage> {
     (id: 'meals', name: '吃什么'),
     (id: 'work_log', name: '工作日志'),
     (id: 'project_updates', name: '歪脖扣腚'),
-    (id: 'academic_peers', name: '座下弟子'),
+    (id: 'academic_peers', name: '我的同门'),
     (id: 'last_time', name: '上一次'),
   ]..sort((a, b) => JournalNameKey(a.name).compareTo(JournalNameKey(b.name)));
 

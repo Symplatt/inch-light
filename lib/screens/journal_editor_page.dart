@@ -544,7 +544,9 @@ class _JournalEditorPageState extends State<_JournalEditorView>
         context: context,
         builder: (ctx) => AppAlertDialog(
           title: const Text('删除全文？'),
-          content: const Text('保留标题和标签，删除全部正文内容。'),
+          content: Text(
+            widget.projectMode ? '保留标题，删除全部正文内容。' : '保留标题和标签，删除全部正文内容。',
+          ),
           actions: [
             TextButton(
               onPressed: () => Navigator.pop(ctx, false),
@@ -962,17 +964,18 @@ class _JournalEditorPageState extends State<_JournalEditorView>
                   onPressed: _configurePage,
                   icon: const Icon(Icons.tune),
                 ),
-              if (!keyboardVisible)
+              if (!keyboardVisible && !widget.projectMode)
                 IconButton(
                   tooltip: '导出',
                   onPressed: _export,
                   icon: const JournalExportIcon(),
                 ),
-              IconButton(
-                tooltip: '标签',
-                onPressed: _editTags,
-                icon: const JournalActionIcon(JournalActionSymbol.tags),
-              ),
+              if (!widget.projectMode)
+                IconButton(
+                  tooltip: '标签',
+                  onPressed: _editTags,
+                  icon: const JournalActionIcon(JournalActionSymbol.tags),
+                ),
               if (keyboardVisible)
                 IconButton(
                   tooltip: '确定',
@@ -1128,7 +1131,8 @@ class _JournalEditorPageState extends State<_JournalEditorView>
                                           color: Color(0xFF999999),
                                         ),
                                       ),
-                                    if (_tags.isNotEmpty) ...[
+                                    if (!widget.projectMode &&
+                                        _tags.isNotEmpty) ...[
                                       const SizedBox(height: 16),
                                       JournalTags(tags: _tags),
                                     ],

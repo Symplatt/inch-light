@@ -600,6 +600,7 @@ class _TodoPageState extends State<TodoPage> {
       context: context,
       builder: (ctx) => AppAlertDialog(
         title: const Text('移动事项'),
+        contentPadding: appSelectionContentPadding,
         content: SizedBox(
           width: double.maxFinite,
           child: SingleChildScrollView(
@@ -613,7 +614,17 @@ class _TodoPageState extends State<TodoPage> {
                   ),
                 ])
                   ListTile(
-                    title: Text(destination.title),
+                    contentPadding: EdgeInsets.zero,
+                    dense: true,
+                    minTileHeight: 40,
+                    minVerticalPadding: 0,
+                    title: Text(
+                      destination.title,
+                      style: const TextStyle(
+                        fontSize: 14,
+                        fontWeight: FontWeight.w400,
+                      ),
+                    ),
                     trailing: (task.collectionId ?? '') == destination.id
                         ? const Icon(Icons.check, size: 20)
                         : null,
