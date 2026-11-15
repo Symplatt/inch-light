@@ -6,7 +6,7 @@ class JournalTags extends StatelessWidget {
   final bool compact;
   static double compactHeight(BuildContext context) {
     // Include the metadata line's leading when aligning compact tags.
-    return MediaQuery.textScalerOf(context).scale(12) + 2;
+    return MediaQuery.textScalerOf(context).scale(11) + 2;
   }
 
   @override
@@ -19,8 +19,8 @@ class JournalTags extends StatelessWidget {
             height: compact ? compactHeight(context) : null,
             alignment: compact ? Alignment.center : null,
             padding: EdgeInsets.symmetric(
-              horizontal: compact ? 6 : 10,
-              vertical: compact ? 0 : 5,
+              horizontal: compact ? 5 : 8,
+              vertical: compact ? 0 : 4,
             ),
             decoration: BoxDecoration(
               color: Color(compact ? 0xFFF5F5F5 : 0xFFF0F0F0),
@@ -30,7 +30,7 @@ class JournalTags extends StatelessWidget {
               tag,
               style: TextStyle(
                 color: Color(compact ? 0xFF767676 : 0xFF252525),
-                fontSize: compact ? 9 : 13,
+                fontSize: compact ? 8.5 : 12,
                 height: compact ? 1 : null,
                 fontWeight: FontWeight.w400,
               ),

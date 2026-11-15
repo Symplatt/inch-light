@@ -9,6 +9,7 @@ import '../models/journal_entry.dart';
 import '../models/project_updates.dart';
 import '../providers/app_provider.dart';
 import '../utils/project_update_note.dart';
+import '../utils/clipboard.dart';
 import '../widgets/app_dialog.dart';
 import '../widgets/swipe_delete_card.dart';
 import '../widgets/tool_edit_dialog.dart';
@@ -38,6 +39,9 @@ class _ProjectUpdateEditorPageState extends State<ProjectUpdateEditorPage> {
   final _inlineKey = GlobalKey<JournalEditorState>();
   Future<bool> _flushInline() async =>
       await _inlineKey.currentState?.save() ?? true;
+
+  final _collapsedGroups = <String>{};
+  static const _groupLeadingWidth = 28.0;
 
   bool _titleChanged = false;
   bool _allowTitleFocus = false;
@@ -306,13 +310,22 @@ class _ProjectUpdateEditorPageState extends State<ProjectUpdateEditorPage> {
                 projectMode: true,
                 inline: true,
                 onClose: () => Navigator.pop(dialogContext),
-                saveEntry: (entry) => _save(
-                  item: ProjectUpdateItem(
+                saveEntry: (entry) async {
+                  final saved = ProjectUpdateItem(
                     moduleId: module.id,
                     childId: child?.id,
                     note: entry,
-                  ),
-                ),
+                  );
+                  await _save(item: saved);
+                  if (mounted &&
+                      item == null &&
+                      projectUpdateItemHasContent(saved)) {
+                    setState(() {
+                      _collapsedGroups.remove(module.id);
+                      if (child != null) _collapsedGroups.remove(child.id);
+                    });
+                  }
+                },
               ),
             ),
           ),
@@ -402,9 +415,9 @@ class _ProjectUpdateEditorPageState extends State<ProjectUpdateEditorPage> {
           final project = _project;
           return AppAlertDialog(
             title: const Text('模块设置'),
-            contentPadding: appSelectionContentPadding,
+            contentPadding: const EdgeInsets.fromLTRB(8, 16, 8, 16),
             content: SizedBox(
-              width: 320,
+              width: 352,
               child: ConstrainedBox(
                 constraints: BoxConstraints(
                   maxHeight: MediaQuery.sizeOf(dialogContext).height * 0.55,
@@ -413,40 +426,71 @@ class _ProjectUpdateEditorPageState extends State<ProjectUpdateEditorPage> {
                   shrinkWrap: true,
                   padding: EdgeInsets.zero,
                   children: [
-                    for (final module in project.modules) ...[
-                      ListTile(
-                        contentPadding: EdgeInsets.zero,
-                        minVerticalPadding: 0,
-                        minTileHeight: 48,
-                        title: Text(
-                          module.name,
-                          style: const TextStyle(fontSize: 14),
-                        ),
-                        onTap: () => _editModule(module: module),
-                        onLongPress: () => _deleteModule(module),
-                        trailing: IconButton(
-                          tooltip: '新增子模块',
-                          onPressed: () => _editModule(parent: module),
-                          icon: const Icon(Icons.add, size: 20),
+                    for (final module in project.modules)
+                      Padding(
+                        padding: const EdgeInsets.only(bottom: 8),
+                        child: Material(
+                          color: const Color(0xFFF7F7F7),
+                          borderRadius: BorderRadius.circular(12),
+                          clipBehavior: Clip.antiAlias,
+                          child: Padding(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 16,
+                              vertical: 4,
+                            ),
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.stretch,
+                              children: [
+                                ListTile(
+                                  contentPadding: EdgeInsets.zero,
+                                  minVerticalPadding: 0,
+                                  minTileHeight: 48,
+                                  title: Text(
+                                    module.name,
+                                    style: const TextStyle(
+                                      fontSize: 16,
+                                      fontWeight: FontWeight.w400,
+                                    ),
+                                  ),
+                                  onTap: () => _editModule(module: module),
+                                  onLongPress: () => _deleteModule(module),
+                                  trailing: IconButton(
+                                    tooltip: '新增子模块',
+                                    padding: EdgeInsets.zero,
+                                    alignment: Alignment.centerRight,
+                                    constraints: const BoxConstraints.tightFor(
+                                      width: 48,
+                                      height: 48,
+                                    ),
+                                    onPressed: () =>
+                                        _editModule(parent: module),
+                                    icon: const Icon(Icons.add, size: 20),
+                                  ),
+                                ),
+                                for (final child in module.children)
+                                  ListTile(
+                                    contentPadding: EdgeInsets.zero,
+                                    minVerticalPadding: 0,
+                                    minTileHeight: 48,
+                                    title: Text(
+                                      child.name,
+                                      style: const TextStyle(
+                                        fontSize: 14,
+                                        fontWeight: FontWeight.w400,
+                                      ),
+                                    ),
+                                    onTap: () => _editModule(
+                                      module: child,
+                                      parent: module,
+                                    ),
+                                    onLongPress: () =>
+                                        _deleteModule(child, parent: module),
+                                  ),
+                              ],
+                            ),
+                          ),
                         ),
                       ),
-                      for (final child in module.children)
-                        ListTile(
-                          contentPadding: EdgeInsets.zero,
-                          tileColor: AppColors.bg,
-                          dense: true,
-                          minVerticalPadding: 0,
-                          minTileHeight: 40,
-                          title: Text(
-                            child.name,
-                            style: const TextStyle(fontSize: 14),
-                          ),
-                          onTap: () =>
-                              _editModule(module: child, parent: module),
-                          onLongPress: () =>
-                              _deleteModule(child, parent: module),
-                        ),
-                    ],
                   ],
                 ),
               ),
@@ -573,6 +617,87 @@ class _ProjectUpdateEditorPageState extends State<ProjectUpdateEditorPage> {
     );
   }
 
+  void _toggleGroup(String id) {
+    _stayBrowsing();
+    setState(() {
+      if (!_collapsedGroups.remove(id)) _collapsedGroups.add(id);
+    });
+  }
+
+  void _toggleAllGroups() {
+    _stayBrowsing();
+    final ids = [
+      for (final module in _project.modules) ...[
+        module.id,
+        for (final child in module.children) child.id,
+      ],
+    ];
+    final allCollapsed = ids.every(_collapsedGroups.contains);
+    setState(() {
+      _collapsedGroups.clear();
+      if (!allCollapsed) _collapsedGroups.addAll(ids);
+    });
+  }
+
+  Future<void> _copyMarkdown() async {
+    if (!await _flushInline() || !mounted) return;
+    _saveTimer?.cancel();
+    _stayBrowsing();
+    if (_titleChanged && !await _saveWithFeedback()) return;
+    if (!mounted) return;
+    final project = _project;
+    final update = project.updates.where((u) => u.id == _id).firstOrNull;
+    if (update == null) return;
+    try {
+      await copyText(projectUpdateToMarkdown(project, update));
+      if (mounted) {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(const SnackBar(content: Text('Markdown 已复制')));
+      }
+    } catch (_) {
+      if (mounted) {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(const SnackBar(content: Text('复制失败，请重试')));
+      }
+    }
+  }
+
+  Future<void> _clearGroup(ProjectModule module, ProjectModule? child) async {
+    if (!await _flushInline() || !mounted) return;
+    _saveTimer?.cancel();
+    _stayBrowsing();
+    try {
+      await context.read<AppProvider>().updateProjectUpdates((data) {
+        final project = data.projects.firstWhere(
+          (p) => p.id == widget.project.id,
+        );
+        final updates = [
+          for (final update in project.updates)
+            if (update.id == _id)
+              _removeModuleItems(
+                project,
+                update,
+                (item) =>
+                    item.moduleId == module.id &&
+                    (child == null || item.childId == child.id),
+                DateTime.now(),
+              )
+            else
+              update,
+        ];
+        return data.replace(project.withUpdates(updates));
+      });
+    } catch (_) {
+      if (mounted) {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(const SnackBar(content: Text('删除失败，请重试')));
+      }
+    }
+  }
+
   Widget _group(
     ProjectModule module,
     ProjectModule? child,
@@ -586,66 +711,155 @@ class _ProjectUpdateEditorPageState extends State<ProjectUpdateEditorPage> {
               projectUpdateItemHasContent(i),
         )
         .toList();
+    final numberMeasure = TextPainter(
+      text: TextSpan(
+        text: '${entries.length}.',
+        style: const TextStyle(fontSize: 14),
+      ),
+      textDirection: Directionality.of(context),
+      textScaler: MediaQuery.textScalerOf(context),
+    )..layout();
+    final leadingWidth = (numberMeasure.width + 12).clamp(
+      _groupLeadingWidth,
+      double.infinity,
+    );
+    numberMeasure.dispose();
+    final id = child?.id ?? module.id;
+    final collapsed = _collapsedGroups.contains(id);
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        Row(
-          children: [
-            Expanded(
-              child: Text(
-                child?.name ?? module.name,
-                style: const TextStyle(
-                  fontSize: 16,
-                  fontWeight: FontWeight.w400,
-                ),
-              ),
-            ),
-            IconButton(
-              tooltip: '新增事项',
-              padding: EdgeInsets.zero,
-              alignment: Alignment.centerRight,
-              constraints: const BoxConstraints.tightFor(width: 48, height: 48),
-              onPressed: () => _editItem(module, child),
-              icon: const Icon(Icons.add, size: 20),
-            ),
-          ],
-        ),
-        for (var index = 0; index < entries.length; index++) ...[
-          if (index > 0) const Divider(height: 1, color: AppColors.divider),
-          SwipeDeleteCard(
-            key: ValueKey(entries[index].note.id),
-            id: entries[index].note.id,
-            bottomMargin: 0,
-            onDeleted: () => _deleteItem(entries[index].note.id),
-            child: Material(
-              color: Colors.white,
-              child: InkWell(
-                onTap: () => _editItem(module, child, entries[index]),
-                child: Padding(
-                  padding: const EdgeInsets.symmetric(vertical: 12),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.stretch,
-                    children: [
-                      if (entries[index].note.title.trim().isNotEmpty) ...[
-                        Text(
-                          entries[index].note.title,
-                          style: const TextStyle(fontSize: 15),
-                        ),
-                        const SizedBox(height: 6),
-                      ],
-                      Text(
-                        entries[index].note.content.trim().isEmpty
-                            ? '空白事项'
-                            : entries[index].note.content,
-                        style: const TextStyle(fontSize: 14, height: 1.5),
+        Dismissible(
+          key: ValueKey('group-header-$id'),
+          direction: DismissDirection.endToStart,
+          background: const SwipeDeleteBackground(),
+          // The group remains available after its current update items are cleared.
+          confirmDismiss: (_) async {
+            await _clearGroup(module, child);
+            return false;
+          },
+          child: Material(
+            color: Colors.white,
+            child: Row(
+              children: [
+                Expanded(
+                  child: InkWell(
+                    onTap: () => _toggleGroup(id),
+                    child: ConstrainedBox(
+                      constraints: const BoxConstraints(minHeight: 48),
+                      child: Row(
+                        children: [
+                          Expanded(
+                            child: Text(
+                              child?.name ?? module.name,
+                              style: const TextStyle(
+                                fontSize: 16,
+                                fontWeight: FontWeight.w400,
+                              ),
+                            ),
+                          ),
+                          Transform.translate(
+                            offset: const Offset(8, 0),
+                            child: AnimatedRotation(
+                              turns: collapsed ? 0 : 0.25,
+                              duration: const Duration(milliseconds: 180),
+                              child: const Icon(Icons.chevron_right, size: 20),
+                            ),
+                          ),
+                        ],
                       ),
-                    ],
+                    ),
                   ),
                 ),
-              ),
+                IconButton(
+                  tooltip: '新增事项',
+                  padding: EdgeInsets.zero,
+                  alignment: Alignment.centerRight,
+                  constraints: const BoxConstraints.tightFor(
+                    width: 48,
+                    height: 48,
+                  ),
+                  onPressed: () => _editItem(module, child),
+                  icon: const Icon(Icons.add, size: 20),
+                ),
+              ],
             ),
           ),
-        ],
+        ),
+        AnimatedSize(
+          duration: const Duration(milliseconds: 180),
+          curve: Curves.easeInOut,
+          alignment: Alignment.topCenter,
+          child: collapsed
+              ? const SizedBox.shrink()
+              : Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    for (var index = 0; index < entries.length; index++) ...[
+                      if (index > 0)
+                        const Divider(height: 1, color: AppColors.divider),
+                      SwipeDeleteCard(
+                        key: ValueKey(entries[index].note.id),
+                        id: entries[index].note.id,
+                        bottomMargin: 0,
+                        onDeleted: () => _deleteItem(entries[index].note.id),
+                        child: Material(
+                          color: Colors.white,
+                          child: InkWell(
+                            onTap: () =>
+                                _editItem(module, child, entries[index]),
+                            child: Padding(
+                              padding: const EdgeInsets.symmetric(vertical: 12),
+                              child: Row(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  SizedBox(
+                                    width: leadingWidth,
+                                    child: Text(
+                                      '${index + 1}.',
+                                      textAlign: TextAlign.left,
+                                      style: const TextStyle(
+                                        fontSize: 14,
+                                        height: 1.5,
+                                      ),
+                                    ),
+                                  ),
+                                  Expanded(
+                                    child: Column(
+                                      crossAxisAlignment:
+                                          CrossAxisAlignment.stretch,
+                                      children: [
+                                        if (entries[index].note.title
+                                            .trim()
+                                            .isNotEmpty) ...[
+                                          Text(
+                                            entries[index].note.title,
+                                            style: const TextStyle(
+                                              fontSize: 15,
+                                            ),
+                                          ),
+                                          const SizedBox(height: 6),
+                                        ],
+                                        Text(
+                                          entries[index].note.content,
+                                          style: const TextStyle(
+                                            fontSize: 14,
+                                            height: 1.5,
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ),
+                        ),
+                      ),
+                    ],
+                  ],
+                ),
+        ),
       ],
     );
   }
@@ -656,6 +870,17 @@ class _ProjectUpdateEditorPageState extends State<ProjectUpdateEditorPage> {
     final project = _project;
     final update = project.updates.where((u) => u.id == _id).firstOrNull;
     final items = update?.items ?? const <ProjectUpdateItem>[];
+    final wordCount = items.isEmpty
+        ? (update == null ? 0 : projectUpdateNote(project, update).wordCount)
+        : items.fold<int>(0, (count, item) => count + item.note.wordCount);
+    final groupIds = [
+      for (final module in project.modules) ...[
+        module.id,
+        for (final child in module.children) child.id,
+      ],
+    ];
+    final allCollapsed =
+        groupIds.isNotEmpty && groupIds.every(_collapsedGroups.contains);
     return PopScope(
       canPop: false,
       onPopInvokedWithResult: (didPop, _) {
@@ -667,6 +892,16 @@ class _ProjectUpdateEditorPageState extends State<ProjectUpdateEditorPage> {
           backgroundColor: Colors.white,
           leading: BackButton(onPressed: _back),
           actions: [
+            IconButton(
+              tooltip: '复制 Markdown',
+              onPressed: _copyMarkdown,
+              icon: const Icon(Icons.content_copy_outlined, size: 22),
+            ),
+            IconButton(
+              tooltip: allCollapsed ? '全部展开' : '全部收起',
+              onPressed: project.modules.isEmpty ? null : _toggleAllGroups,
+              icon: Icon(allCollapsed ? Icons.unfold_more : Icons.unfold_less),
+            ),
             IconButton(
               tooltip: '模块设置',
               onPressed: _manageModules,
@@ -681,47 +916,77 @@ class _ProjectUpdateEditorPageState extends State<ProjectUpdateEditorPage> {
             child: ListView(
               padding: const EdgeInsets.fromLTRB(24, 8, 24, 32),
               children: [
-                Row(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Expanded(
-                      child: Listener(
-                        onPointerDown: (_) {
-                          setState(() => _allowTitleFocus = true);
-                          _titleFocus.canRequestFocus = true;
-                        },
-                        child: TextField(
-                          controller: _title,
-                          focusNode: _titleFocus,
-                          canRequestFocus: _allowTitleFocus,
-                          style: const TextStyle(
-                            fontSize: 24,
-                            fontWeight: FontWeight.w400,
+                IntrinsicHeight(
+                  child: Row(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      Expanded(
+                        child: Listener(
+                          onPointerDown: (_) {
+                            setState(() => _allowTitleFocus = true);
+                            _titleFocus.canRequestFocus = true;
+                          },
+                          child: TextField(
+                            controller: _title,
+                            focusNode: _titleFocus,
+                            canRequestFocus: _allowTitleFocus,
+                            style: const TextStyle(
+                              fontSize: 28,
+                              height: 1.2,
+                              fontWeight: FontWeight.w400,
+                            ),
+                            maxLines: null,
+                            decoration: const InputDecoration(
+                              hintText: '版本更新',
+                              border: InputBorder.none,
+                              isDense: true,
+                              contentPadding: EdgeInsets.zero,
+                            ),
+                            onChanged: _changeTitle,
+                            onTapOutside: (_) => _stayBrowsing(),
                           ),
-                          maxLines: null,
-                          decoration: const InputDecoration(
-                            hintText: '版本更新',
-                            border: InputBorder.none,
-                            isDense: true,
-                            contentPadding: EdgeInsets.symmetric(vertical: 12),
-                          ),
-                          onChanged: _changeTitle,
-                          onTapOutside: (_) => _stayBrowsing(),
                         ),
                       ),
-                    ),
-                    const SizedBox(width: 12),
-                    Padding(
-                      padding: const EdgeInsets.only(top: 12),
-                      child: Text(
-                        toolDateText(update?.editedAt ?? _date),
-                        style: const TextStyle(
-                          fontSize: 12,
-                          color: AppColors.textGrey,
-                        ),
+                      const SizedBox(width: 12),
+                      Column(
+                        crossAxisAlignment: CrossAxisAlignment.end,
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          // Match the small metadata glyphs to the title's visible
+                          // edges rather than their different font leading boxes.
+                          Transform.translate(
+                            offset: Offset(
+                              0,
+                              MediaQuery.textScalerOf(context).scale(0.7),
+                            ),
+                            child: Text(
+                              toolDateText(update?.editedAt ?? _date),
+                              style: const TextStyle(
+                                fontSize: 12,
+                                height: 1.2,
+                                color: AppColors.textGrey,
+                              ),
+                            ),
+                          ),
+                          const SizedBox(height: 4),
+                          Transform.translate(
+                            offset: Offset(
+                              0,
+                              -MediaQuery.textScalerOf(context).scale(4),
+                            ),
+                            child: Text(
+                              '$wordCount字',
+                              style: const TextStyle(
+                                fontSize: 12,
+                                height: 1.2,
+                                color: AppColors.textGrey,
+                              ),
+                            ),
+                          ),
+                        ],
                       ),
-                    ),
-                  ],
+                    ],
+                  ),
                 ),
                 const SizedBox(height: 16),
                 if (update != null &&
@@ -768,10 +1033,24 @@ class _ProjectUpdateEditorPageState extends State<ProjectUpdateEditorPage> {
                       crossAxisAlignment: CrossAxisAlignment.stretch,
                       children: [
                         _group(module, null, items),
-                        for (final child in module.children) ...[
-                          const Divider(height: 16, color: AppColors.divider),
-                          _group(module, child, items),
-                        ],
+                        AnimatedSize(
+                          duration: const Duration(milliseconds: 180),
+                          curve: Curves.easeInOut,
+                          alignment: Alignment.topCenter,
+                          child: _collapsedGroups.contains(module.id)
+                              ? const SizedBox.shrink()
+                              : Column(
+                                  children: [
+                                    for (final child in module.children) ...[
+                                      const Divider(
+                                        height: 16,
+                                        color: AppColors.divider,
+                                      ),
+                                      _group(module, child, items),
+                                    ],
+                                  ],
+                                ),
+                        ),
                       ],
                     ),
                   ),

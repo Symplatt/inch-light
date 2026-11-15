@@ -87,8 +87,9 @@ class LastTimeItem {
   int overdueDays(DateTime now) =>
       period == null ? 0 : calendarDaysSince(period!.nextAfter(lastDate), now);
 
-  int remainingDays(DateTime now) =>
-      period == null ? 0 : calendarDaysSince(now, period!.nextAfter(lastDate));
+  int remainingDays(DateTime now) => period == null
+      ? 0
+      : period!.nextAfter(lastDate).difference(now).inDays.clamp(0, 3652059);
 
   int elapsedDays(DateTime now) => calendarDaysSince(lastDate, now);
 

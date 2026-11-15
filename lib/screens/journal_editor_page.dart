@@ -972,14 +972,23 @@ class JournalEditorState extends State<_JournalEditorView>
     // Some Android IMEs leave a one-pixel inset while their panel is hidden.
     // Ignore that residue so the toolbar cannot appear alone at screen bottom.
     final keyboardVisible = _keyboardVisible;
+    final projectInline = widget.projectMode && widget.inline;
     final editorActions = [
       if (keyboardVisible) ...[
         IconButton(
           tooltip: '撤回',
           onPressed: _undo.isEmpty ? null : () => _history(false),
-          icon: Transform.scale(
-            scale: widget.projectMode ? 0.75 : 1,
-            child: const JournalActionIcon(JournalActionSymbol.undo),
+          padding: projectInline ? EdgeInsets.zero : const EdgeInsets.all(8),
+          alignment: projectInline ? Alignment.centerLeft : Alignment.center,
+          icon: Transform.translate(
+            offset: Offset(projectInline ? -5.7 : 0, 0),
+            child: Transform.scale(
+              alignment: projectInline
+                  ? Alignment.centerLeft
+                  : Alignment.center,
+              scale: widget.projectMode ? 0.75 : 1,
+              child: const JournalActionIcon(JournalActionSymbol.undo),
+            ),
           ),
         ),
         IconButton(
@@ -1370,7 +1379,16 @@ class JournalFormatBar extends StatelessWidget {
                 ),
                 padding: EdgeInsets.zero,
               ),
-              icon: SizedBox.square(dimension: 26, child: Center(child: icon)),
+              alignment: projectMode && label == '一级标题'
+                  ? Alignment.centerLeft
+                  : Alignment.center,
+              icon: Transform.translate(
+                offset: Offset(projectMode && label == '一级标题' ? -2 : 0, 0),
+                child: SizedBox.square(
+                  dimension: 26,
+                  child: Center(child: icon),
+                ),
+              ),
             ),
           ),
         );

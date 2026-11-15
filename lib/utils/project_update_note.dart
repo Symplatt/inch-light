@@ -109,14 +109,52 @@ String projectUpdateToMarkdown(UpdateProject project, ProjectUpdate update) {
           updatedAt: item.note.updatedAt,
         ),
       );
-      final marker = '${index + 1}. ';
-      final lines = body.split('\n');
-      final indent = ' ' * marker.length;
-      entries.add(
-        '$marker${lines.first}${lines.skip(1).map((line) => '\n$indent$line').join()}',
-      );
+      entries.add(_numberUpdateBody(body, index + 1));
     }
     if (entries.isNotEmpty) sections.add(entries.join('\n\n'));
   }
   return sections.join('\n\n');
+}
+
+// Plain-text numbering keeps item hierarchy independent of Markdown lists.
+String _numberUpdateBody(String body, int number) {
+  final listMarker = RegExp(r'^\s*(?:\d+\. |[-*] (?:\[[ x]\] )?)(.*)$');
+  final lines = body.trim().split('\n');
+  final hasList = lines.any((line) => listMarker.hasMatch(line));
+  final paragraphs = <String>[];
+  final prose = <String>[];
+  void flushProse() {
+    if (prose.isNotEmpty) {
+      paragraphs.add(prose.join(' '));
+      prose.clear();
+    }
+  }
+
+  var childNumber = 0;
+  for (final line in lines) {
+    final match = listMarker.firstMatch(line);
+    if (match != null) {
+      flushProse();
+      paragraphs.add('$number.${++childNumber} ${match[1]}');
+    } else if (line.trim().isNotEmpty) {
+      // Tables, headings and quotes retain their block boundaries and syntax.
+      if (RegExp(r'^(?:\||#{1,6} |>|---$|<div|</div>)').hasMatch(line)) {
+        flushProse();
+        if (line.startsWith('|') &&
+            paragraphs.isNotEmpty &&
+            paragraphs.last.startsWith('|')) {
+          paragraphs[paragraphs.length - 1] += '\n$line';
+        } else {
+          paragraphs.add(line);
+        }
+      } else {
+        prose.add(line.trim());
+      }
+    }
+  }
+  flushProse();
+  final text = paragraphs.join('\n\n');
+  return hasList && listMarker.hasMatch(lines.first)
+      ? '$number\n$text'
+      : '$number $text';
 }

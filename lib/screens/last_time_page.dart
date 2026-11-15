@@ -69,9 +69,14 @@ class _LastTimePageState extends State<LastTimePage>
     );
   }
 
+  String _remainingLabel(LastTimeItem item) {
+    final days = item.remainingDays(_now);
+    return days == 0 ? '不足1天' : '距下次还有 $days 天';
+  }
+
   String _periodSummary(LastTimeItem item) {
     final overdue = item.overdueDays(_now);
-    return '${item.period!.label} · ${overdue > 0 ? '已推迟 $overdue 天' : '距下次还有 ${item.remainingDays(_now)} 天'}';
+    return '${item.period!.label} · ${overdue > 0 ? '已推迟 $overdue 天' : _remainingLabel(item)}';
   }
 
   Future<void> _view(LastTimeItem item) async {
@@ -84,7 +89,7 @@ class _LastTimePageState extends State<LastTimePage>
           '周期状态',
           item.overdueDays(_now) > 0
               ? '已推迟 ${item.overdueDays(_now)} 天'
-              : '距下次还有 ${item.remainingDays(_now)} 天',
+              : _remainingLabel(item),
         ),
       ],
     ];
