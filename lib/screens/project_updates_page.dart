@@ -1,7 +1,6 @@
 import '../utils/clipboard.dart';
-import '../utils/journal_markdown.dart';
-import '../models/journal_entry.dart';
-import 'journal_editor_page.dart';
+import '../utils/project_update_note.dart';
+import 'project_update_editor_page.dart';
 
 import 'package:flutter/material.dart';
 import 'package:flutter/gestures.dart';
@@ -110,9 +109,13 @@ class _ProjectUpdatesPageState extends State<ProjectUpdatesPage> {
   Future<void> _projects() async {
     final provider = context.read<AppProvider>();
     final data = provider.projectUpdates;
-    final projects = [
-      ...data.projects,
-    ]..sort((a, b) => JournalNameKey(a.name).compareTo(JournalNameKey(b.name)));
+    final projects = [...data.projects]
+      ..sort((a, b) {
+        final byTime = b.editedAt.compareTo(a.editedAt);
+        return byTime != 0
+            ? byTime
+            : JournalNameKey(a.name).compareTo(JournalNameKey(b.name));
+      });
     final result = await showDialog<({String id, String action})>(
       context: context,
       builder: (ctx) => AppAlertDialog(
@@ -175,50 +178,10 @@ class _ProjectUpdatesPageState extends State<ProjectUpdatesPage> {
   }
 
   void _openNote(UpdateProject project, [ProjectUpdate? update]) {
-    final provider = context.read<AppProvider>();
-    final now = DateTime.now();
-    final id = update?.id ?? const Uuid().v4();
-    final note =
-        update?.note ??
-        JournalEntry(
-          id: id,
-          title: update?.version ?? '',
-          document: [
-            {'insert': '${update?.content ?? ''}\n'},
-          ],
-          createdAt: update?.date ?? now,
-          updatedAt: now,
-        );
     Navigator.of(context).push(
       MaterialPageRoute<void>(
-        builder: (_) => JournalEditorPage(
-          entry: note,
-          projectMode: true,
-          saveEntry: (entry) => provider.updateProjectUpdates((data) {
-            final current = data.projects.firstWhere((p) => p.id == project.id);
-            final updates = [...current.updates];
-            final index = updates.indexWhere((u) => u.id == id);
-            final saved = ProjectUpdate(
-              id: id,
-              version: entry.title.trim().isEmpty ? '版本更新' : entry.title.trim(),
-              completed: index < 0 ? false : updates[index].completed,
-              date: index < 0 ? now : updates[index].date,
-              content: entry.content,
-              note: JournalEntry.fromJson({
-                ...entry.toJson(),
-                'title': entry.title.trim().isEmpty
-                    ? '版本更新'
-                    : entry.title.trim(),
-              }),
-            );
-            if (index < 0) {
-              updates.add(saved);
-            } else {
-              updates[index] = saved;
-            }
-            return data.replace(current.withUpdates(updates));
-          }),
-        ),
+        builder: (_) =>
+            ProjectUpdateEditorPage(project: project, update: update),
       ),
     );
   }
@@ -236,25 +199,9 @@ class _ProjectUpdatesPageState extends State<ProjectUpdatesPage> {
     );
   });
 
-  Future<void> _copyUpdate(ProjectUpdate update) async {
+  Future<void> _copyUpdate(UpdateProject project, ProjectUpdate update) async {
     try {
-      final note =
-          update.note ??
-          JournalEntry(
-            id: update.id,
-            title: update.version,
-            document: [
-              {'insert': '${update.content}\n'},
-            ],
-            createdAt: update.date,
-            updatedAt: update.date,
-          );
-      // Project updates export their title and body without legacy note tags.
-      await copyText(
-        journalToMarkdown(
-          JournalEntry.fromJson({...note.toJson(), 'tags': <String>[]}),
-        ),
-      );
+      await copyText(projectUpdateToMarkdown(project, update));
       if (!mounted) return;
       ScaffoldMessenger.of(
         context,
@@ -363,13 +310,18 @@ class _ProjectUpdatesPageState extends State<ProjectUpdatesPage> {
                   itemCount: updates.length,
                   itemBuilder: (context, index) {
                     final update = updates[index];
+                    final currentProject = project!;
+                    final preview = projectUpdateNote(
+                      currentProject,
+                      update,
+                    ).content;
                     return SwipeDeleteCard(
                       key: ValueKey(update.id),
                       id: update.id,
                       bottomMargin: 8,
                       onDeleted: () => provider.updateProjectUpdates((data) {
                         final current = data.projects.firstWhere(
-                          (p) => p.id == project!.id,
+                          (p) => p.id == currentProject.id,
                         );
                         return data.replace(
                           current.withUpdates(
@@ -390,13 +342,14 @@ class _ProjectUpdatesPageState extends State<ProjectUpdatesPage> {
                         child: Semantics(
                           button: true,
                           checked: update.completed,
-                          onTap: () => _openNote(project!, update),
-                          onLongPress: () => _copyUpdate(update),
+                          onTap: () => _openNote(currentProject, update),
+                          onLongPress: () =>
+                              _copyUpdate(currentProject, update),
                           customSemanticsActions: {
                             CustomSemanticsAction(
                               label: update.completed ? '标为未完成' : '标为已完成',
                             ): () =>
-                                _toggleCompleted(project!.id, update.id),
+                                _toggleCompleted(currentProject.id, update.id),
                           },
                           child: RawGestureDetector(
                             excludeFromSemantics: true,
@@ -410,15 +363,17 @@ class _ProjectUpdatesPageState extends State<ProjectUpdatesPage> {
                                     ),
                                     (recognizer) =>
                                         recognizer.onLongPress = () =>
-                                            _copyUpdate(update),
+                                            _copyUpdate(currentProject, update),
                                   ),
                             },
                             child: InkWell(
                               excludeFromSemantics: true,
                               borderRadius: BorderRadius.circular(16),
-                              onTap: () => _openNote(project!, update),
-                              onDoubleTap: () =>
-                                  _toggleCompleted(project!.id, update.id),
+                              onTap: () => _openNote(currentProject, update),
+                              onDoubleTap: () => _toggleCompleted(
+                                currentProject.id,
+                                update.id,
+                              ),
                               child: Padding(
                                 padding: const EdgeInsets.all(16),
                                 child: Column(
@@ -454,13 +409,10 @@ class _ProjectUpdatesPageState extends State<ProjectUpdatesPage> {
                                         ),
                                       ],
                                     ),
-                                    if (update.content.trim().isNotEmpty) ...[
+                                    if (preview.trim().isNotEmpty) ...[
                                       const SizedBox(height: 8),
                                       Text(
-                                        update.content.replaceAll(
-                                          RegExp(r'\s+'),
-                                          '',
-                                        ),
+                                        preview.replaceAll(RegExp(r'\s+'), ''),
                                         maxLines: 2,
                                         overflow: TextOverflow.ellipsis,
                                         style: const TextStyle(
@@ -520,7 +472,11 @@ class _ProjectNameDialogState extends State<_ProjectNameDialog> {
         throw StateError('项目名称已存在');
       }
       if (widget.project == null) {
-        final project = UpdateProject(id: const Uuid().v4(), name: name);
+        final project = UpdateProject(
+          id: const Uuid().v4(),
+          name: name,
+          updatedAt: DateTime.now(),
+        );
         return ProjectUpdatesData(
           projects: [...data.projects, project],
           selectedId: project.id,
@@ -530,7 +486,13 @@ class _ProjectNameDialogState extends State<_ProjectNameDialog> {
         (p) => p.id == widget.project!.id,
       );
       return data.replace(
-        UpdateProject(id: current.id, name: name, updates: current.updates),
+        UpdateProject(
+          id: current.id,
+          name: name,
+          updates: current.updates,
+          modules: current.modules,
+          updatedAt: DateTime.now(),
+        ),
       );
     }),
   );

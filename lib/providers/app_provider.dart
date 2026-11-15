@@ -823,6 +823,21 @@ class AppProvider with ChangeNotifier, WidgetsBindingObserver {
     if (projectUpdatesJson != null) {
       _projectUpdates = ProjectUpdatesData.fromJson(jsonDecode(projectUpdatesJson) as Map<String, dynamic>);
     }
+    // The user requested clearing all pre-3.21 update records once. Persist
+    // the marker only after the cleared data, so retries stay idempotent.
+    if (prefs.getBool('project_updates_321_reset') != true) {
+      final cleared = ProjectUpdatesData(
+        projects: _projectUpdates.projects.map((p) => p.withUpdates([])).toList(),
+        selectedId: _projectUpdates.selectedId,
+      );
+      if (!await prefs.setString('project_updates', jsonEncode(cleared.toJson()))) {
+        throw StateError('清空旧更新记录失败');
+      }
+      _projectUpdates = cleared;
+      if (!await prefs.setBool('project_updates_321_reset', true)) {
+        throw StateError('保存更新迁移状态失败');
+      }
+    }
     final academicPeersJson = prefs.getString('academic_peers');
     if (academicPeersJson != null) {
       _academicPeers = AcademicPeersData.fromJson(jsonDecode(academicPeersJson) as Map<String, dynamic>);

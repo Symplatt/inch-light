@@ -40,14 +40,23 @@ class JournalEditorPage extends StatelessWidget {
     this.collectionId,
     this.saveEntry,
     this.projectMode = false,
+    this.inline = false,
+    this.onClose,
+    this.editorKey,
   }) : assert(!projectMode || saveEntry != null);
   final JournalEntry? entry;
   final String? collectionId;
   final Future<void> Function(JournalEntry)? saveEntry;
   final bool projectMode;
+  final bool inline;
+  final VoidCallback? onClose;
+  final GlobalKey<JournalEditorState>? editorKey;
   @override
   Widget build(BuildContext context) => JournalTheme(
     child: _JournalEditorView(
+      key: editorKey,
+      inline: inline,
+      onClose: onClose,
       entry: entry,
       collectionId: collectionId,
       saveEntry: saveEntry,
@@ -58,6 +67,9 @@ class JournalEditorPage extends StatelessWidget {
 
 class _JournalEditorView extends StatefulWidget {
   const _JournalEditorView({
+    super.key,
+    this.inline = false,
+    this.onClose,
     this.entry,
     this.collectionId,
     this.saveEntry,
@@ -67,11 +79,13 @@ class _JournalEditorView extends StatefulWidget {
   final String? collectionId;
   final Future<void> Function(JournalEntry)? saveEntry;
   final bool projectMode;
+  final bool inline;
+  final VoidCallback? onClose;
   @override
-  State<_JournalEditorView> createState() => _JournalEditorPageState();
+  State<_JournalEditorView> createState() => JournalEditorState();
 }
 
-class _JournalEditorPageState extends State<_JournalEditorView>
+class JournalEditorState extends State<_JournalEditorView>
     with WidgetsBindingObserver {
   late final TextEditingController _title;
   late final JournalController _editor;
@@ -237,9 +251,11 @@ class _JournalEditorPageState extends State<_JournalEditorView>
       selection: const TextSelection.collapsed(offset: 0),
     );
     _editor.preparePaste = (source) {
-      if (_title.text.isNotEmpty ||
-          _editor.document.toPlainText().trim().isNotEmpty)
+      if (widget.inline ||
+          _title.text.isNotEmpty ||
+          _editor.document.toPlainText().trim().isNotEmpty) {
         return null;
+      }
       final heading = RegExp(r'^# ([^\r\n]+)(?:\r?\n|$)').firstMatch(source);
       if (heading == null) return null;
       _title.text = heading[1]!;
@@ -252,6 +268,25 @@ class _JournalEditorPageState extends State<_JournalEditorView>
     _titleFocus.addListener(_refreshFocus);
     _bodyFocus.addListener(_refreshFocus);
     _loadPreferences();
+    if (widget.inline) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) focusBody();
+      });
+    }
+  }
+
+  Future<bool> save() => _save();
+
+  void browse() => _stayBrowsing();
+
+  void focusBody() {
+    if (!_allowDocumentFocus) setState(() => _allowDocumentFocus = true);
+    _editingScope.descendantsAreFocusable = true;
+    _bodyFocus.canRequestFocus = true;
+    _editor.ignoreFocusOnTextChange = false;
+    _editor.skipRequestKeyboard = false;
+    _bodyFocus.requestFocus();
+    _renderEditorKey.currentState?.requestKeyboard();
   }
 
   void _refreshFocus() {
@@ -793,6 +828,7 @@ class _JournalEditorPageState extends State<_JournalEditorView>
   Widget _bodyEditor(BuildContext context) {
     final configuration = (
       _editor.document,
+      widget.inline ? View.of(context).viewInsets.bottom : 0.0,
       _bodyFocus.hasPrimaryFocus,
       _editor.onEmbedLine,
       _editor.selection.isCollapsed ? null : _editor.pendingTable,
@@ -816,15 +852,24 @@ class _JournalEditorPageState extends State<_JournalEditorView>
       scrollController: _bodyScroll,
       config: quill.QuillEditorConfig(
         editorKey: _renderEditorKey,
-        placeholder: '开始书写',
-        padding: EdgeInsets.fromLTRB(
-          _pageStyle.sideMargin,
-          8,
-          _pageStyle.sideMargin,
-          _pageStyle.bottomMargin,
-        ),
-        scrollable: false,
-        minHeight: 180,
+        placeholder: widget.inline ? '更新内容' : '开始书写',
+        padding: widget.inline
+            ? const EdgeInsets.symmetric(vertical: 8)
+            : EdgeInsets.fromLTRB(
+                _pageStyle.sideMargin,
+                8,
+                _pageStyle.sideMargin,
+                _pageStyle.bottomMargin,
+              ),
+        scrollable: widget.inline,
+        maxHeight: widget.inline
+            ? (MediaQuery.sizeOf(context).height -
+                      View.of(context).viewInsets.bottom /
+                          View.of(context).devicePixelRatio -
+                      320)
+                  .clamp(120.0, 320.0)
+            : null,
+        minHeight: widget.inline ? 120 : 180,
         showCursor: _bodyFocus.hasPrimaryFocus && !_editor.onEmbedLine,
         // Pinned Quill APIs; shortcut handlers also process software-keyboard spaces.
         // ignore: experimental_member_use
@@ -927,6 +972,149 @@ class _JournalEditorPageState extends State<_JournalEditorView>
     // Some Android IMEs leave a one-pixel inset while their panel is hidden.
     // Ignore that residue so the toolbar cannot appear alone at screen bottom.
     final keyboardVisible = _keyboardVisible;
+    final editorActions = [
+      if (keyboardVisible) ...[
+        IconButton(
+          tooltip: '撤回',
+          onPressed: _undo.isEmpty ? null : () => _history(false),
+          icon: Transform.scale(
+            scale: widget.projectMode ? 0.75 : 1,
+            child: const JournalActionIcon(JournalActionSymbol.undo),
+          ),
+        ),
+        IconButton(
+          tooltip: '取消撤回',
+          onPressed: _redo.isEmpty ? null : () => _history(true),
+          icon: Transform.scale(
+            scale: widget.projectMode ? 0.75 : 1,
+            child: const JournalActionIcon(JournalActionSymbol.redo),
+          ),
+        ),
+      ],
+      if (!keyboardVisible && !widget.projectMode)
+        IconButton(
+          tooltip: '页面设置',
+          onPressed: _configurePage,
+          icon: const Icon(Icons.tune),
+        ),
+      if (!keyboardVisible && !widget.projectMode)
+        IconButton(
+          tooltip: '导出',
+          onPressed: _export,
+          icon: const JournalExportIcon(),
+        ),
+      if (!widget.projectMode)
+        IconButton(
+          tooltip: '标签',
+          onPressed: _editTags,
+          icon: const JournalActionIcon(JournalActionSymbol.tags),
+        ),
+      if (keyboardVisible)
+        IconButton(
+          tooltip: '确定',
+          onPressed: _finish,
+          icon: Transform.scale(
+            scale: widget.projectMode ? 0.75 : 1,
+            child: const JournalActionIcon(JournalActionSymbol.done),
+          ),
+        )
+      else
+        TooltipTheme(
+          data: const TooltipThemeData(triggerMode: TooltipTriggerMode.manual),
+          child: GestureDetector(
+            onLongPress: () => _runChain(fromLongPress: true),
+            child: PopupMenuButton<JournalOperation>(
+              tooltip: '操作',
+              onOpened: _stayBrowsing,
+              requestFocus: false,
+              onSelected: _selectOperation,
+              color: Colors.white,
+              surfaceTintColor: Colors.transparent,
+              elevation: 4,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(14),
+                side: const BorderSide(color: Color(0xFFE5E5E5)),
+              ),
+              constraints: BoxConstraints.tightFor(
+                width:
+                    (224 +
+                            (MediaQuery.textScalerOf(context).scale(15) - 15) *
+                                6)
+                        .clamp(224.0, MediaQuery.sizeOf(context).width - 24),
+              ),
+              child: const Padding(
+                padding: EdgeInsets.all(12),
+                child: Icon(Icons.auto_fix_high_outlined),
+              ),
+              itemBuilder: (menuContext) => journalOperationsMenu(
+                menuContext,
+                available: availableJournalOperations(
+                  _editor.document.toDelta().toJson(),
+                  title: _title.text,
+                  titleBold: _titleBold,
+                ),
+                runChain: _runChain,
+                editChain: _editChain,
+                deleteAllDirect: () =>
+                    _operate(JournalOperation.deleteAllContent),
+              ),
+            ),
+          ),
+        ),
+      const SizedBox(width: 8),
+    ];
+    if (widget.inline) {
+      return Localizations.override(
+        context: context,
+        locale: const Locale('zh'),
+        delegates: quill.FlutterQuillLocalizations.localizationsDelegates,
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Row(
+              children: [
+                Expanded(
+                  child: SingleChildScrollView(
+                    scrollDirection: Axis.horizontal,
+                    child: Row(children: editorActions),
+                  ),
+                ),
+                TextButton(
+                  onPressed: () async {
+                    if (await _save() && mounted) {
+                      _stayBrowsing();
+                      widget.onClose?.call();
+                    }
+                  },
+                  child: const Text('完成'),
+                ),
+              ],
+            ),
+            if (_title.text.isNotEmpty) Text(_title.text),
+            Listener(
+              onPointerDown: (_) {
+                _editingScope.descendantsAreFocusable = true;
+                if (!_allowDocumentFocus) {
+                  setState(() => _allowDocumentFocus = true);
+                }
+              },
+              child: FocusScope(
+                node: _editingScope,
+                descendantsAreFocusable: _allowDocumentFocus,
+                child: _bodyEditor(context),
+              ),
+            ),
+            if (keyboardVisible)
+              JournalFormatBar(
+                projectMode: widget.projectMode,
+                controller: _editor,
+                onFormat: focusBody,
+                onTable: _insertTable,
+              ),
+          ],
+        ),
+      );
+    }
     return Localizations.override(
       context: context,
       locale: const Locale('zh'),
@@ -945,96 +1133,7 @@ class _JournalEditorPageState extends State<_JournalEditorView>
               onPressed: _back,
               icon: const Icon(Icons.arrow_back),
             ),
-            actions: [
-              if (keyboardVisible) ...[
-                IconButton(
-                  tooltip: '撤回',
-                  onPressed: _undo.isEmpty ? null : () => _history(false),
-                  icon: const JournalActionIcon(JournalActionSymbol.undo),
-                ),
-                IconButton(
-                  tooltip: '取消撤回',
-                  onPressed: _redo.isEmpty ? null : () => _history(true),
-                  icon: const JournalActionIcon(JournalActionSymbol.redo),
-                ),
-              ],
-              if (!keyboardVisible && !widget.projectMode)
-                IconButton(
-                  tooltip: '页面设置',
-                  onPressed: _configurePage,
-                  icon: const Icon(Icons.tune),
-                ),
-              if (!keyboardVisible && !widget.projectMode)
-                IconButton(
-                  tooltip: '导出',
-                  onPressed: _export,
-                  icon: const JournalExportIcon(),
-                ),
-              if (!widget.projectMode)
-                IconButton(
-                  tooltip: '标签',
-                  onPressed: _editTags,
-                  icon: const JournalActionIcon(JournalActionSymbol.tags),
-                ),
-              if (keyboardVisible)
-                IconButton(
-                  tooltip: '确定',
-                  onPressed: _finish,
-                  icon: const JournalActionIcon(JournalActionSymbol.done),
-                )
-              else
-                TooltipTheme(
-                  data: const TooltipThemeData(
-                    triggerMode: TooltipTriggerMode.manual,
-                  ),
-                  child: GestureDetector(
-                    onLongPress: () => _runChain(fromLongPress: true),
-                    child: PopupMenuButton<JournalOperation>(
-                      tooltip: '操作',
-                      child: const Padding(
-                        padding: EdgeInsets.all(12),
-                        child: Icon(Icons.auto_fix_high_outlined),
-                      ),
-                      onOpened: _stayBrowsing,
-                      requestFocus: false,
-                      onSelected: _selectOperation,
-                      color: Colors.white,
-                      surfaceTintColor: Colors.transparent,
-                      elevation: 4,
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(14),
-                        side: const BorderSide(color: Color(0xFFE5E5E5)),
-                      ),
-                      constraints: BoxConstraints.tightFor(
-                        width:
-                            (224 +
-                                    (MediaQuery.textScalerOf(
-                                              context,
-                                            ).scale(15) -
-                                            15) *
-                                        6)
-                                .clamp(
-                                  224.0,
-                                  MediaQuery.sizeOf(context).width - 24,
-                                ),
-                      ),
-                      itemBuilder: (menuContext) => journalOperationsMenu(
-                        menuContext,
-                        available: availableJournalOperations(
-                          _editor.document.toDelta().toJson(),
-                          title: _title.text,
-                          titleBold: _titleBold,
-                        ),
-                        runChain: _runChain,
-                        editChain: _editChain,
-                        deleteAllDirect: () =>
-                            _operate(JournalOperation.deleteAllContent),
-                      ),
-                    ),
-                  ),
-                ),
-              const SizedBox(width: 8),
-            ],
+            actions: editorActions,
           ),
           body: SafeArea(
             top: false,
@@ -1149,6 +1248,7 @@ class _JournalEditorPageState extends State<_JournalEditorView>
                 ),
                 if (keyboardVisible)
                   JournalFormatBar(
+                    projectMode: widget.projectMode,
                     controller: _editor,
                     onFormat: () => _bodyFocus.requestFocus(),
                     onTable: _insertTable,
@@ -1175,10 +1275,12 @@ class JournalFormatBar extends StatelessWidget {
     required this.onTable,
     this.titleBold,
     this.onTitleBold,
+    this.projectMode = false,
   });
   final quill.QuillController controller;
   final VoidCallback onFormat;
   final VoidCallback onTable;
+  final bool projectMode;
   final bool? titleBold;
   final VoidCallback? onTitleBold;
 
@@ -1306,11 +1408,12 @@ class JournalFormatBar extends StatelessWidget {
                   attribute: quill.Attribute.bold,
                   action: titleBold == null ? null : onTitleBold,
                 ),
-                button(
-                  '引用',
-                  const Icon(Icons.format_quote),
-                  attribute: quill.Attribute.blockQuote,
-                ),
+                if (!projectMode)
+                  button(
+                    '引用',
+                    const Icon(Icons.format_quote),
+                    attribute: quill.Attribute.blockQuote,
+                  ),
                 button(
                   '有序列表',
                   const Icon(Icons.format_list_numbered),
@@ -1321,76 +1424,90 @@ class JournalFormatBar extends StatelessWidget {
                   const JournalFormatIcon(JournalFormatSymbol.bullet),
                   attribute: quill.Attribute.ul,
                 ),
-                button(
-                  '复选框列表',
-                  const Icon(Icons.checklist),
-                  attribute: quill.Attribute.unchecked,
-                  selectedOverride: ['checked', 'unchecked'].contains(
-                    selectionStyle.attributes[quill.Attribute.list.key]?.value,
+                if (!projectMode)
+                  button(
+                    '复选框列表',
+                    const Icon(Icons.checklist),
+                    attribute: quill.Attribute.unchecked,
+                    selectedOverride: ['checked', 'unchecked'].contains(
+                      selectionStyle
+                          .attributes[quill.Attribute.list.key]
+                          ?.value,
+                    ),
                   ),
-                ),
-                button(
-                  '倾斜',
-                  const JournalFormatIcon(JournalFormatSymbol.italic),
-                  attribute: quill.Attribute.italic,
-                ),
-                button(
-                  '删除线',
-                  const JournalFormatIcon(JournalFormatSymbol.strike),
-                  attribute: quill.Attribute.strikeThrough,
-                ),
-                button(
-                  '下划线',
-                  const JournalFormatIcon(JournalFormatSymbol.underline),
-                  attribute: quill.Attribute.underline,
-                ),
-                button(
-                  '高亮',
-                  const JournalFormatIcon(JournalFormatSymbol.highlight),
-                  attribute: const quill.BackgroundAttribute(
-                    journalHighlightHex,
+                if (!projectMode)
+                  button(
+                    '倾斜',
+                    const JournalFormatIcon(JournalFormatSymbol.italic),
+                    attribute: quill.Attribute.italic,
                   ),
-                ),
-                button(
-                  '分隔线',
-                  const JournalFormatIcon(JournalFormatSymbol.divider),
-                  action: _divider,
-                ),
-                button(
-                  '上标',
-                  const JournalFormatIcon(JournalFormatSymbol.superscript),
-                  attribute: quill.Attribute.superscript,
-                ),
-                button(
-                  '下标',
-                  const JournalFormatIcon(JournalFormatSymbol.subscript),
-                  attribute: quill.Attribute.subscript,
-                ),
+                if (!projectMode)
+                  button(
+                    '删除线',
+                    const JournalFormatIcon(JournalFormatSymbol.strike),
+                    attribute: quill.Attribute.strikeThrough,
+                  ),
+                if (!projectMode)
+                  button(
+                    '下划线',
+                    const JournalFormatIcon(JournalFormatSymbol.underline),
+                    attribute: quill.Attribute.underline,
+                  ),
+                if (!projectMode)
+                  button(
+                    '高亮',
+                    const JournalFormatIcon(JournalFormatSymbol.highlight),
+                    attribute: const quill.BackgroundAttribute(
+                      journalHighlightHex,
+                    ),
+                  ),
+                if (!projectMode)
+                  button(
+                    '分隔线',
+                    const JournalFormatIcon(JournalFormatSymbol.divider),
+                    action: _divider,
+                  ),
+                if (!projectMode)
+                  button(
+                    '上标',
+                    const JournalFormatIcon(JournalFormatSymbol.superscript),
+                    attribute: quill.Attribute.superscript,
+                  ),
+                if (!projectMode)
+                  button(
+                    '下标',
+                    const JournalFormatIcon(JournalFormatSymbol.subscript),
+                    attribute: quill.Attribute.subscript,
+                  ),
                 button(
                   '行内代码',
                   const JournalFormatIcon(JournalFormatSymbol.code),
                   attribute: quill.Attribute.inlineCode,
                 ),
-                button(
-                  '表格',
-                  const JournalFormatIcon(JournalFormatSymbol.table),
-                  action: onTable,
-                ),
-                button(
-                  '居中对齐',
-                  const JournalFormatIcon(JournalFormatSymbol.alignCenter),
-                  attribute: quill.Attribute.centerAlignment,
-                ),
-                button(
-                  '左对齐',
-                  const JournalFormatIcon(JournalFormatSymbol.alignLeft),
-                  attribute: quill.Attribute.leftAlignment,
-                ),
-                button(
-                  '右对齐',
-                  const JournalFormatIcon(JournalFormatSymbol.alignRight),
-                  attribute: quill.Attribute.rightAlignment,
-                ),
+                if (!projectMode)
+                  button(
+                    '表格',
+                    const JournalFormatIcon(JournalFormatSymbol.table),
+                    action: onTable,
+                  ),
+                if (!projectMode)
+                  button(
+                    '居中对齐',
+                    const JournalFormatIcon(JournalFormatSymbol.alignCenter),
+                    attribute: quill.Attribute.centerAlignment,
+                  ),
+                if (!projectMode)
+                  button(
+                    '左对齐',
+                    const JournalFormatIcon(JournalFormatSymbol.alignLeft),
+                    attribute: quill.Attribute.leftAlignment,
+                  ),
+                if (!projectMode)
+                  button(
+                    '右对齐',
+                    const JournalFormatIcon(JournalFormatSymbol.alignRight),
+                    attribute: quill.Attribute.rightAlignment,
+                  ),
               ],
             ),
           ),

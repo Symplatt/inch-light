@@ -75,6 +75,19 @@ class _LastTimePageState extends State<LastTimePage>
   }
 
   Future<void> _view(LastTimeItem item) async {
+    final details = <(String, String)>[
+      if (item.startDate != null) ('开始日期', toolDateText(item.startDate!)),
+      (item.startDate == null ? '上次日期' : '结束日期', toolDateText(item.lastDate)),
+      if (item.period != null) ...[
+        ('预设周期', item.period!.label),
+        (
+          '周期状态',
+          item.overdueDays(_now) > 0
+              ? '已推迟 ${item.overdueDays(_now)} 天'
+              : '距下次还有 ${item.remainingDays(_now)} 天',
+        ),
+      ],
+    ];
     final action = await showDialog<String>(
       context: context,
       builder: (ctx) => AppDialog(
@@ -99,7 +112,7 @@ class _LastTimePageState extends State<LastTimePage>
                           Text(
                             item.name,
                             style: const TextStyle(
-                              fontSize: 22,
+                              fontSize: 20,
                               fontWeight: FontWeight.w400,
                               color: AppColors.textDark,
                             ),
@@ -128,89 +141,105 @@ class _LastTimePageState extends State<LastTimePage>
                     ),
                   ],
                 ),
-                const SizedBox(height: 24),
-                Container(
-                  padding: const EdgeInsets.all(16),
-                  decoration: BoxDecoration(
-                    color: const Color(0xFFF3F4F6),
-                    borderRadius: BorderRadius.circular(16),
-                  ),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      const Text(
+                const SizedBox(height: 20),
+                Row(
+                  crossAxisAlignment: CrossAxisAlignment.baseline,
+                  textBaseline: TextBaseline.alphabetic,
+                  children: [
+                    const Expanded(
+                      child: Text(
                         '距上次',
                         style: TextStyle(
-                          fontSize: 12,
+                          fontSize: 14,
                           color: AppColors.textGrey,
                         ),
                       ),
-                      const SizedBox(height: 4),
-                      Text.rich(
+                    ),
+                    const SizedBox(width: 16),
+                    Expanded(
+                      child: Text.rich(
+                        textAlign: TextAlign.end,
                         TextSpan(
                           children: [
                             TextSpan(
                               text: '${item.elapsedDays(_now)}',
                               style: const TextStyle(
-                                fontSize: 36,
+                                fontSize: 28,
                                 fontWeight: FontWeight.w400,
                               ),
                             ),
                             const TextSpan(
                               text: ' 天',
                               style: TextStyle(
-                                fontSize: 14,
+                                fontSize: 12,
                                 color: AppColors.textGrey,
                               ),
                             ),
                           ],
                         ),
                       ),
-                      const SizedBox(height: 12),
-                      const Text(
-                        '上次日期',
-                        style: TextStyle(
-                          fontSize: 12,
-                          color: AppColors.textGrey,
-                        ),
-                      ),
-                      const SizedBox(height: 4),
-                      Text(
-                        _lastDateLabel(item),
-                        style: const TextStyle(fontSize: 14),
-                      ),
-                      if (item.period != null) ...[
-                        const SizedBox(height: 12),
-                        Text(
-                          _periodSummary(item),
-                          style: const TextStyle(
-                            fontSize: 14,
-                            color: AppColors.textGrey,
-                          ),
-                        ),
-                      ],
-                    ],
-                  ),
+                    ),
+                  ],
                 ),
-                const SizedBox(height: 20),
-                OverflowBar(
-                  alignment: MainAxisAlignment.spaceBetween,
-                  overflowAlignment: OverflowBarAlignment.end,
-                  spacing: 12,
-                  overflowSpacing: 8,
+                const SizedBox(height: 16),
+                const Divider(height: 1, color: AppColors.divider),
+                const SizedBox(height: 16),
+                Table(
+                  columnWidths: const {0: IntrinsicColumnWidth()},
+                  defaultVerticalAlignment: TableCellVerticalAlignment.top,
                   children: [
-                    TextButton(
-                      style: TextButton.styleFrom(
-                        minimumSize: const Size(64, 48),
-                        foregroundColor: AppColors.textGrey,
+                    for (var index = 0; index < details.length; index++)
+                      TableRow(
+                        children: [
+                          Padding(
+                            padding: EdgeInsets.only(
+                              right: 16,
+                              bottom: index == details.length - 1 ? 0 : 12,
+                            ),
+                            child: Text(
+                              details[index].$1,
+                              style: const TextStyle(
+                                fontSize: 14,
+                                color: AppColors.textGrey,
+                              ),
+                            ),
+                          ),
+                          Padding(
+                            padding: EdgeInsets.only(
+                              bottom: index == details.length - 1 ? 0 : 12,
+                            ),
+                            child: Text(
+                              details[index].$2,
+                              textAlign: TextAlign.end,
+                              style: const TextStyle(
+                                fontSize: 14,
+                                color: AppColors.textDark,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                  ],
+                ),
+                const SizedBox(height: 24),
+                LayoutBuilder(
+                  builder: (context, constraints) {
+                    final edit = OutlinedButton(
+                      style: OutlinedButton.styleFrom(
+                        minimumSize: const Size(0, 48),
+                        foregroundColor: AppColors.textDark,
+                        side: const BorderSide(color: AppColors.divider),
                         textStyle: const TextStyle(fontWeight: FontWeight.w400),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(12),
+                        ),
                       ),
                       onPressed: () => Navigator.pop(ctx, 'edit'),
                       child: const Text('编辑'),
-                    ),
-                    FilledButton(
+                    );
+                    final today = FilledButton(
                       style: FilledButton.styleFrom(
-                        minimumSize: const Size(120, 48),
+                        minimumSize: const Size(0, 48),
                         backgroundColor: AppColors.textDark,
                         textStyle: const TextStyle(fontWeight: FontWeight.w400),
                         shape: RoundedRectangleBorder(
@@ -219,8 +248,22 @@ class _LastTimePageState extends State<LastTimePage>
                       ),
                       onPressed: () => Navigator.pop(ctx, 'today'),
                       child: const Text('记为今天'),
-                    ),
-                  ],
+                    );
+                    if (constraints.maxWidth <
+                        240 * MediaQuery.textScalerOf(context).scale(1)) {
+                      return Column(
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
+                        children: [edit, const SizedBox(height: 12), today],
+                      );
+                    }
+                    return Row(
+                      children: [
+                        Expanded(child: edit),
+                        const SizedBox(width: 12),
+                        Expanded(child: today),
+                      ],
+                    );
+                  },
                 ),
               ],
             ),

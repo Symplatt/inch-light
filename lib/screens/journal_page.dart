@@ -104,7 +104,10 @@ class _JournalPageState extends State<_JournalView>
         _exitSelection();
       } else if (!_selecting && delta.dx > 24 && delta.dx > delta.dy.abs()) {
         _swipeStart = null;
-        setState(() => _selecting = true);
+        setState(() {
+          _selecting = true;
+          _selected.add(entry.id);
+        });
       }
     },
     child: Row(

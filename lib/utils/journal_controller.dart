@@ -142,24 +142,9 @@ class JournalController extends quill.QuillController {
       formatSelection(next);
       return;
     }
-    final quote = line.style.attributes[quill.Attribute.blockQuote.key]?.value;
-    bool inList(quill.Line candidate) =>
-        candidate.style.attributes[quill.Attribute.list.key]?.value != null &&
-        candidate.style.attributes[quill.Attribute.blockQuote.key]?.value ==
-            quote;
-    var start = line.documentOffset;
-    var end = start + line.length;
-    while (start > 0) {
-      final previous = document.queryChild(start - 1).node;
-      if (previous is! quill.Line || !inList(previous)) break;
-      start = previous.documentOffset;
-    }
-    while (end < document.length) {
-      final following = document.queryChild(end).node;
-      if (following is! quill.Line || !inList(following)) break;
-      end += following.length;
-    }
-    formatText(start, end - start, next);
+    // A collapsed caret changes only its paragraph. Plain paragraphs split
+    // ordered lists naturally, so each remaining segment restarts at one.
+    formatText(line.documentOffset, line.length - 1, next);
   }
 
   void insertDivider() {
