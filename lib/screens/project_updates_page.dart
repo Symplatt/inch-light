@@ -119,6 +119,7 @@ class _ProjectUpdatesPageState extends State<ProjectUpdatesPage> {
     final result = await showDialog<({String id, String action})>(
       context: context,
       builder: (ctx) => AppAlertDialog(
+        constraints: appListDialogConstraints,
         title: const Text('切换项目'),
         contentPadding: appSelectionContentPadding,
         content: SizedBox(
@@ -253,11 +254,25 @@ class _ProjectUpdatesPageState extends State<ProjectUpdatesPage> {
                       ),
                     ),
                     const SizedBox(width: 4),
-                    const Icon(Icons.expand_more, size: 18),
+                    const Icon(
+                      Icons.expand_more,
+                      size: 18,
+                      color: AppColors.textGrey,
+                    ),
                   ],
                 ),
               ),
         actions: [
+          SizedBox(
+            width: 40,
+            child: IconButton(
+              tooltip: '清空当前项目更新',
+              onPressed: project == null || updates.isEmpty
+                  ? null
+                  : () => _clearUpdates(project),
+              icon: const Icon(Icons.playlist_remove),
+            ),
+          ),
           SizedBox(
             width: 40,
             child: IconButton(
@@ -272,16 +287,6 @@ class _ProjectUpdatesPageState extends State<ProjectUpdatesPage> {
               tooltip: '新增更新',
               onPressed: project == null ? null : () => _openNote(project),
               icon: const Icon(Icons.add),
-            ),
-          ),
-          SizedBox(
-            width: 40,
-            child: IconButton(
-              tooltip: '清空当前项目更新',
-              onPressed: project == null || updates.isEmpty
-                  ? null
-                  : () => _clearUpdates(project),
-              icon: const Icon(Icons.playlist_remove),
             ),
           ),
           SizedBox(
@@ -380,34 +385,17 @@ class _ProjectUpdatesPageState extends State<ProjectUpdatesPage> {
                                   crossAxisAlignment:
                                       CrossAxisAlignment.stretch,
                                   children: [
-                                    Row(
-                                      crossAxisAlignment:
-                                          CrossAxisAlignment.baseline,
-                                      textBaseline: TextBaseline.alphabetic,
-                                      children: [
-                                        Expanded(
-                                          child: Text(
-                                            update.version,
-                                            maxLines: 1,
-                                            overflow: TextOverflow.ellipsis,
-                                            style: TextStyle(
-                                              fontSize: 16,
-                                              height: 1.25,
-                                              decoration: update.completed
-                                                  ? TextDecoration.lineThrough
-                                                  : TextDecoration.none,
-                                            ),
-                                          ),
-                                        ),
-                                        const SizedBox(width: 8),
-                                        Text(
-                                          toolDateText(update.editedAt),
-                                          style: const TextStyle(
-                                            fontSize: 12,
-                                            color: AppColors.textGrey,
-                                          ),
-                                        ),
-                                      ],
+                                    Text(
+                                      update.version,
+                                      maxLines: 1,
+                                      overflow: TextOverflow.ellipsis,
+                                      style: TextStyle(
+                                        fontSize: 16,
+                                        height: 1.25,
+                                        decoration: update.completed
+                                            ? TextDecoration.lineThrough
+                                            : TextDecoration.none,
+                                      ),
                                     ),
                                     if (preview.trim().isNotEmpty) ...[
                                       const SizedBox(height: 8),
@@ -461,7 +449,9 @@ class _ProjectNameDialogState extends State<_ProjectNameDialog> {
       controller: _name,
       enabled: enabled,
       autofocus: true,
-      decoration: const InputDecoration(labelText: '项目名称'),
+      decoration: widget.project == null
+          ? toolInputDecoration('项目名称')
+          : const InputDecoration(labelText: '项目名称'),
       validator: requiredToolText,
     ),
     save: () => widget.provider.updateProjectUpdates((data) {

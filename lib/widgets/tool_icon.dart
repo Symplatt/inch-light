@@ -1,5 +1,28 @@
 import 'package:flutter/material.dart';
 
+const _grayscale = ColorFilter.matrix([
+  0.2126,
+  0.7152,
+  0.0722,
+  0,
+  0,
+  0.2126,
+  0.7152,
+  0.0722,
+  0,
+  0,
+  0.2126,
+  0.7152,
+  0.0722,
+  0,
+  0,
+  0,
+  0,
+  0,
+  1,
+  0,
+]);
+
 class ToolIcon extends StatelessWidget {
   const ToolIcon({super.key, required this.meal, this.toolId});
   final bool meal;
@@ -10,24 +33,14 @@ class ToolIcon extends StatelessWidget {
     child: SizedBox.square(
       dimension: 44,
       child: toolId == 'academic_peers'
-          ? ClipOval(
-              child: Stack(
-                children: [
-                  Positioned(
-                    // Clip just inside the supplied circle so only its portrait is shown.
-                    left: -77 * 44 / 1100,
-                    top: -77 * 44 / 1100,
-                    width: 1254 * 44 / 1100,
-                    height: 1254 * 44 / 1100,
-                    child: Image.asset('assets/academic_peers_reference.png'),
-                  ),
-                ],
-              ),
-            )
+          ? const CustomPaint(painter: _AcademicPeersIconPainter())
           : toolId == 'project_updates'
-          ? Image.asset(
-              'assets/project_updates_reference.png',
-              fit: BoxFit.contain,
+          ? ColorFiltered(
+              colorFilter: _grayscale,
+              child: Image.asset(
+                'assets/project_updates_reference.png',
+                fit: BoxFit.contain,
+              ),
             )
           : toolId == 'last_time'
           ? const CustomPaint(painter: _LastTimeIconPainter())
@@ -46,7 +59,10 @@ class ToolIcon extends StatelessWidget {
                         top: -250 * 44 / 950,
                         width: 1254 * 44 / 950,
                         height: 1254 * 44 / 950,
-                        child: Image.asset('assets/work_log_reference.png'),
+                        child: ColorFiltered(
+                          colorFilter: _grayscale,
+                          child: Image.asset('assets/work_log_reference.png'),
+                        ),
                       ),
                     ],
                   ),
@@ -55,6 +71,52 @@ class ToolIcon extends StatelessWidget {
             ),
     ),
   );
+}
+
+class _AcademicPeersIconPainter extends CustomPainter {
+  const _AcademicPeersIconPainter();
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    canvas.save();
+    canvas.scale(size.width / 44, size.height / 44);
+    final outline = Paint()
+      ..color = const Color(0xFF454545)
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 1.7
+      ..strokeJoin = StrokeJoin.round
+      ..strokeCap = StrokeCap.round;
+    final tint = Paint()..color = const Color(0xFFE9E9E9);
+    for (final head in [
+      const Offset(10, 17),
+      const Offset(22, 12),
+      const Offset(34, 17),
+    ]) {
+      canvas.drawCircle(head, 3.8, tint);
+      canvas.drawCircle(head, 3.8, outline);
+    }
+    canvas.drawPath(
+      Path()
+        ..moveTo(15, 22)
+        ..quadraticBezierTo(22, 15, 29, 22),
+      outline,
+    );
+    final book = Path()
+      ..moveTo(5, 24)
+      ..quadraticBezierTo(14, 22, 22, 28)
+      ..quadraticBezierTo(30, 22, 39, 24)
+      ..lineTo(39, 34)
+      ..quadraticBezierTo(30, 33, 22, 38)
+      ..quadraticBezierTo(14, 33, 5, 34)
+      ..close();
+    canvas.drawPath(book, tint);
+    canvas.drawPath(book, outline);
+    canvas.drawLine(const Offset(22, 28), const Offset(22, 38), outline);
+    canvas.restore();
+  }
+
+  @override
+  bool shouldRepaint(_AcademicPeersIconPainter oldDelegate) => false;
 }
 
 class _LastTimeIconPainter extends CustomPainter {

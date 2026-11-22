@@ -2,6 +2,11 @@ import 'package:flutter/material.dart';
 
 // Simple choice lists keep a larger title gap and a shared text left edge.
 const appSelectionContentPadding = EdgeInsets.fromLTRB(24, 16, 24, 16);
+const appListDialogMaxHeight = 454.0;
+const appListDialogConstraints = BoxConstraints(
+  minWidth: 280,
+  maxHeight: appListDialogMaxHeight,
+);
 
 /// Dialog surfaces use their measured height, not their content's estimate.
 double dialogCenterFraction(double ratio) => switch (ratio) {

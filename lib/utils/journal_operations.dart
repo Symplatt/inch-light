@@ -270,9 +270,16 @@ bool _sentenceBeforePair(List<_Atom> atoms, int end) {
   return false;
 }
 
+final _standaloneWebUrl = RegExp(r'^https?://[^\s]+$', caseSensitive: false);
+
 void _normalizeSentenceEnding(List<_Atom> atoms) {
   var last = atoms.lastIndexWhere((a) => !_space(a));
   if (last < 0) return;
+  if (_standaloneWebUrl.hasMatch(
+    atoms.map((atom) => atom.value).join().trim(),
+  )) {
+    return;
+  }
   final first = atoms.firstWhere((a) => !_space(a));
   const quotes = {
     '“': '”',

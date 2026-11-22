@@ -97,11 +97,14 @@ class JournalController extends quill.QuillController {
         active.add(false);
       }
     }
-    if (position <= 0 ||
-        position >= active.length ||
-        !active[position - 1] ||
-        !active[position])
-      return false;
+    final before =
+        position > 0 && position <= active.length && active[position - 1];
+    final after = position >= 0 && position < active.length && active[position];
+    if (attribute == quill.Attribute.inlineCode && before != after) {
+      formatSelection(quill.Attribute.clone(attribute, null));
+      return true;
+    }
+    if (!before || !after) return false;
     var start = position - 1;
     var end = position + 1;
     while (start > 0 && active[start - 1]) start--;

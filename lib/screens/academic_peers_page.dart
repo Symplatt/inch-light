@@ -3,6 +3,7 @@ import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 import 'package:uuid/uuid.dart';
 import '../constants/app_colors.dart';
+import '../widgets/app_dialog.dart';
 import '../models/academic_peers.dart';
 import '../providers/app_provider.dart';
 import '../utils/journal_sort.dart';
@@ -346,6 +347,7 @@ class _AcademicDialogState extends State<_AcademicDialog> {
             const SizedBox(width: 12),
             Expanded(
               child: DropdownButtonFormField<String>(
+                menuMaxHeight: appListDialogMaxHeight,
                 initialValue: _degree,
                 isExpanded: true,
                 decoration: _field('类型'),

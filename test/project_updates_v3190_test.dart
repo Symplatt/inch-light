@@ -104,12 +104,11 @@ void main() {
     return provider;
   }
 
-  testWidgets('标题日期同一行，正文删除空白最多两行，右侧按钮已移除', (tester) async {
+  testWidgets('日期在卡片内垂直居中，正文删除空白最多两行，右侧按钮已移除', (tester) async {
     final provider = await showPage(tester);
-    expect(
-      tester.getCenter(find.text('测试版本')).dy,
-      closeTo(tester.getCenter(find.text('2026-11-14')).dy, 5),
-    );
+    final date = find.text('2026-11-14');
+    final card = find.ancestor(of: date, matching: find.byType(InkWell));
+    expect(tester.getCenter(date).dy, closeTo(tester.getCenter(card).dy, 0.01));
     final preview = tester.widget<Text>(find.text('第一行空格第二行正文'));
     expect(preview.maxLines, 2);
     expect(preview.overflow, TextOverflow.ellipsis);

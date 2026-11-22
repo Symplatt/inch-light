@@ -43,7 +43,10 @@ class _TodoVisibilityDialogState extends State<TodoVisibilityDialog> {
     insetPadding: const EdgeInsets.symmetric(horizontal: 24, vertical: 32),
     shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
     child: ConstrainedBox(
-      constraints: const BoxConstraints(maxWidth: 400),
+      constraints: const BoxConstraints(
+        maxWidth: 400,
+        maxHeight: appListDialogMaxHeight,
+      ),
       child: Column(
         mainAxisSize: MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.stretch,

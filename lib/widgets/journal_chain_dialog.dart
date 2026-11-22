@@ -28,11 +28,13 @@ class _JournalChainDialogState extends State<JournalChainDialog> {
 
   @override
   Widget build(BuildContext context) => AppAlertDialog(
+    constraints: appListDialogConstraints,
     title: const Text('连携操作'),
     content: SizedBox(
       width: 360,
-      height: 430,
       child: ReorderableListView.builder(
+        shrinkWrap: true,
+        primary: false,
         buildDefaultDragHandles: false,
         header: const Padding(
           padding: EdgeInsets.only(bottom: 4),

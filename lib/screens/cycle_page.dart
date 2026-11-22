@@ -310,6 +310,24 @@ class _CalendarEditorState extends State<_CalendarEditor> {
   String? _error;
   bool get _editing => widget.countdown != null || widget.cycle != null;
 
+  BoxConstraints? _dialogConstraints(BuildContext context) {
+    if (_editing) return null;
+    final view = View.of(context);
+    final height = MediaQuery.sizeOf(context).height;
+    final safeTop = view.viewPadding.top / view.devicePixelRatio;
+    // Reserve the same space for the keyboard even while it is hidden.
+    final keyboardHeight = height * 0.367;
+    final dialogHeight = (height - safeTop - keyboardHeight - 48).clamp(
+      0.0,
+      appListDialogMaxHeight,
+    );
+    return BoxConstraints(
+      minWidth: 280,
+      minHeight: dialogHeight,
+      maxHeight: dialogHeight,
+    );
+  }
+
   @override
   void initState() {
     super.initState();
@@ -336,6 +354,7 @@ class _CalendarEditorState extends State<_CalendarEditor> {
 
   @override
   Widget build(BuildContext context) => AppAlertDialog(
+    constraints: _dialogConstraints(context),
     title: Text(_editing ? '编辑事项' : '新建时历'),
     titleTextStyle: const TextStyle(
       fontSize: 20,

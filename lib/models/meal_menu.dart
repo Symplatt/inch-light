@@ -1,5 +1,7 @@
 import 'dart:math';
 
+import '../utils/journal_sort.dart';
+
 class MealDish {
   MealDish({
     required this.id,
@@ -68,17 +70,30 @@ class MealMenu {
     return dishes.last;
   }
 
-  List<MealDish> get sortedDishes => [...dishes]
-    ..sort((a, b) {
-      final order = a.lastEaten == null
-          ? (b.lastEaten == null ? 0 : -1)
-          : b.lastEaten == null
-          ? 1
-          : a.lastEaten!.compareTo(b.lastEaten!);
-      return order == 0
-          ? dishes.indexOf(a).compareTo(dishes.indexOf(b))
-          : order;
+  List<MealDish> get sortedDishes {
+    final dated = <({MealDish dish, DateTime day, JournalNameKey name})>[];
+    final result = <MealDish>[];
+    for (final dish in dishes) {
+      final last = dish.lastEaten?.toLocal();
+      if (last == null) {
+        result.add(dish);
+      } else {
+        dated.add((
+          dish: dish,
+          day: DateTime.utc(last.year, last.month, last.day),
+          name: JournalNameKey(dish.name),
+        ));
+      }
+    }
+    dated.sort((a, b) {
+      final dateOrder = a.day.compareTo(b.day);
+      if (dateOrder != 0) return dateOrder;
+      final nameOrder = a.name.compareTo(b.name);
+      return nameOrder != 0 ? nameOrder : a.dish.id.compareTo(b.dish.id);
     });
+    return result..addAll(dated.map((item) => item.dish));
+  }
+
   Map<String, dynamic> toJson() => {
     'id': id,
     'name': name,

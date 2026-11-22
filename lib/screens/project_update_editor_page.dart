@@ -303,7 +303,7 @@ class _ProjectUpdateEditorPageState extends State<ProjectUpdateEditorPage> {
                       .clamp(160.0, 640.0),
             ),
             child: SingleChildScrollView(
-              padding: const EdgeInsets.all(16),
+              padding: const EdgeInsets.fromLTRB(0, 16, 16, 16),
               child: JournalEditorPage(
                 editorKey: _inlineKey,
                 entry: note,
@@ -408,109 +408,260 @@ class _ProjectUpdateEditorPageState extends State<ProjectUpdateEditorPage> {
   Future<void> _manageModules() async {
     if (!await _flushInline() || !mounted) return;
     _stayBrowsing();
+    var sorting = false;
+    var savingOrder = false;
     await showDialog<void>(
       context: context,
-      builder: (dialogContext) => Consumer<AppProvider>(
-        builder: (_, provider, _) {
-          final project = _project;
-          return AppAlertDialog(
-            title: const Text('模块设置'),
-            contentPadding: const EdgeInsets.fromLTRB(8, 16, 8, 16),
-            content: SizedBox(
-              width: 352,
-              child: ConstrainedBox(
-                constraints: BoxConstraints(
-                  maxHeight: MediaQuery.sizeOf(dialogContext).height * 0.55,
-                ),
-                child: ListView(
-                  shrinkWrap: true,
-                  padding: EdgeInsets.zero,
-                  children: [
-                    for (final module in project.modules)
-                      Padding(
-                        padding: const EdgeInsets.only(bottom: 8),
-                        child: Material(
-                          color: const Color(0xFFF7F7F7),
-                          borderRadius: BorderRadius.circular(12),
-                          clipBehavior: Clip.antiAlias,
-                          child: Padding(
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: 16,
-                              vertical: 4,
-                            ),
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.stretch,
-                              children: [
-                                ListTile(
-                                  contentPadding: EdgeInsets.zero,
-                                  minVerticalPadding: 0,
-                                  minTileHeight: 48,
-                                  title: Text(
-                                    module.name,
-                                    style: const TextStyle(
-                                      fontSize: 16,
-                                      fontWeight: FontWeight.w400,
-                                    ),
-                                  ),
-                                  onTap: () => _editModule(module: module),
-                                  onLongPress: () => _deleteModule(module),
-                                  trailing: IconButton(
-                                    tooltip: '新增子模块',
-                                    padding: EdgeInsets.zero,
-                                    alignment: Alignment.centerRight,
-                                    constraints: const BoxConstraints.tightFor(
-                                      width: 48,
-                                      height: 48,
-                                    ),
-                                    onPressed: () =>
-                                        _editModule(parent: module),
-                                    icon: const Icon(Icons.add, size: 20),
-                                  ),
-                                ),
-                                for (final child in module.children)
-                                  ListTile(
-                                    contentPadding: EdgeInsets.zero,
-                                    minVerticalPadding: 0,
-                                    minTileHeight: 48,
-                                    title: Text(
-                                      child.name,
-                                      style: const TextStyle(
-                                        fontSize: 14,
-                                        fontWeight: FontWeight.w400,
-                                      ),
-                                    ),
-                                    onTap: () => _editModule(
-                                      module: child,
-                                      parent: module,
-                                    ),
-                                    onLongPress: () =>
-                                        _deleteModule(child, parent: module),
-                                  ),
-                              ],
-                            ),
-                          ),
+      builder: (dialogContext) => StatefulBuilder(
+        builder: (context, setDialogState) => Consumer<AppProvider>(
+          builder: (_, provider, _) {
+            final modules = _project.modules;
+            Future<void> reorder(
+              List<ProjectModule> siblings,
+              int from,
+              int to, {
+              String? parentId,
+            }) async {
+              if (from == to || savingOrder) return;
+              setDialogState(() => savingOrder = true);
+              final moved = siblings[from];
+              final remaining = [...siblings]..removeAt(from);
+              final beforeId = to < remaining.length ? remaining[to].id : null;
+              try {
+                await _reorderModules(provider, moved.id, beforeId, parentId);
+              } catch (_) {
+                if (mounted) {
+                  ScaffoldMessenger.of(
+                    this.context,
+                  ).showSnackBar(const SnackBar(content: Text('排序保存失败，请重试')));
+                }
+              } finally {
+                if (context.mounted) setDialogState(() => savingOrder = false);
+              }
+            }
+
+            Widget sortingCard(int index, {bool dragging = false}) {
+              final module = modules[index];
+              return _moduleSettingsCard(
+                module,
+                sortIndex: index,
+                dragging: dragging,
+                reorderChildren: (from, to) =>
+                    reorder(module.children, from, to, parentId: module.id),
+              );
+            }
+
+            return AppAlertDialog(
+              constraints: appListDialogConstraints,
+              titlePadding: const EdgeInsets.fromLTRB(24, 12, 24, 0),
+              title: Row(
+                children: [
+                  const Expanded(child: Text('模块设置')),
+                  IconButton(
+                    tooltip: sorting ? '结束排序' : '排序',
+                    onPressed: savingOrder || modules.isEmpty
+                        ? null
+                        : () => setDialogState(() => sorting = !sorting),
+                    icon: Icon(sorting ? Icons.check : Icons.sort, size: 20),
+                  ),
+                ],
+              ),
+              contentPadding: const EdgeInsets.fromLTRB(24, 8, 24, 16),
+              content: SizedBox(
+                width: 320,
+                child: sorting
+                    ? IgnorePointer(
+                        ignoring: savingOrder,
+                        child: ReorderableListView(
+                          buildDefaultDragHandles: false,
+                          shrinkWrap: true,
+                          padding: EdgeInsets.zero,
+                          onReorderItem: (from, to) =>
+                              reorder(modules, from, to),
+                          proxyDecorator: (_, index, _) =>
+                              sortingCard(index, dragging: true),
+                          children: [
+                            for (var index = 0; index < modules.length; index++)
+                              sortingCard(index),
+                          ],
                         ),
+                      )
+                    : ListView(
+                        shrinkWrap: true,
+                        padding: EdgeInsets.zero,
+                        children: [
+                          for (final module in modules)
+                            _moduleSettingsCard(module),
+                        ],
                       ),
-                  ],
+              ),
+              actions: [
+                if (!sorting)
+                  TextButton(
+                    onPressed: () => _editModule(),
+                    child: const Text('新增模块'),
+                  ),
+                TextButton(
+                  onPressed: savingOrder
+                      ? null
+                      : () => Navigator.pop(dialogContext),
+                  child: const Text('完成'),
                 ),
-              ),
-            ),
-            actions: [
-              TextButton(
-                onPressed: () => _editModule(),
-                child: const Text('新增模块'),
-              ),
-              TextButton(
-                onPressed: () => Navigator.pop(dialogContext),
-                child: const Text('完成'),
-              ),
-            ],
-          );
-        },
+              ],
+            );
+          },
+        ),
       ),
     );
     if (mounted) _stayBrowsing();
   }
+
+  Future<void> _reorderModules(
+    AppProvider provider,
+    String movedId,
+    String? beforeId,
+    String? parentId,
+  ) => provider.updateProjectUpdates((data) {
+    final project = data.projects.firstWhere((p) => p.id == widget.project.id);
+    final modules = [...project.modules];
+    final parentIndex = modules.indexWhere((module) => module.id == parentId);
+    if (parentId != null && parentIndex == -1) return data;
+    final parent = parentIndex == -1 ? null : modules[parentIndex];
+    final siblings = parent == null ? modules : [...parent.children];
+    final from = siblings.indexWhere((module) => module.id == movedId);
+    if (from == -1) return data;
+    final moved = siblings.removeAt(from);
+    final to = siblings.indexWhere((module) => module.id == beforeId);
+    siblings.insert(to == -1 ? siblings.length : to, moved);
+    if (parent != null) {
+      modules[parentIndex] = ProjectModule(
+        id: parent.id,
+        name: parent.name,
+        children: siblings,
+      );
+    }
+    return data.replace(project.withModules(modules));
+  });
+
+  Widget _moduleSettingsCard(
+    ProjectModule module, {
+    int? sortIndex,
+    bool dragging = false,
+    ReorderCallback? reorderChildren,
+  }) => Padding(
+    key: ValueKey(module.id),
+    padding: const EdgeInsets.only(bottom: 8),
+    child: Material(
+      color: const Color(0xFFF7F7F7),
+      borderRadius: dragging ? BorderRadius.zero : BorderRadius.circular(12),
+      elevation: dragging ? 6 : 0,
+      clipBehavior: Clip.antiAlias,
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(16, 4, 0, 4),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            _moduleSettingsTile(module, sortIndex: sortIndex),
+            if (sortIndex == null)
+              for (final child in module.children)
+                _moduleSettingsTile(child, parent: module),
+            if (sortIndex != null && module.children.isNotEmpty)
+              ReorderableListView(
+                primary: false,
+                physics: const NeverScrollableScrollPhysics(),
+                shrinkWrap: true,
+                padding: EdgeInsets.zero,
+                buildDefaultDragHandles: false,
+                onReorderItem: reorderChildren,
+                children: [
+                  for (final (index, child) in module.children.indexed)
+                    _moduleSettingsTile(
+                      child,
+                      parent: module,
+                      sortIndex: index,
+                    ),
+                ],
+              ),
+          ],
+        ),
+      ),
+    ),
+  );
+
+  Widget _moduleSettingsTile(
+    ProjectModule module, {
+    ProjectModule? parent,
+    int? sortIndex,
+  }) {
+    final isChild = parent != null;
+    final name = Text(
+      module.name,
+      style: TextStyle(
+        fontSize: isChild ? 14 : 16,
+        fontWeight: FontWeight.w400,
+      ),
+    );
+    final tile = ListTile(
+      contentPadding: EdgeInsets.zero,
+      minVerticalPadding: 0,
+      minTileHeight: isChild ? 40 : 48,
+      title: isChild
+          ? Row(
+              crossAxisAlignment: CrossAxisAlignment.baseline,
+              textBaseline: TextBaseline.alphabetic,
+              children: [
+                const ExcludeSemantics(
+                  child: Text('•', style: TextStyle(fontSize: 12)),
+                ),
+                const SizedBox(width: 8),
+                Expanded(child: name),
+              ],
+            )
+          : name,
+      onLongPress: sortIndex == null
+          ? () => _editModule(module: module, parent: parent)
+          : null,
+      trailing: sortIndex != null
+          ? SizedBox(
+              width: 48,
+              child: Icon(
+                Icons.drag_handle,
+                size: 20,
+                semanticLabel: isChild ? '拖动子模块' : '拖动模块',
+              ),
+            )
+          : isChild
+          ? null
+          : IconButton(
+              tooltip: '新增子模块',
+              onPressed: () => _editModule(parent: module),
+              icon: const Icon(Icons.add, size: 20),
+            ),
+    );
+    if (sortIndex == null) {
+      return _moduleSettingRow(module, tile, parent: parent);
+    }
+    return ReorderableDelayedDragStartListener(
+      key: ValueKey(module.id),
+      index: sortIndex,
+      child: tile,
+    );
+  }
+
+  Widget _moduleSettingRow(
+    ProjectModule module,
+    Widget tile, {
+    ProjectModule? parent,
+  }) => Dismissible(
+    key: ValueKey(module.id),
+    direction: DismissDirection.endToStart,
+    background: const SwipeDeleteBackground(),
+    confirmDismiss: (_) async {
+      await _deleteModule(module, parent: parent);
+      return false;
+    },
+    child: Material(color: const Color(0xFFF7F7F7), child: tile),
+  );
 
   Future<void> _deleteModule(
     ProjectModule module, {
@@ -726,6 +877,7 @@ class _ProjectUpdateEditorPageState extends State<ProjectUpdateEditorPage> {
     numberMeasure.dispose();
     final id = child?.id ?? module.id;
     final collapsed = _collapsedGroups.contains(id);
+    final showEntries = !collapsed && entries.isNotEmpty;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
@@ -745,6 +897,10 @@ class _ProjectUpdateEditorPageState extends State<ProjectUpdateEditorPage> {
                 Expanded(
                   child: InkWell(
                     onTap: () => _toggleGroup(id),
+                    overlayColor: const WidgetStatePropertyAll(
+                      Colors.transparent,
+                    ),
+                    splashFactory: NoSplash.splashFactory,
                     child: ConstrainedBox(
                       constraints: const BoxConstraints(minHeight: 48),
                       child: Row(
@@ -754,16 +910,17 @@ class _ProjectUpdateEditorPageState extends State<ProjectUpdateEditorPage> {
                               child?.name ?? module.name,
                               style: const TextStyle(
                                 fontSize: 16,
-                                fontWeight: FontWeight.w400,
+                                fontWeight: FontWeight.w500,
                               ),
                             ),
                           ),
-                          Transform.translate(
-                            offset: const Offset(8, 0),
-                            child: AnimatedRotation(
-                              turns: collapsed ? 0 : 0.25,
-                              duration: const Duration(milliseconds: 180),
-                              child: const Icon(Icons.chevron_right, size: 20),
+                          AnimatedRotation(
+                            turns: collapsed ? 0 : 0.25,
+                            duration: const Duration(milliseconds: 180),
+                            child: const Icon(
+                              Icons.chevron_right,
+                              size: 20,
+                              color: AppColors.textGrey,
                             ),
                           ),
                         ],
@@ -773,7 +930,7 @@ class _ProjectUpdateEditorPageState extends State<ProjectUpdateEditorPage> {
                 ),
                 IconButton(
                   tooltip: '新增事项',
-                  padding: EdgeInsets.zero,
+                  padding: const EdgeInsets.only(right: 8),
                   alignment: Alignment.centerRight,
                   constraints: const BoxConstraints.tightFor(
                     width: 48,
@@ -786,79 +943,98 @@ class _ProjectUpdateEditorPageState extends State<ProjectUpdateEditorPage> {
             ),
           ),
         ),
-        AnimatedSize(
+        AnimatedSwitcher(
           duration: const Duration(milliseconds: 180),
-          curve: Curves.easeInOut,
-          alignment: Alignment.topCenter,
-          child: collapsed
-              ? const SizedBox.shrink()
-              : Column(
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  children: [
-                    for (var index = 0; index < entries.length; index++) ...[
-                      if (index > 0)
-                        const Divider(height: 1, color: AppColors.divider),
-                      SwipeDeleteCard(
-                        key: ValueKey(entries[index].note.id),
-                        id: entries[index].note.id,
-                        bottomMargin: 0,
-                        onDeleted: () => _deleteItem(entries[index].note.id),
-                        child: Material(
-                          color: Colors.white,
-                          child: InkWell(
-                            onTap: () =>
-                                _editItem(module, child, entries[index]),
-                            child: Padding(
-                              padding: const EdgeInsets.symmetric(vertical: 12),
-                              child: Row(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  SizedBox(
-                                    width: leadingWidth,
-                                    child: Text(
-                                      '${index + 1}.',
-                                      textAlign: TextAlign.left,
-                                      style: const TextStyle(
-                                        fontSize: 14,
-                                        height: 1.5,
+          switchInCurve: Curves.easeInOut,
+          switchOutCurve: Curves.easeInOut,
+          transitionBuilder: (child, animation) => SizeTransition(
+            sizeFactor: animation,
+            alignment: Alignment.topCenter,
+            child: FadeTransition(opacity: animation, child: child),
+          ),
+          layoutBuilder: (current, previous) => Stack(
+            alignment: Alignment.topCenter,
+            children: [
+              for (final child in previous)
+                IgnorePointer(key: child.key, child: child),
+              ?current,
+            ],
+          ),
+          child: showEntries
+              ? Padding(
+                  key: const ValueKey('entries'),
+                  padding: const EdgeInsets.only(right: 8),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      for (var index = 0; index < entries.length; index++) ...[
+                        if (index > 0)
+                          const Divider(height: 1, color: Color(0xFFF1F2F4)),
+                        SwipeDeleteCard(
+                          key: ValueKey(entries[index].note.id),
+                          id: entries[index].note.id,
+                          bottomMargin: 0,
+                          onDeleted: () => _deleteItem(entries[index].note.id),
+                          child: Material(
+                            color: Colors.white,
+                            child: InkWell(
+                              onTap: () =>
+                                  _editItem(module, child, entries[index]),
+                              child: Padding(
+                                padding: const EdgeInsets.symmetric(
+                                  vertical: 12,
+                                ),
+                                child: Row(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    SizedBox(
+                                      width: leadingWidth,
+                                      child: Text(
+                                        '${index + 1}.',
+                                        textAlign: TextAlign.left,
+                                        style: const TextStyle(
+                                          fontSize: 14,
+                                          height: 1.5,
+                                        ),
                                       ),
                                     ),
-                                  ),
-                                  Expanded(
-                                    child: Column(
-                                      crossAxisAlignment:
-                                          CrossAxisAlignment.stretch,
-                                      children: [
-                                        if (entries[index].note.title
-                                            .trim()
-                                            .isNotEmpty) ...[
+                                    Expanded(
+                                      child: Column(
+                                        crossAxisAlignment:
+                                            CrossAxisAlignment.stretch,
+                                        children: [
+                                          if (entries[index].note.title
+                                              .trim()
+                                              .isNotEmpty) ...[
+                                            Text(
+                                              entries[index].note.title,
+                                              style: const TextStyle(
+                                                fontSize: 15,
+                                              ),
+                                            ),
+                                            const SizedBox(height: 6),
+                                          ],
                                           Text(
-                                            entries[index].note.title,
+                                            entries[index].note.content,
                                             style: const TextStyle(
-                                              fontSize: 15,
+                                              fontSize: 14,
+                                              height: 1.5,
                                             ),
                                           ),
-                                          const SizedBox(height: 6),
                                         ],
-                                        Text(
-                                          entries[index].note.content,
-                                          style: const TextStyle(
-                                            fontSize: 14,
-                                            height: 1.5,
-                                          ),
-                                        ),
-                                      ],
+                                      ),
                                     ),
-                                  ),
-                                ],
+                                  ],
+                                ),
                               ),
                             ),
                           ),
                         ),
-                      ),
+                      ],
                     ],
-                  ],
-                ),
+                  ),
+                )
+              : const SizedBox.shrink(key: ValueKey('empty')),
         ),
       ],
     );
@@ -900,7 +1076,10 @@ class _ProjectUpdateEditorPageState extends State<ProjectUpdateEditorPage> {
             IconButton(
               tooltip: allCollapsed ? '全部展开' : '全部收起',
               onPressed: project.modules.isEmpty ? null : _toggleAllGroups,
-              icon: Icon(allCollapsed ? Icons.unfold_more : Icons.unfold_less),
+              icon: Icon(
+                allCollapsed ? Icons.unfold_more : Icons.unfold_less,
+                color: AppColors.textGrey,
+              ),
             ),
             IconButton(
               tooltip: '模块设置',
@@ -957,7 +1136,7 @@ class _ProjectUpdateEditorPageState extends State<ProjectUpdateEditorPage> {
                           Transform.translate(
                             offset: Offset(
                               0,
-                              MediaQuery.textScalerOf(context).scale(0.7),
+                              MediaQuery.textScalerOf(context).scale(0.7) - 1,
                             ),
                             child: Text(
                               toolDateText(update?.editedAt ?? _date),
@@ -972,7 +1151,7 @@ class _ProjectUpdateEditorPageState extends State<ProjectUpdateEditorPage> {
                           Transform.translate(
                             offset: Offset(
                               0,
-                              -MediaQuery.textScalerOf(context).scale(4),
+                              3 - MediaQuery.textScalerOf(context).scale(4),
                             ),
                             child: Text(
                               '$wordCount字',
@@ -1022,12 +1201,22 @@ class _ProjectUpdateEditorPageState extends State<ProjectUpdateEditorPage> {
                   ),
                 for (final module in project.modules)
                   Container(
+                    key: ValueKey(module.id),
                     margin: const EdgeInsets.only(bottom: 16),
-                    padding: const EdgeInsets.all(16),
+                    padding: const EdgeInsets.fromLTRB(16, 16, 8, 16),
                     decoration: BoxDecoration(
                       color: AppColors.surface,
                       borderRadius: BorderRadius.circular(16),
-                      border: Border.all(color: AppColors.divider),
+                      border: Border.all(
+                        color:
+                            items.any(
+                              (item) =>
+                                  item.moduleId == module.id &&
+                                  projectUpdateItemHasContent(item),
+                            )
+                            ? const Color(0xFFDDDFE3)
+                            : AppColors.divider,
+                      ),
                     ),
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -1042,9 +1231,12 @@ class _ProjectUpdateEditorPageState extends State<ProjectUpdateEditorPage> {
                               : Column(
                                   children: [
                                     for (final child in module.children) ...[
-                                      const Divider(
-                                        height: 16,
-                                        color: AppColors.divider,
+                                      const Padding(
+                                        padding: EdgeInsets.only(right: 8),
+                                        child: Divider(
+                                          height: 16,
+                                          color: AppColors.divider,
+                                        ),
                                       ),
                                       _group(module, child, items),
                                     ],

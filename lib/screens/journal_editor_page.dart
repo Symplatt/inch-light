@@ -672,23 +672,26 @@ class JournalEditorState extends State<_JournalEditorView>
     _stayBrowsing();
     final choice = await showModalBottomSheet<String>(
       context: context,
+      constraints: const BoxConstraints(maxHeight: appListDialogMaxHeight),
       requestFocus: false,
       builder: (context) => SafeArea(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            ListTile(
-              leading: const Icon(Icons.copy_outlined),
-              title: const Text('复制 Markdown'),
-              onTap: () => Navigator.pop(context, 'markdown'),
-            ),
-            if (!widget.projectMode)
+        child: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
               ListTile(
-                leading: const Icon(Icons.image_outlined),
-                title: const Text('导出长图'),
-                onTap: () => Navigator.pop(context, 'image'),
+                leading: const Icon(Icons.copy_outlined),
+                title: const Text('复制 Markdown'),
+                onTap: () => Navigator.pop(context, 'markdown'),
               ),
-          ],
+              if (!widget.projectMode)
+                ListTile(
+                  leading: const Icon(Icons.image_outlined),
+                  title: const Text('导出长图'),
+                  onTap: () => Navigator.pop(context, 'image'),
+                ),
+            ],
+          ),
         ),
       ),
     );
@@ -826,6 +829,8 @@ class JournalEditorState extends State<_JournalEditorView>
   quill.QuillEditor? _bodyWidget;
 
   Widget _bodyEditor(BuildContext context) {
+    final bodyFontSize =
+        _pageStyle.fontSize - (widget.projectMode && widget.inline ? 1 : 0);
     final configuration = (
       _editor.document,
       widget.inline ? View.of(context).viewInsets.bottom : 0.0,
@@ -899,7 +904,7 @@ class JournalEditorState extends State<_JournalEditorView>
           checkboxKey: ['checked', 'unchecked'].contains(config.attribute.value)
               ? _checkboxKeys.putIfAbsent(node.documentOffset, GlobalKey.new)
               : null,
-          textStyle: journalBlock(_pageStyle.fontSize).style.copyWith(
+          textStyle: journalBlock(bodyFontSize).style.copyWith(
             letterSpacing: _pageStyle.letterSpacing,
             height: _pageStyle.lineHeight,
           ),
@@ -959,6 +964,9 @@ class JournalEditorState extends State<_JournalEditorView>
         ],
         customStyles: journalStyles(
           fontSize: _pageStyle.fontSize,
+          bodyFontSize: widget.projectMode && widget.inline
+              ? bodyFontSize
+              : null,
           letterSpacing: _pageStyle.letterSpacing,
           lineHeight: _pageStyle.lineHeight,
           paragraphSpacing: _pageStyle.paragraphSpacing,
@@ -980,8 +988,12 @@ class JournalEditorState extends State<_JournalEditorView>
           onPressed: _undo.isEmpty ? null : () => _history(false),
           padding: projectInline ? EdgeInsets.zero : const EdgeInsets.all(8),
           alignment: projectInline ? Alignment.centerLeft : Alignment.center,
+          constraints: projectInline
+              ? const BoxConstraints.tightFor(width: 48, height: 48)
+              : null,
           icon: Transform.translate(
-            offset: Offset(projectInline ? -5.7 : 0, 0),
+            // The hit area starts at the dialog edge; align the stroke with the body.
+            offset: Offset(projectInline ? 14.4 : 0, 0),
             child: Transform.scale(
               alignment: projectInline
                   ? Alignment.centerLeft
@@ -994,9 +1006,20 @@ class JournalEditorState extends State<_JournalEditorView>
         IconButton(
           tooltip: '取消撤回',
           onPressed: _redo.isEmpty ? null : () => _history(true),
-          icon: Transform.scale(
-            scale: widget.projectMode ? 0.75 : 1,
-            child: const JournalActionIcon(JournalActionSymbol.redo),
+          padding: projectInline ? EdgeInsets.zero : const EdgeInsets.all(8),
+          alignment: projectInline ? Alignment.centerLeft : Alignment.center,
+          constraints: projectInline
+              ? const BoxConstraints.tightFor(width: 48, height: 48)
+              : null,
+          icon: Transform.translate(
+            offset: Offset(projectInline ? -1.5 : 0, 0),
+            child: Transform.scale(
+              alignment: projectInline
+                  ? Alignment.centerLeft
+                  : Alignment.center,
+              scale: widget.projectMode ? 0.75 : 1,
+              child: const JournalActionIcon(JournalActionSymbol.redo),
+            ),
           ),
         ),
       ],
@@ -1018,7 +1041,7 @@ class JournalEditorState extends State<_JournalEditorView>
           onPressed: _editTags,
           icon: const JournalActionIcon(JournalActionSymbol.tags),
         ),
-      if (keyboardVisible)
+      if (keyboardVisible && !projectInline)
         IconButton(
           tooltip: '确定',
           onPressed: _finish,
@@ -1026,8 +1049,8 @@ class JournalEditorState extends State<_JournalEditorView>
             scale: widget.projectMode ? 0.75 : 1,
             child: const JournalActionIcon(JournalActionSymbol.done),
           ),
-        )
-      else
+        ),
+      if (!keyboardVisible)
         TooltipTheme(
           data: const TooltipThemeData(triggerMode: TooltipTriggerMode.manual),
           child: GestureDetector(
@@ -1050,7 +1073,7 @@ class JournalEditorState extends State<_JournalEditorView>
                             (MediaQuery.textScalerOf(context).scale(15) - 15) *
                                 6)
                         .clamp(224.0, MediaQuery.sizeOf(context).width - 24),
-              ),
+              ).copyWith(maxHeight: appListDialogMaxHeight),
               child: const Padding(
                 padding: EdgeInsets.all(12),
                 child: Icon(Icons.auto_fix_high_outlined),
@@ -1089,6 +1112,12 @@ class JournalEditorState extends State<_JournalEditorView>
                   ),
                 ),
                 TextButton(
+                  style: projectInline
+                      ? TextButton.styleFrom(
+                          padding: EdgeInsets.zero,
+                          alignment: Alignment.centerRight,
+                        )
+                      : null,
                   onPressed: () async {
                     if (await _save() && mounted) {
                       _stayBrowsing();
@@ -1099,27 +1128,38 @@ class JournalEditorState extends State<_JournalEditorView>
                 ),
               ],
             ),
-            if (_title.text.isNotEmpty) Text(_title.text),
-            Listener(
-              onPointerDown: (_) {
-                _editingScope.descendantsAreFocusable = true;
-                if (!_allowDocumentFocus) {
-                  setState(() => _allowDocumentFocus = true);
-                }
-              },
-              child: FocusScope(
-                node: _editingScope,
-                descendantsAreFocusable: _allowDocumentFocus,
-                child: _bodyEditor(context),
+            Padding(
+              padding: projectInline
+                  ? const EdgeInsets.only(left: 16)
+                  : EdgeInsets.zero,
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  if (_title.text.isNotEmpty) Text(_title.text),
+                  Listener(
+                    onPointerDown: (_) {
+                      _editingScope.descendantsAreFocusable = true;
+                      if (!_allowDocumentFocus) {
+                        setState(() => _allowDocumentFocus = true);
+                      }
+                    },
+                    child: FocusScope(
+                      node: _editingScope,
+                      descendantsAreFocusable: _allowDocumentFocus,
+                      child: _bodyEditor(context),
+                    ),
+                  ),
+                  if (keyboardVisible)
+                    JournalFormatBar(
+                      projectMode: widget.projectMode,
+                      alignToBody: projectInline,
+                      controller: _editor,
+                      onFormat: focusBody,
+                      onTable: _insertTable,
+                    ),
+                ],
               ),
             ),
-            if (keyboardVisible)
-              JournalFormatBar(
-                projectMode: widget.projectMode,
-                controller: _editor,
-                onFormat: focusBody,
-                onTable: _insertTable,
-              ),
           ],
         ),
       );
@@ -1285,11 +1325,13 @@ class JournalFormatBar extends StatelessWidget {
     this.titleBold,
     this.onTitleBold,
     this.projectMode = false,
+    this.alignToBody = false,
   });
   final quill.QuillController controller;
   final VoidCallback onFormat;
   final VoidCallback onTable;
   final bool projectMode;
+  final bool alignToBody;
   final bool? titleBold;
   final VoidCallback? onTitleBold;
 
@@ -1344,6 +1386,7 @@ class JournalFormatBar extends StatelessWidget {
     builder: (context, constraints) {
       final width = constraints.maxWidth / 7;
       final selectionStyle = controller.getSelectionStyle();
+      var buttonIndex = 0;
       Widget button(
         String label,
         Widget icon, {
@@ -1354,6 +1397,17 @@ class JournalFormatBar extends StatelessWidget {
         final selected =
             selectedOverride ??
             (attribute != null && _active(attribute, selectionStyle));
+        final index = buttonIndex++;
+        // Keep equal hit areas while distributing the seven glyphs between
+        // the painted left and right edges shared with the editor.
+        const glyphInset = 11.0;
+        final glyphCenter =
+            glyphInset + index * (constraints.maxWidth - 2 * glyphInset) / 6;
+        final slotCenter = (index + 0.5) * width;
+        final glyph = SizedBox.square(
+          dimension: 26,
+          child: Center(child: icon),
+        );
         return SizedBox(
           width: width,
           height: 54,
@@ -1379,16 +1433,24 @@ class JournalFormatBar extends StatelessWidget {
                 ),
                 padding: EdgeInsets.zero,
               ),
-              alignment: projectMode && label == '一级标题'
-                  ? Alignment.centerLeft
+              alignment:
+                  !alignToBody &&
+                      projectMode &&
+                      attribute == quill.Attribute.inlineCode
+                  ? Alignment.centerRight
                   : Alignment.center,
-              icon: Transform.translate(
-                offset: Offset(projectMode && label == '一级标题' ? -2 : 0, 0),
-                child: SizedBox.square(
-                  dimension: 26,
-                  child: Center(child: icon),
-                ),
-              ),
+              icon: alignToBody
+                  ? Transform.translate(
+                      offset: Offset(glyphCenter - slotCenter, 0),
+                      transformHitTests: false,
+                      child: glyph,
+                    )
+                  : projectMode && attribute == quill.Attribute.inlineCode
+                  ? Transform.translate(
+                      offset: const Offset(2, 0),
+                      child: glyph,
+                    )
+                  : glyph,
             ),
           ),
         );

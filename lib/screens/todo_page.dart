@@ -599,6 +599,7 @@ class _TodoPageState extends State<TodoPage> {
     final destination = await showDialog<String>(
       context: context,
       builder: (ctx) => AppAlertDialog(
+        constraints: appListDialogConstraints,
         title: const Text('移动事项'),
         contentPadding: appSelectionContentPadding,
         content: SizedBox(

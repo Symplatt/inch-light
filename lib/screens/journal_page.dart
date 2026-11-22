@@ -335,31 +335,34 @@ class _JournalPageState extends State<_JournalView>
     final provider = context.read<AppProvider>();
     final action = await showModalBottomSheet<String>(
       context: context,
+      constraints: const BoxConstraints(maxHeight: appListDialogMaxHeight),
       builder: (context) => SafeArea(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            ListTile(
-              leading: const Icon(Icons.vertical_align_top),
-              title: Text(entry.isPinned ? '取消置顶' : '置顶'),
-              onTap: () => Navigator.pop(context, 'pin'),
-            ),
-            ListTile(
-              leading: const Icon(Icons.vertical_align_bottom),
-              title: Text(entry.isBottom ? '取消置底' : '置底'),
-              onTap: () => Navigator.pop(context, 'bottom'),
-            ),
-            ListTile(
-              leading: const Icon(Icons.drive_file_move_outline),
-              title: const Text('移动到合集'),
-              onTap: () => Navigator.pop(context, 'move'),
-            ),
-            ListTile(
-              leading: const Icon(Icons.delete_outline),
-              title: const Text('删除'),
-              onTap: () => Navigator.pop(context, 'delete'),
-            ),
-          ],
+        child: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              ListTile(
+                leading: const Icon(Icons.vertical_align_top),
+                title: Text(entry.isPinned ? '取消置顶' : '置顶'),
+                onTap: () => Navigator.pop(context, 'pin'),
+              ),
+              ListTile(
+                leading: const Icon(Icons.vertical_align_bottom),
+                title: Text(entry.isBottom ? '取消置底' : '置底'),
+                onTap: () => Navigator.pop(context, 'bottom'),
+              ),
+              ListTile(
+                leading: const Icon(Icons.drive_file_move_outline),
+                title: const Text('移动到合集'),
+                onTap: () => Navigator.pop(context, 'move'),
+              ),
+              ListTile(
+                leading: const Icon(Icons.delete_outline),
+                title: const Text('删除'),
+                onTap: () => Navigator.pop(context, 'delete'),
+              ),
+            ],
+          ),
         ),
       ),
     );

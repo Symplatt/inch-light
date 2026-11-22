@@ -29,7 +29,10 @@ Future<void> showTaskActionDialog(
     insetPadding: const EdgeInsets.symmetric(horizontal: 24, vertical: 32),
     shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
     child: ConstrainedBox(
-      constraints: const BoxConstraints(maxWidth: 360),
+      constraints: const BoxConstraints(
+        maxWidth: 360,
+        maxHeight: appListDialogMaxHeight,
+      ),
       child: SingleChildScrollView(
         child: Padding(
           padding: const EdgeInsets.fromLTRB(12, 12, 12, 16),

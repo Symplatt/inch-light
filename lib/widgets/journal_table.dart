@@ -499,6 +499,11 @@ class _JournalTableState extends State<JournalTable> {
               right: 0,
               child: PopupMenuButton<String>(
                 tooltip: '表格操作',
+                constraints: const BoxConstraints(
+                  minWidth: 112,
+                  maxWidth: 280,
+                  maxHeight: appListDialogMaxHeight,
+                ),
                 onOpened: () => setState(() => _menuOpen = true),
                 onCanceled: () => setState(() => _menuOpen = false),
                 onSelected: _tableAction,

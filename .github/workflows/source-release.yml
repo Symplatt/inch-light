@@ -1,0 +1,33 @@
+name: Source release
+
+on:
+  push:
+    branches: [main]
+    paths: ['.github/workflows/source-release.yml']
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Package and publish current source
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          version=$(sed -n 's/^version: \([^+]*\).*/\1/p' pubspec.yaml)
+          tag="v${version}"
+          archive="inch-light-${version}-source.zip"
+          git archive --format=zip --prefix="inch-light-${version}/" HEAD > "$archive"
+          awk -v version="$version" '
+            $0 ~ "^## \\[" version "\\]" { found=1; next }
+            found && /^## / { exit }
+            found { print }
+          ' CHANGELOG.md > /tmp/release-notes.md
+          printf '\n本次按用户要求仅发布当前源代码压缩包。Android 正式包未构建、未发布。\n' >> /tmp/release-notes.md
+          gh release create "$tag" "$archive" --target "$GITHUB_SHA" --title "$tag" --notes-file /tmp/release-notes.md --latest

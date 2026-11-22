@@ -307,6 +307,13 @@ class _LastTimePageState extends State<LastTimePage>
             .where((i) => _category == null || i.category == _category)
             .toList()
           ..sort((a, b) {
+            int priority(LastTimeItem item) {
+              if (item.period == null) return 1;
+              return item.remainingDays(_now) == 0 ? 0 : 2;
+            }
+
+            final group = priority(a).compareTo(priority(b));
+            if (group != 0) return group;
             final days = b.elapsedDays(_now).compareTo(a.elapsedDays(_now));
             return days == 0
                 ? JournalNameKey(a.name).compareTo(JournalNameKey(b.name))
@@ -536,6 +543,7 @@ class _LastTimeDialogState extends State<_LastTimeDialog> {
           children: [
             Expanded(
               child: DropdownButtonFormField<String>(
+                menuMaxHeight: appListDialogMaxHeight,
                 initialValue: _category,
                 isExpanded: true,
                 decoration: toolInputDecoration('分类'),
@@ -549,6 +557,7 @@ class _LastTimeDialogState extends State<_LastTimeDialog> {
             const SizedBox(width: 12),
             Expanded(
               child: DropdownButtonFormField<bool>(
+                menuMaxHeight: appListDialogMaxHeight,
                 initialValue: _range,
                 isExpanded: true,
                 decoration: toolInputDecoration('日期模式'),

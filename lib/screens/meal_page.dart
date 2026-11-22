@@ -36,7 +36,6 @@ class _MealPageState extends State<MealPage> {
     setState(() => _eating = dishId);
     await _update((data) {
       final menu = data.menus.firstWhere((m) => m.id == menuId);
-      // Preserve each meal's timestamp; today's latest tap sorts after earlier meals.
       return data.replace(
         menu.withDishes(
           menu.dishes
@@ -77,43 +76,126 @@ class _MealPageState extends State<MealPage> {
   }
 
   Future<void> _menus() async {
-    final data = context.read<AppProvider>().meals;
     final id = await showDialog<String>(
       context: context,
-      builder: (ctx) => AppAlertDialog(
-        title: const Text('切换菜单'),
-        contentPadding: appSelectionContentPadding,
-        content: SizedBox(
-          width: 320,
-          child: ListView(
-            padding: EdgeInsets.zero,
-            shrinkWrap: true,
-            children: [
-              for (final menu in data.menus)
-                ListTile(
-                  contentPadding: EdgeInsets.zero,
-                  dense: true,
-                  minTileHeight: 40,
-                  minVerticalPadding: 0,
-                  title: Text(
-                    menu.name,
-                    style: const TextStyle(
-                      fontSize: 14,
-                      fontWeight: FontWeight.w400,
-                    ),
-                  ),
-                  trailing: menu.id == data.selected.id
-                      ? const Icon(Icons.check, size: 20)
-                      : null,
-                  onTap: () => Navigator.pop(ctx, menu.id),
+      builder: (ctx) => Consumer<AppProvider>(
+        builder: (_, provider, _) {
+          final data = provider.meals;
+          return AppAlertDialog(
+            constraints: appListDialogConstraints,
+            titlePadding: const EdgeInsets.fromLTRB(24, 12, 24, 0),
+            title: Row(
+              children: [
+                const Expanded(child: Text('切换菜单')),
+                IconButton(
+                  tooltip: '新增菜单',
+                  onPressed: () => _add(menu: true),
+                  icon: const Icon(Icons.add, size: 20),
                 ),
-            ],
-          ),
-        ),
+              ],
+            ),
+            contentPadding: appSelectionContentPadding,
+            content: SizedBox(
+              width: 320,
+              child: ListView(
+                padding: EdgeInsets.zero,
+                shrinkWrap: true,
+                children: [
+                  for (final menu in data.menus)
+                    Dismissible(
+                      key: ValueKey(menu.id),
+                      direction: data.menus.length > 1
+                          ? DismissDirection.endToStart
+                          : DismissDirection.none,
+                      background: const SwipeDeleteBackground(),
+                      confirmDismiss: (_) async {
+                        await _deleteMenu(ctx, menu);
+                        return false;
+                      },
+                      child: Material(
+                        color: Colors.white,
+                        child: ListTile(
+                          contentPadding: EdgeInsets.zero,
+                          dense: true,
+                          minTileHeight: 40,
+                          minVerticalPadding: 0,
+                          title: Text(
+                            menu.name,
+                            style: const TextStyle(
+                              fontSize: 14,
+                              fontWeight: FontWeight.w400,
+                            ),
+                          ),
+                          trailing: menu.id == data.selected.id
+                              ? const SizedBox(
+                                  width: 48,
+                                  child: Icon(Icons.check, size: 20),
+                                )
+                              : null,
+                          onTap: () => Navigator.pop(ctx, menu.id),
+                          onLongPress: () => _renameMenu(ctx, menu),
+                        ),
+                      ),
+                    ),
+                ],
+              ),
+            ),
+          );
+        },
       ),
     );
     if (id != null && mounted)
       await _update((d) => MealData(menus: d.menus, selectedId: id));
+  }
+
+  void _renameMenu(BuildContext dialogContext, MealMenu menu) {
+    showDialog<void>(
+      context: dialogContext,
+      builder: (_) => _MealNameDialog(
+        title: '重命名菜单',
+        initial: menu.name,
+        save: (name) => context.read<AppProvider>().updateMeals((data) {
+          if (data.menus.any((m) => m.id != menu.id && m.name == name)) {
+            throw StateError('菜单名称已存在');
+          }
+          final current = data.menus.firstWhere((m) => m.id == menu.id);
+          return data.replace(
+            MealMenu(id: current.id, name: name, dishes: current.dishes),
+          );
+        }),
+      ),
+    );
+  }
+
+  Future<void> _deleteMenu(BuildContext dialogContext, MealMenu menu) async {
+    final confirmed = await showDialog<bool>(
+      context: dialogContext,
+      builder: (ctx) => AppAlertDialog(
+        title: const Text('删除菜单'),
+        content: Text('删除「${menu.name}」及其中的菜品和食用记录？'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('取消'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('删除', style: TextStyle(color: AppColors.danger)),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true || !mounted) return;
+    await _update((data) {
+      final menus = data.menus.where((m) => m.id != menu.id).toList();
+      if (menus.isEmpty) return data;
+      return MealData(
+        menus: menus,
+        selectedId: data.selected.id == menu.id
+            ? menus.first.id
+            : data.selected.id,
+      );
+    });
   }
 
   Future<void> _pick() async {
@@ -298,6 +380,7 @@ class _MealPageState extends State<MealPage> {
           }
         },
         child: AppAlertDialog(
+          constraints: appListDialogConstraints,
           title: Text(dish.name),
           content: SizedBox(
             width: 320,
@@ -474,7 +557,9 @@ class _DishListState extends State<_DishList> {
     final target = widget.dishes;
     for (var i = _items.length - 1; i >= 0; i--) {
       final index = target.indexWhere((d) => d.id == _items[i].id);
-      if (index < 0 || target[index].lastEaten != _items[i].lastEaten) {
+      if (index < 0 ||
+          target[index].lastEaten != _items[i].lastEaten ||
+          target[index].name != _items[i].name) {
         final removed = _items.removeAt(i);
         _key.currentState!.removeItem(
           i,
@@ -702,5 +787,6 @@ class _MealBowlPainter extends CustomPainter {
   }
 
   @override
-  bool shouldRepaint(_MealBowlPainter oldDelegate) => color != oldDelegate.color;
+  bool shouldRepaint(_MealBowlPainter oldDelegate) =>
+      color != oldDelegate.color;
 }

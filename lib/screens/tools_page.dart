@@ -128,7 +128,7 @@ class _ToolsPageState extends State<ToolsPage> {
                               color: AppColors.surface,
                               borderRadius: BorderRadius.circular(16),
                               border: Border.all(
-                                color: const Color(0xFFE7E8EB),
+                                color: const Color(0xFFE8E8E8),
                               ),
                             ),
                             child: ToolIcon(

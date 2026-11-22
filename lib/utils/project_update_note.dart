@@ -1,6 +1,7 @@
 import '../models/journal_entry.dart';
 import '../models/project_updates.dart';
 import 'journal_markdown.dart';
+import 'journal_operations.dart';
 
 typedef _UpdateGroup = ({
   ProjectModule module,
@@ -86,7 +87,7 @@ JournalEntry projectUpdateNote(UpdateProject project, ProjectUpdate update) {
 }
 
 String projectUpdateToMarkdown(UpdateProject project, ProjectUpdate update) {
-  if (update.items.isEmpty) return journalToMarkdown(_legacyNote(update));
+  if (update.items.isEmpty) return _exportMarkdown(_legacyNote(update));
   final sections = <String>['# ${update.version.trim().replaceAll('\n', ' ')}'];
   for (final group in _updateGroups(project, update)) {
     sections.add(
@@ -96,24 +97,29 @@ String projectUpdateToMarkdown(UpdateProject project, ProjectUpdate update) {
     for (final (index, item) in group.items.indexed) {
       // A historical title remains prose inside its item instead of becoming
       // another heading alongside the configured module hierarchy.
-      final body = journalToMarkdown(
-        JournalEntry(
-          id: item.note.id,
-          title: '',
-          document: [
-            if (item.note.title.trim().isNotEmpty)
-              {'insert': '${item.note.title}\n'},
-            ...item.note.document,
-          ],
-          createdAt: item.note.createdAt,
-          updatedAt: item.note.updatedAt,
-        ),
-      );
+      final body = _exportMarkdown(item.note, grouped: true);
       entries.add(_numberUpdateBody(body, index + 1));
     }
     if (entries.isNotEmpty) sections.add(entries.join('\n\n'));
   }
   return sections.join('\n\n');
+}
+
+String _exportMarkdown(JournalEntry note, {bool grouped = false}) {
+  final document = transformJournalDocument([
+    if (grouped && note.title.trim().isNotEmpty) {'insert': '${note.title}\n'},
+    ...note.document,
+  ], JournalOperation.removeLeadingPunctuation);
+  return journalToMarkdown(
+    JournalEntry(
+      id: note.id,
+      title: grouped ? '' : note.title,
+      titleBold: note.titleBold,
+      document: document,
+      createdAt: note.createdAt,
+      updatedAt: note.updatedAt,
+    ),
+  );
 }
 
 // Plain-text numbering keeps item hierarchy independent of Markdown lists.

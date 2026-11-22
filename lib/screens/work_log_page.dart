@@ -524,6 +524,7 @@ class _WorkLogColumnsDialogState extends State<_WorkLogColumnsDialog> {
         .select<AppProvider, WorkLogData>((p) => p.workLog)
         .columns;
     return AppAlertDialog(
+      constraints: appListDialogConstraints,
       backgroundColor: AppColors.surface,
       insetPadding: const EdgeInsets.symmetric(horizontal: 24, vertical: 24),
       titlePadding: const EdgeInsets.fromLTRB(20, 12, 12, 8),
@@ -564,8 +565,7 @@ class _WorkLogColumnsDialogState extends State<_WorkLogColumnsDialog> {
           children: [
             if (_error != null)
               Text(_error!, style: const TextStyle(color: AppColors.danger)),
-            ConstrainedBox(
-              constraints: const BoxConstraints(maxHeight: 360),
+            Flexible(
               child: ReorderableListView.builder(
                 shrinkWrap: true,
                 buildDefaultDragHandles: false,

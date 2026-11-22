@@ -13,9 +13,7 @@ class JournalCollectionListDialog extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => AppAlertDialog(
-    constraints: BoxConstraints(
-      maxHeight: MediaQuery.sizeOf(context).height * .65,
-    ),
+    constraints: appListDialogConstraints,
     title: Text(title),
     contentPadding: appSelectionContentPadding,
     content: SizedBox(

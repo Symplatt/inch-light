@@ -21,37 +21,54 @@ quill.DefaultTextBlockStyle journalBlock(double size) =>
 
 quill.DefaultStyles journalStyles({
   double fontSize = 18,
+  double? bodyFontSize,
   double letterSpacing = 0,
   double lineHeight = 1.6,
   double paragraphSpacing = 10,
 }) {
-  quill.DefaultTextBlockStyle block(double size) =>
-      journalBlock(size * fontSize / 18).copyWith(
-        style: journalBlock(
-          size * fontSize / 18,
-        ).style.copyWith(letterSpacing: letterSpacing, height: lineHeight),
-        verticalSpacing: quill.VerticalSpacing(0, paragraphSpacing),
-      );
-  quill.DefaultTextBlockStyle heading(double size, double top) =>
-      block(size).copyWith(
-        style: block(size).style.copyWith(fontWeight: FontWeight.w700),
-        verticalSpacing: quill.VerticalSpacing(top, paragraphSpacing),
-      );
+  quill.DefaultTextBlockStyle block(double size) {
+    final base = journalBlock(size);
+    return base.copyWith(
+      style: base.style.copyWith(
+        letterSpacing: letterSpacing,
+        height: lineHeight,
+      ),
+      verticalSpacing: quill.VerticalSpacing(0, paragraphSpacing),
+    );
+  }
+
+  quill.DefaultTextBlockStyle heading(double size, double top) {
+    final base = block(size * fontSize / 18);
+    return base.copyWith(
+      style: base.style.copyWith(fontWeight: FontWeight.w700),
+      verticalSpacing: quill.VerticalSpacing(top, paragraphSpacing),
+    );
+  }
+
+  final body = block(bodyFontSize ?? fontSize);
   return quill.DefaultStyles(
-    paragraph: block(18),
-    quote: block(18).copyWith(
+    paragraph: body,
+    placeHolder: bodyFontSize == null
+        ? null
+        : body.copyWith(
+            style: body.style.copyWith(
+              color: Colors.grey.withValues(alpha: 0.6),
+            ),
+            verticalSpacing: const quill.VerticalSpacing(0, 0),
+          ),
+    quote: body.copyWith(
       lineSpacing: quill.VerticalSpacing(
         0,
         paragraphSpacing.clamp(4, double.infinity),
       ),
-      style: block(18).style.copyWith(color: const Color(0xFF898989)),
+      style: body.style.copyWith(color: const Color(0xFF898989)),
       horizontalSpacing: const quill.HorizontalSpacing(0, 0),
       decoration: const BoxDecoration(
         border: Border(left: BorderSide(color: Color(0xFFD8D8D8), width: 1)),
       ),
     ),
     lists: quill.DefaultListBlockStyle(
-      block(18).style,
+      body.style,
       const quill.HorizontalSpacing(0, 0),
       quill.VerticalSpacing(0, paragraphSpacing),
       const quill.VerticalSpacing(0, 5),

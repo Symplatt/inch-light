@@ -41,6 +41,7 @@ class ToolSelectField<T> extends StatelessWidget {
     final selected = await showDialog<T>(
       context: context,
       builder: (ctx) => AppAlertDialog(
+        constraints: appListDialogConstraints,
         backgroundColor: Colors.white,
         surfaceTintColor: Colors.transparent,
         title: Text(selectionTitle ?? label),
