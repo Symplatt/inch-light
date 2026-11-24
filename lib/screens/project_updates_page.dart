@@ -1,3 +1,4 @@
+import '../widgets/directional_dismissible.dart';
 import '../utils/clipboard.dart';
 import '../utils/project_update_note.dart';
 import 'project_update_editor_page.dart';
@@ -129,7 +130,7 @@ class _ProjectUpdatesPageState extends State<ProjectUpdatesPage> {
             padding: EdgeInsets.zero,
             children: [
               for (final project in projects)
-                Dismissible(
+                DirectionalDismissible(
                   key: ValueKey(project.id),
                   direction: DismissDirection.endToStart,
                   background: const SwipeDeleteBackground(),

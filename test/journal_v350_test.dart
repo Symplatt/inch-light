@@ -2,6 +2,7 @@ import 'package:inch_light/constants/app_colors.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:inch_light/widgets/directional_dismissible.dart';
 import 'package:flutter_quill/flutter_quill.dart' as quill;
 import 'package:provider/provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -214,7 +215,7 @@ void main() {
   );
 
   testWidgets(
-    'Todo ignores left swipe while journal retains drag and deletion',
+    'Vertical drags stay locked while deliberate left swipes delete',
     (t) async {
       t.view.physicalSize = const Size(400, 900);
       t.view.devicePixelRatio = 1;
@@ -254,12 +255,12 @@ void main() {
         if (!journal) {
           await t.drag(find.text('测试'), const Offset(-600, 0));
           await t.pumpAndSettle();
-          expect(p.normalTasks, hasLength(1));
+          expect(p.normalTasks, isEmpty);
           await t.pumpWidget(const SizedBox());
           p.dispose();
           continue;
         }
-        final dismiss = find.byType(Dismissible).first;
+        final dismiss = find.byType(DirectionalDismissible).first;
         final slide = find
             .descendant(of: dismiss, matching: find.byType(SlideTransition))
             .first;
@@ -267,6 +268,14 @@ void main() {
         void sample() =>
             samples.add(t.widget<SlideTransition>(slide).position.value.dx);
         var gesture = await t.startGesture(t.getCenter(dismiss));
+        await gesture.moveBy(const Offset(-24, 20));
+        await gesture.moveBy(const Offset(-190, 40));
+        await t.pump();
+        expect(t.widget<SlideTransition>(slide).position.value.dx, 0);
+        await gesture.up();
+        await t.pumpAndSettle();
+        expect(p.journalEntries, hasLength(1));
+        gesture = await t.startGesture(t.getCenter(dismiss));
         await gesture.moveBy(const Offset(-20, 0));
         for (final dx in [-24.0, -36.0, 12.0]) {
           await gesture.moveBy(Offset(dx, 0));
@@ -319,9 +328,9 @@ void main() {
         ),
       );
       for (var i = 0; i < 2; i++) {
-        await t.drag(find.byType(Dismissible), const Offset(-300, 0));
+        await t.drag(find.byType(DirectionalDismissible), const Offset(-300, 0));
         await t.pumpAndSettle();
-        expect(find.byType(Dismissible), findsOneWidget);
+        expect(find.byType(DirectionalDismissible), findsOneWidget);
         expect(t.takeException(), isNull);
       }
       expect(calls, 2);

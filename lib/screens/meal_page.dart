@@ -2,8 +2,10 @@ import 'dart:math';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:uuid/uuid.dart';
+import '../widgets/directional_dismissible.dart';
 import '../constants/app_colors.dart';
 import '../models/meal_menu.dart';
+import '../utils/journal_sort.dart';
 import '../providers/app_provider.dart';
 import '../widgets/app_dialog.dart';
 import '../widgets/swipe_delete_card.dart';
@@ -54,6 +56,7 @@ class _MealPageState extends State<MealPage> {
       context: context,
       builder: (_) => _MealNameDialog(
         title: menu ? '新增菜单' : '新增菜品',
+        hint: menu ? '菜单名称' : '菜品名称',
         save: (name) => context.read<AppProvider>().updateMeals((data) {
           if (menu) {
             if (data.menus.any((m) => m.name == name))
@@ -81,6 +84,11 @@ class _MealPageState extends State<MealPage> {
       builder: (ctx) => Consumer<AppProvider>(
         builder: (_, provider, _) {
           final data = provider.meals;
+          final menus = [...data.menus]
+            ..sort(
+              (a, b) =>
+                  JournalNameKey(a.name).compareTo(JournalNameKey(b.name)),
+            );
           return AppAlertDialog(
             constraints: appListDialogConstraints,
             titlePadding: const EdgeInsets.fromLTRB(24, 12, 24, 0),
@@ -101,8 +109,8 @@ class _MealPageState extends State<MealPage> {
                 padding: EdgeInsets.zero,
                 shrinkWrap: true,
                 children: [
-                  for (final menu in data.menus)
-                    Dismissible(
+                  for (final menu in menus)
+                    DirectionalDismissible(
                       key: ValueKey(menu.id),
                       direction: data.menus.length > 1
                           ? DismissDirection.endToStart
@@ -153,6 +161,7 @@ class _MealPageState extends State<MealPage> {
       context: dialogContext,
       builder: (_) => _MealNameDialog(
         title: '重命名菜单',
+        hint: '菜单名称',
         initial: menu.name,
         save: (name) => context.read<AppProvider>().updateMeals((data) {
           if (data.menus.any((m) => m.id != menu.id && m.name == name)) {
@@ -320,6 +329,7 @@ class _MealPageState extends State<MealPage> {
       context: context,
       builder: (_) => _MealNameDialog(
         title: '编辑菜品',
+        hint: '菜品名称',
         initial: dish.name,
         save: (name) => context.read<AppProvider>().updateMeals((data) {
           final current = data.menus.firstWhere((m) => m.id == menu.id);
@@ -682,7 +692,9 @@ class _DishListState extends State<_DishList> {
 }
 
 class _MealNameDialog extends StatefulWidget {
+  final String hint;
   const _MealNameDialog({
+    required this.hint,
     required this.title,
     required this.save,
     this.initial = '',
@@ -737,7 +749,7 @@ class _MealNameDialogState extends State<_MealNameDialog> {
           maxLength: 80,
           textInputAction: TextInputAction.done,
           onSubmitted: (_) => _save(),
-          decoration: InputDecoration(hintText: '名称', errorText: _error),
+          decoration: InputDecoration(hintText: widget.hint, errorText: _error),
         ),
       ),
       actions: [

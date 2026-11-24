@@ -280,21 +280,25 @@ class _LastTimePageState extends State<LastTimePage>
     if (action == 'edit') {
       _edit(item);
     } else if (action == 'today') {
-      try {
-        await context.read<AppProvider>().updateLastTime(
-          (data) => LastTimeData(
-            items: data.items
-                .map((i) => i.id == item.id ? i.doneOn(DateTime.now()) : i)
-                .toList(),
-          ),
-        );
-        if (mounted) _refreshDay();
-      } catch (_) {
-        if (mounted) {
-          ScaffoldMessenger.of(
-            context,
-          ).showSnackBar(const SnackBar(content: Text('保存失败，请重试')));
-        }
+      await _markToday(item);
+    }
+  }
+
+  Future<void> _markToday(LastTimeItem item) async {
+    try {
+      await context.read<AppProvider>().updateLastTime(
+        (data) => LastTimeData(
+          items: data.items
+              .map((i) => i.id == item.id ? i.doneOn(DateTime.now()) : i)
+              .toList(),
+        ),
+      );
+      if (mounted) _refreshDay();
+    } catch (_) {
+      if (mounted) {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(const SnackBar(content: Text('保存失败，请重试')));
       }
     }
   }
@@ -413,6 +417,7 @@ class _LastTimePageState extends State<LastTimePage>
                               child: InkWell(
                                 borderRadius: BorderRadius.circular(16),
                                 onTap: () => _view(item),
+                                onDoubleTap: () => _markToday(item),
                                 onLongPress: () => _edit(item),
                                 child: Padding(
                                   padding: const EdgeInsets.all(16),

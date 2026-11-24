@@ -90,6 +90,9 @@ void main() {
         final codeStart = box(4, 5);
         final codeEnd = box(7, 8);
         final after = box(8, 9);
+        if (ordered) {
+          expect(box(0, 1).left, closeTo(0, .2));
+        }
         // Background geometry must stay within the reserved space, even in lists.
         expect(background.first.left, greaterThanOrEqualTo(before.right - .2));
         expect(background.last.right, lessThanOrEqualTo(after.left + .2));
@@ -111,7 +114,9 @@ void main() {
             TextPosition(offset: i),
             Rect.zero,
           );
-          expect(caret.dx, closeTo(char.left, .3), reason: 'Caret at $i');
+          // At the end of code the caret stays inside the decorative gap.
+          final expectedCaret = i == 8 ? codeEnd.right : char.left;
+          expect(caret.dx, closeTo(expectedCaret, .3), reason: 'Caret at $i');
         }
         final editor = t.widget<quill.QuillEditor>(
           find.byType(quill.QuillEditor),

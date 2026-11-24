@@ -141,6 +141,7 @@ class RichTextProxy extends SingleChildRenderObjectWidget {
     this.textWidthBasis = TextWidthBasis.parent,
     this.textHeightBehavior,
     this.inlineCodeOffsets = const InlineCodeOffsetMapping(),
+    required this.reserveCodeInset,
     super.key,
   });
 
@@ -153,6 +154,7 @@ class RichTextProxy extends SingleChildRenderObjectWidget {
   final TextWidthBasis textWidthBasis;
   final TextHeightBehavior? textHeightBehavior;
   final InlineCodeOffsetMapping inlineCodeOffsets;
+  final bool reserveCodeInset;
 
   @override
   RenderParagraphProxy createRenderObject(BuildContext context) {
@@ -166,7 +168,9 @@ class RichTextProxy extends SingleChildRenderObjectWidget {
       locale,
       textWidthBasis,
       textHeightBehavior,
-    )..inlineCodeOffsets = inlineCodeOffsets;
+    )
+      ..inlineCodeOffsets = inlineCodeOffsets
+      ..reserveCodeInset = reserveCodeInset;
   }
 
   @override
@@ -183,7 +187,8 @@ class RichTextProxy extends SingleChildRenderObjectWidget {
       ..strutStyle = strutStyle
       ..textWidthBasis = textWidthBasis
       ..textHeightBehavior = textHeightBehavior
-      ..inlineCodeOffsets = inlineCodeOffsets;
+      ..inlineCodeOffsets = inlineCodeOffsets
+      ..reserveCodeInset = reserveCodeInset;
   }
 }
 
@@ -212,6 +217,13 @@ class RenderParagraphProxy extends RenderProxyBox
       );
 
   final TextPainter _prototypePainter;
+
+  bool _reserveCodeInset = false;
+  set reserveCodeInset(bool value) {
+    if (_reserveCodeInset == value) return;
+    _reserveCodeInset = value;
+    markNeedsLayout();
+  }
 
   set textStyle(TextStyle value) {
     if (_prototypePainter.text!.style == value) {
@@ -284,7 +296,7 @@ class RenderParagraphProxy extends RenderProxyBox
   double get preferredLineHeight => _prototypePainter.preferredLineHeight;
 
   double get _codeInset {
-    if (inlineCodeOffsets.padding.isEmpty) return 0;
+    if (!_reserveCodeInset) return 0;
     final size = child?.text.style?.fontSize ?? 18;
     return 5 * _prototypePainter.textScaler.scale(size) / size;
   }

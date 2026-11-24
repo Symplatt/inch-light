@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:inch_light/widgets/directional_dismissible.dart';
 import 'package:flutter_quill/flutter_quill.dart' as quill;
 import 'package:provider/provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -487,13 +488,13 @@ void main() {
         ),
       );
       final gesture = await t.startGesture(
-        t.getCenter(find.byType(Dismissible)),
+        t.getCenter(find.byType(DirectionalDismissible)),
       );
       await gesture.moveBy(const Offset(-80, 0));
       await t.pump();
       expect(
         t.getSize(find.byType(SwipeDeleteBackground)),
-        t.getSize(find.byType(Dismissible)),
+        t.getSize(find.byType(DirectionalDismissible)),
       );
       await gesture.cancel();
       await t.pumpAndSettle();

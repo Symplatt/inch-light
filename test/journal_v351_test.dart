@@ -2,6 +2,7 @@ import 'dart:ui' as ui;
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:inch_light/widgets/directional_dismissible.dart';
 import 'package:flutter_quill/flutter_quill.dart' as quill;
 import 'package:provider/provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -171,7 +172,7 @@ void main() {
 
       Future<void> corners(Finder card, double dx) async {
         final dismiss = find
-            .descendant(of: card, matching: find.byType(Dismissible))
+            .descendant(of: card, matching: find.byType(DirectionalDismissible))
             .first;
         final slide = find
             .descendant(of: dismiss, matching: find.byType(SlideTransition))

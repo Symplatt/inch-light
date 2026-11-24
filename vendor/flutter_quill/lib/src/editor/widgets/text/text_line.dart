@@ -230,6 +230,8 @@ class _TextLineState extends State<TextLine> {
       locale: Localizations.localeOf(context),
       textScaler: MediaQuery.textScalerOf(context),
       inlineCodeOffsets: _inlineCodeOffsets,
+      // List items share a marker gutter and must start at the same x position.
+      reserveCodeInset: !isList && padding.isNotEmpty,
       child: child,
     );
   }

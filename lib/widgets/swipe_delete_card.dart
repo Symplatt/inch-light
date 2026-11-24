@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
+import './directional_dismissible.dart';
 import '../constants/app_colors.dart';
 
 /// Paint under the entire rounded card, including the moving edge's corners.
@@ -99,7 +100,7 @@ class _SwipeDeleteCardState extends State<SwipeDeleteCard> {
                           )
                         : SwipeDeleteBackground(fromLeft: _fromLeft),
                   ),
-                Dismissible(
+                DirectionalDismissible(
                   key: ValueKey('${widget.id}:$_attempt'),
                   direction: widget.enabled
                       ? widget.direction

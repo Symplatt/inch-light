@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:uuid/uuid.dart';
 
+import '../widgets/directional_dismissible.dart';
 import '../constants/app_colors.dart';
 import '../models/journal_entry.dart';
 import '../models/project_updates.dart';
@@ -652,7 +653,7 @@ class _ProjectUpdateEditorPageState extends State<ProjectUpdateEditorPage> {
     ProjectModule module,
     Widget tile, {
     ProjectModule? parent,
-  }) => Dismissible(
+  }) => DirectionalDismissible(
     key: ValueKey(module.id),
     direction: DismissDirection.endToStart,
     background: const SwipeDeleteBackground(),
@@ -881,7 +882,7 @@ class _ProjectUpdateEditorPageState extends State<ProjectUpdateEditorPage> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        Dismissible(
+        DirectionalDismissible(
           key: ValueKey('group-header-$id'),
           direction: DismissDirection.endToStart,
           background: const SwipeDeleteBackground(),
@@ -914,13 +915,19 @@ class _ProjectUpdateEditorPageState extends State<ProjectUpdateEditorPage> {
                               ),
                             ),
                           ),
-                          AnimatedRotation(
-                            turns: collapsed ? 0 : 0.25,
-                            duration: const Duration(milliseconds: 180),
-                            child: const Icon(
-                              Icons.chevron_right,
-                              size: 20,
-                              color: AppColors.textGrey,
+                          Transform.translate(
+                            offset: Offset(
+                              0,
+                              -1 / MediaQuery.devicePixelRatioOf(context),
+                            ),
+                            child: AnimatedRotation(
+                              turns: collapsed ? 0 : 0.25,
+                              duration: const Duration(milliseconds: 180),
+                              child: const Icon(
+                                Icons.chevron_right,
+                                size: 20,
+                                color: AppColors.textGrey,
+                              ),
                             ),
                           ),
                         ],

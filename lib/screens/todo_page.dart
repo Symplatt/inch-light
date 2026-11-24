@@ -263,6 +263,23 @@ class _TodoPageState extends State<TodoPage> {
     );
   }
 
+  Future<void> _hideCollection(
+    BuildContext context,
+    AppProvider provider,
+    String collectionId,
+  ) async {
+    await provider.setVisibleTodoCollections({
+      for (final item in provider.collections)
+        if (item.id != collectionId &&
+            provider.isTodoCollectionVisible(item.id))
+          item.id,
+    });
+    if (!context.mounted) return;
+    ScaffoldMessenger.of(context)
+      ..clearSnackBars()
+      ..showSnackBar(const SnackBar(content: Text('已取消显示')));
+  }
+
   Widget _buildCollectionCard(
     BuildContext context,
     TaskCollection collection,
@@ -271,6 +288,7 @@ class _TodoPageState extends State<TodoPage> {
   ) {
     final nearest = provider.nearestDeadline(collection.id);
     return AnimatedOpacity(
+      key: ValueKey(collection.id),
       opacity: _completingCollections.contains(collection.id) ? 0 : 1,
       duration: _collectionCompletionDuration,
       child: GestureDetector(
@@ -281,18 +299,8 @@ class _TodoPageState extends State<TodoPage> {
           id: collection.id,
           bottomMargin: 16,
           direction: DismissDirection.horizontal,
-          onSwipedRight: () async {
-            await provider.setVisibleTodoCollections({
-              for (final item in provider.collections)
-                if (item.id != collection.id &&
-                    provider.isTodoCollectionVisible(item.id))
-                  item.id,
-            });
-            if (!context.mounted) return;
-            ScaffoldMessenger.of(context)
-              ..clearSnackBars()
-              ..showSnackBar(const SnackBar(content: Text('已取消显示')));
-          },
+          onSwipedRight: () =>
+              _hideCollection(context, provider, collection.id),
           onDeleted: () => provider.removeCollection(collection.id),
           child: Container(
             decoration: BoxDecoration(
@@ -449,11 +457,17 @@ class _TodoPageState extends State<TodoPage> {
     final completing = _completing.contains(task.id);
     final checked = task.isCompleted || completing;
     return AnimatedOpacity(
+      key: ValueKey(task.id),
       opacity: completing ? 0 : 1,
       duration: _completionDuration,
       child: SwipeDeleteCard(
         key: ValueKey('task-card-${task.id}'),
-        enabled: !inCollection,
+        direction: inCollection
+            ? DismissDirection.horizontal
+            : DismissDirection.endToStart,
+        onSwipedRight: inCollection
+            ? () => _hideCollection(context, provider, task.collectionId!)
+            : null,
         id: task.id,
         radius: inCollection ? 0 : 16,
         bottomMargin: inCollection ? 0 : 12,
