@@ -3,6 +3,11 @@ import '../models/project_updates.dart';
 import 'journal_markdown.dart';
 import 'journal_operations.dart';
 
+const projectUpdateCleanupOperations = [
+  JournalOperation.removeLeadingPunctuation,
+  JournalOperation.clearBlankLines,
+];
+
 typedef _UpdateGroup = ({
   ProjectModule module,
   ProjectModule? child,
@@ -87,6 +92,13 @@ JournalEntry projectUpdateNote(UpdateProject project, ProjectUpdate update) {
 }
 
 String projectUpdateToMarkdown(UpdateProject project, ProjectUpdate update) {
+  return _projectUpdateMarkdown(
+    project,
+    update,
+  ).split('\n').where((line) => line.trim().isNotEmpty).join('\n');
+}
+
+String _projectUpdateMarkdown(UpdateProject project, ProjectUpdate update) {
   if (update.items.isEmpty) return _exportMarkdown(_legacyNote(update));
   final sections = <String>['# ${update.version.trim().replaceAll('\n', ' ')}'];
   for (final group in _updateGroups(project, update)) {
@@ -106,10 +118,13 @@ String projectUpdateToMarkdown(UpdateProject project, ProjectUpdate update) {
 }
 
 String _exportMarkdown(JournalEntry note, {bool grouped = false}) {
-  final document = transformJournalDocument([
+  var document = <dynamic>[
     if (grouped && note.title.trim().isNotEmpty) {'insert': '${note.title}\n'},
     ...note.document,
-  ], JournalOperation.removeLeadingPunctuation);
+  ];
+  for (final operation in projectUpdateCleanupOperations) {
+    document = transformJournalDocument(document, operation);
+  }
   return journalToMarkdown(
     JournalEntry(
       id: note.id,

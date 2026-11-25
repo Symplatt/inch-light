@@ -24,6 +24,7 @@ import '../providers/app_provider.dart';
 import '../utils/journal_markdown.dart';
 import '../utils/journal_shortcuts.dart';
 import '../utils/journal_operations.dart';
+import '../utils/project_update_note.dart';
 import '../utils/journal_controller.dart';
 import '../utils/journal_editor_cache.dart';
 import '../widgets/journal_body.dart';
@@ -604,40 +605,8 @@ class JournalEditorState extends State<_JournalEditorView>
     List<JournalOperation>? chain,
     bool fromLongPress = false,
   }) async {
-    _stayBrowsing();
-    final operations = chain ?? [operation];
-    List<dynamic> document = _editor.document.toDelta().toJson();
-    var title = _title.text;
-    for (final op in operations) {
-      document = transformJournalDocument(document, op);
-      if (op != JournalOperation.normalizeSpaces) {
-        title = transformJournalTitle(title, op);
-      }
-    }
     final before = _current;
-    _restoring = true;
-    final previous = _editor.document;
-    _editor.skipRequestKeyboard = true;
-    _editor.document = quill.Document.fromJson(document);
-    // Quill consumes this flag on each notification, including document replacement.
-    _editor.skipRequestKeyboard = true;
-    _editor.updateSelection(
-      const TextSelection.collapsed(offset: 0),
-      quill.ChangeSource.local,
-    );
-    previous.close();
-    _title.text = title;
-    if (operations.contains(JournalOperation.removeBold)) _titleBold = false;
-    _restoring = false;
-    _changed();
-    _stayBrowsing();
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (mounted &&
-          !_bodyFocus.canRequestFocus &&
-          !_titleFocus.canRequestFocus) {
-        _stayBrowsing();
-      }
-    });
+    _applyOperations(chain ?? [operation]);
     if (_current == before) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
@@ -666,6 +635,41 @@ class JournalEditorState extends State<_JournalEditorView>
         ),
       );
     await _save();
+  }
+
+  void _applyOperations(List<JournalOperation> operations) {
+    _stayBrowsing();
+    List<dynamic> document = _editor.document.toDelta().toJson();
+    var title = _title.text;
+    for (final op in operations) {
+      document = transformJournalDocument(document, op);
+      if (op != JournalOperation.normalizeSpaces) {
+        title = transformJournalTitle(title, op);
+      }
+    }
+    _restoring = true;
+    final previous = _editor.document;
+    _editor.skipRequestKeyboard = true;
+    _editor.document = quill.Document.fromJson(document);
+    // Quill consumes this flag on each notification, including document replacement.
+    _editor.skipRequestKeyboard = true;
+    _editor.updateSelection(
+      const TextSelection.collapsed(offset: 0),
+      quill.ChangeSource.local,
+    );
+    previous.close();
+    _title.text = title;
+    if (operations.contains(JournalOperation.removeBold)) _titleBold = false;
+    _restoring = false;
+    _changed();
+    _stayBrowsing();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted &&
+          !_bodyFocus.canRequestFocus &&
+          !_titleFocus.canRequestFocus) {
+        _stayBrowsing();
+      }
+    });
   }
 
   Future<void> _export() async {
@@ -1119,6 +1123,9 @@ class JournalEditorState extends State<_JournalEditorView>
                         )
                       : null,
                   onPressed: () async {
+                    if (projectInline) {
+                      _applyOperations(projectUpdateCleanupOperations);
+                    }
                     if (await _save() && mounted) {
                       _stayBrowsing();
                       widget.onClose?.call();

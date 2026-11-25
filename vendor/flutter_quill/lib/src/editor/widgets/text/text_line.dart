@@ -686,7 +686,15 @@ class _TextLineState extends State<TextLine> {
     }
 
     if (nodeStyle.containsKey(Attribute.inlineCode.key)) {
-      res = _merge(res, defaultStyles.inlineCode!.styleFor(lineStyle));
+      final codeStyle = defaultStyles.inlineCode!.styleFor(lineStyle);
+      final size = codeStyle.fontSize;
+      final bodySize = _getLineStyle(defaultStyles).fontSize;
+      res = _merge(
+        res,
+        size != null && bodySize != null && bodySize - size >= 2
+            ? codeStyle.copyWith(fontSize: size + 1)
+            : codeStyle,
+      );
     }
 
     final font = nodeStyle.attributes[Attribute.font.key];
@@ -1524,6 +1532,10 @@ class RenderEditableTextLine extends RenderEditableBox {
       final parentData = _body!.parentData as BoxParentData;
       final effectiveOffset = offset + parentData.offset;
 
+      final codeGlyphs = Path();
+      final canShiftCode =
+          _body is RenderParagraphProxy && !_body!.needsCompositing;
+      final pixel = 1 / devicePixelRatio;
       if (inlineCodeStyle.backgroundColor != null) {
         final ranges = <TextRange>[];
         for (final item in line.children) {
@@ -1568,45 +1580,49 @@ class RenderEditableTextLine extends RenderEditableBox {
               ? (_body! as RenderParagraphProxy).child
               : null;
           final fontSize = paragraph?.text.style?.fontSize ?? 18;
-          // Measure the actual code glyphs so both painted edges use the same
-          // inset, independent of the invisible spacing glyph's half advance.
-          final inset = paragraph == null
-              ? 5.0
-              : 5 * paragraph.textScaler.scale(fontSize) / fontSize;
+          final codeFontSize = inlineCodeStyle.styleFor(line.style).fontSize;
+          final extraPadding =
+              codeFontSize != null && (fontSize - codeFontSize).abs() == 1
+              ? pixel
+              : 0.0;
+          final scaledFontSize =
+              paragraph?.textScaler.scale(fontSize) ?? fontSize;
+          // Follow the body glyph size while retaining the existing side insets
+          // and the full line boxes used for selection and wrapping.
+          final inset = 5 * scaledFontSize / fontSize;
           for (final box in rects) {
             final rect = box.shift(effectiveOffset);
-            // Anchor the first background to the paragraph edge; font side
-            // bearings and the invisible spacer must not add a left margin.
-            final paragraphLeading =
-                range.start == 0 &&
-                identical(box, rects.first) &&
-                paragraph?.textDirection == TextDirection.ltr &&
-                const {
-                  TextAlign.left,
-                  TextAlign.start,
-                  TextAlign.justify,
-                }.contains(paragraph?.textAlign);
-            final left = paragraphLeading
-                ? effectiveOffset.dx
-                : (rect.left - inset).clamp(
-                    effectiveOffset.dx,
-                    double.infinity,
-                  );
-            final right = rect.right + inset;
-            if (inlineCodeStyle.radius == null) {
-              final paintRect = Rect.fromLTRB(
-                left,
-                rect.top,
-                right,
-                rect.bottom,
+            if (canShiftCode) {
+              codeGlyphs.addRect(
+                Rect.fromLTRB(
+                  rect.left - 1,
+                  rect.top - pixel,
+                  rect.right + 1,
+                  rect.bottom,
+                ),
               );
+            }
+            // The background may extend into the list gutter so the first
+            // glyph can stay aligned with prose and still have its full inset.
+            final left = rect.left - inset;
+            final right = rect.right + inset;
+            final height = math.min(rect.height, scaledFontSize * 0.9);
+            final alignedTop = math.min(
+              rect.bottom - height,
+              rect.center.dy + scaledFontSize * 0.10 - height / 2,
+            );
+            final top =
+                alignedTop - extraPadding - (canShiftCode ? 5 : 4) * pixel;
+            final bottom = alignedTop + height + extraPadding + 2 * pixel;
+            if (inlineCodeStyle.radius == null) {
+              final paintRect = Rect.fromLTRB(left, top, right, bottom);
               context.canvas.drawRect(paintRect, paint);
             } else {
               final paintRect = RRect.fromLTRBR(
                 left,
-                rect.top,
+                top,
                 right,
-                rect.bottom,
+                bottom,
                 inlineCodeStyle.radius!,
               );
               context.canvas.drawRRect(paintRect, paint);
@@ -1622,7 +1638,26 @@ class RenderEditableTextLine extends RenderEditableBox {
         _paintCursor(context, effectiveOffset, line.hasEmbed);
       }
 
-      context.paintChild(_body!, effectiveOffset);
+      if (codeGlyphs.getBounds().isEmpty) {
+        context.paintChild(_body!, effectiveOffset);
+      } else {
+        // Move only the painted code glyphs. Quill keeps the paragraph's
+        // layout boxes for the caret, selection, and pointer hit testing.
+        final canvas = context.canvas;
+        final paragraphBounds = Path()
+          ..addRect((effectiveOffset & _body!.size).inflate(16));
+        canvas.save();
+        canvas.clipPath(
+          Path.combine(PathOperation.difference, paragraphBounds, codeGlyphs),
+          doAntiAlias: false,
+        );
+        context.paintChild(_body!, effectiveOffset);
+        canvas.restore();
+        canvas.save();
+        canvas.clipPath(codeGlyphs, doAntiAlias: false);
+        context.paintChild(_body!, effectiveOffset - Offset(0, pixel));
+        canvas.restore();
+      }
 
       if (hasFocus &&
           cursorCont.show.value &&

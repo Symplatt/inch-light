@@ -484,6 +484,7 @@ class _TodoPageState extends State<TodoPage> {
                   ),
                 ),
           child: InkWell(
+            onTap: () => _completeTask(task, provider),
             onLongPress: () => _showEditTaskDialog(context, task),
             borderRadius: BorderRadius.circular(inCollection ? 0 : 16),
             child: ListTile(
@@ -491,24 +492,21 @@ class _TodoPageState extends State<TodoPage> {
                 horizontal: 16,
                 vertical: 3,
               ),
-              leading: GestureDetector(
-                onTap: () => _completeTask(task, provider),
-                child: AnimatedContainer(
-                  duration: const Duration(milliseconds: 200),
-                  width: 24,
-                  height: 24,
-                  decoration: BoxDecoration(
-                    color: checked ? AppColors.primary : Colors.transparent,
-                    shape: BoxShape.circle,
-                    border: Border.all(
-                      color: checked ? AppColors.primary : AppColors.textGrey,
-                      width: 1.4,
-                    ),
+              leading: AnimatedContainer(
+                duration: const Duration(milliseconds: 200),
+                width: 24,
+                height: 24,
+                decoration: BoxDecoration(
+                  color: checked ? AppColors.primary : Colors.transparent,
+                  shape: BoxShape.circle,
+                  border: Border.all(
+                    color: checked ? AppColors.primary : AppColors.textGrey,
+                    width: 1.4,
                   ),
-                  child: checked
-                      ? const Icon(Icons.check, size: 16, color: Colors.white)
-                      : null,
                 ),
+                child: checked
+                    ? const Icon(Icons.check, size: 16, color: Colors.white)
+                    : null,
               ),
               trailing: task.isPinned || task.isBottom
                   ? Icon(

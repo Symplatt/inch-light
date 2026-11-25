@@ -32,6 +32,22 @@ class ProjectUpdateEditorPage extends StatefulWidget {
 }
 
 class _ProjectUpdateEditorPageState extends State<ProjectUpdateEditorPage> {
+  static const _defaultTitle = '版本更新';
+  static final _defaultTitlePattern = RegExp(r'^版本更新(?:\([0-9]+\))?$');
+
+  String _nextDefaultTitle(UpdateProject project) {
+    final number =
+        1 +
+        project.updates
+            .where(
+              (update) =>
+                  update.id != _id &&
+                  _defaultTitlePattern.hasMatch(update.version),
+            )
+            .length;
+    return number == 1 ? _defaultTitle : '$_defaultTitle($number)';
+  }
+
   late final _title = TextEditingController(text: widget.update?.version ?? '');
   final _titleFocus = FocusNode(canRequestFocus: false);
   late final _id = widget.update?.id ?? const Uuid().v4();
@@ -88,7 +104,7 @@ class _ProjectUpdateEditorPageState extends State<ProjectUpdateEditorPage> {
     String? deleteItemId,
     JournalEntry? legacyNote,
   }) async {
-    final title = _title.text.trim().isEmpty ? '版本更新' : _title.text.trim();
+    final enteredTitle = _title.text.trim();
     final now = DateTime.now();
     await context.read<AppProvider>().updateProjectUpdates((data) {
       final project = data.projects.firstWhere(
@@ -97,6 +113,11 @@ class _ProjectUpdateEditorPageState extends State<ProjectUpdateEditorPage> {
       final current = project.updates
           .where((update) => update.id == _id)
           .firstOrNull;
+      final title = enteredTitle.isNotEmpty
+          ? enteredTitle
+          : current != null && _defaultTitlePattern.hasMatch(current.version)
+          ? current.version
+          : _nextDefaultTitle(project);
       final items = [...?current?.items];
       final legacy =
           legacyNote ??
@@ -876,6 +897,19 @@ class _ProjectUpdateEditorPageState extends State<ProjectUpdateEditorPage> {
       double.infinity,
     );
     numberMeasure.dispose();
+    final count = child == null
+        ? entries.length +
+              items
+                  .where(
+                    (item) =>
+                        item.moduleId == module.id &&
+                        module.children.any(
+                          (child) => child.id == item.childId,
+                        ) &&
+                        projectUpdateItemHasContent(item),
+                  )
+                  .length
+        : entries.length;
     final id = child?.id ?? module.id;
     final collapsed = _collapsedGroups.contains(id);
     final showEntries = !collapsed && entries.isNotEmpty;
@@ -907,8 +941,18 @@ class _ProjectUpdateEditorPageState extends State<ProjectUpdateEditorPage> {
                       child: Row(
                         children: [
                           Expanded(
-                            child: Text(
-                              child?.name ?? module.name,
+                            child: Text.rich(
+                              TextSpan(
+                                text: child?.name ?? module.name,
+                                children: [
+                                  TextSpan(
+                                    text: ' $count',
+                                    style: const TextStyle(
+                                      color: AppColors.textGrey,
+                                    ),
+                                  ),
+                                ],
+                              ),
                               style: const TextStyle(
                                 fontSize: 16,
                                 fontWeight: FontWeight.w500,
@@ -1122,8 +1166,9 @@ class _ProjectUpdateEditorPageState extends State<ProjectUpdateEditorPage> {
                               fontWeight: FontWeight.w400,
                             ),
                             maxLines: null,
-                            decoration: const InputDecoration(
-                              hintText: '版本更新',
+                            decoration: InputDecoration(
+                              hintText:
+                                  update?.version ?? _nextDefaultTitle(project),
                               border: InputBorder.none,
                               isDense: true,
                               contentPadding: EdgeInsets.zero,
@@ -1143,7 +1188,9 @@ class _ProjectUpdateEditorPageState extends State<ProjectUpdateEditorPage> {
                           Transform.translate(
                             offset: Offset(
                               0,
-                              MediaQuery.textScalerOf(context).scale(0.7) - 1,
+                              MediaQuery.textScalerOf(context).scale(0.7) -
+                                  1 +
+                                  1 / MediaQuery.devicePixelRatioOf(context),
                             ),
                             child: Text(
                               toolDateText(update?.editedAt ?? _date),
