@@ -1,3 +1,9 @@
+# 3.25.0+168 正式发布完成（2026-11-25）
+
+- 发布源码提交 2752c95a835e2458660d0a740766181ed25d6531 已推送，远程 v3.25.0 标签指向该提交。GitHub Release 正文与 CHANGELOG 一致。
+- 三个远端 APK 的大小及 SHA-256 均与本地正式包一致。手机已安装的 ARM64 包 SHA-256 为 27b4dcfab46eeecde3b8dece6b5034ad48d41a698a7b2cf46ac6054d41e09da8，与发布资产一致。
+- 核验记录见 build/validation-3.25.0/published.log。发布地址：https://github.com/Symplatt/inch-light/releases/tag/v3.25.0
+
 # 3.25.0+168 已审核，正式包验证完成（2026-11-25）
 
 - 用户已审核通过，README、pubspec.yaml 和 CHANGELOG 对应 3.25.0。三架构正式包版本号分别为 1168、2168、4168，包名和签名一致。
